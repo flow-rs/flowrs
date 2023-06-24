@@ -1,3 +1,5 @@
-mod shapes;
+mod nodes;
 
-pub use self::shapes::add;
+pub use self::nodes::add;
+pub use self::nodes::job;
+pub use self::nodes::chain;

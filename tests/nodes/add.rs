@@ -1,36 +1,27 @@
 #[cfg(test)]
 mod nodes {
     use fbp::job::Job;
-    use std::{ops::Add, sync::mpsc::channel};
+    use std::{ops::Add, sync::mpsc::{channel, Sender, Receiver}, vec};
 
     use fbp::add::AddNode;
 
     #[test]
     fn should_add_132() {
-        let (s1, r1) = channel();
-        let (s2, r2) = channel();
-        let (s3, r3) = channel();
+        let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
-        let mut add = AddNode {
-            state: None,
-            name: "AddNodeI32".to_owned(),
-            input: vec![r1, r2],
-            output: vec![s3],
-            neutral: 0,
-            to_state: |i| i,
-            from_state: |i| i,
-        };
+        let mut add = AddNode::new("AddNodeI32", 0, |i| i, |i| i);
 
-        s1.send(1);
-        s2.send(2);
+        let _ = add.input()[0].send(1);
+        let _ = add.input()[1].send(2);
+        add.connect(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");
         add.handle();
         assert!(add.state == Some(1));
         add.handle();
         assert!(add.state == None);
-        assert!(add.output.len() == 1);
-        assert!(r3.recv().unwrap() == 3);
+        assert!(add.output().len() == 1);
+        assert!(mock_r.recv().unwrap() == 3);
     }
 
     #[test]
@@ -55,27 +46,19 @@ mod nodes {
                 IorS::Int(int1 + int2)
             }
         }
-        let (s1, r1) = channel();
-        let (s2, r2) = channel();
-        let (s3, r3) = channel();
-        let mut add = AddNode {
-            state: None,
-            name: "AddNodeIntegerString".to_owned(),
-            input: vec![r1, r2],
-            output: vec![s3],
-            neutral: IorS::Int(0),
-            to_state: |i| i,
-            from_state: |i| i,
-        };
+        let (mock_s, mock_r): (Sender<IorS>, Receiver<IorS>) = channel();
 
-        s1.send(IorS::Int(1));
-        s2.send(IorS::Str("2".to_owned()));
+        let mut add = AddNode::new("AddNodeI32", IorS::Int(0), |i| i, |i| i);
+
+        let _ = add.input()[0].send(IorS::Int(1));
+        let _ = add.input()[1].send(IorS::Str("2".into()));
+        add.connect(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");
         add.handle();
         assert!(add.state == Some(IorS::Int(1)));
         add.handle();
         assert!(add.state == None);
-        assert!(r3.recv().unwrap() == IorS::Int(3));
+        assert!(mock_r.recv().unwrap() == IorS::Int(3));
     }
 }

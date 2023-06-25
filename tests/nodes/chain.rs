@@ -1,16 +1,16 @@
 #[cfg(test)]
 mod nodes {
     use fbp::job::Job;
-    use std::{sync::mpsc::{channel, Sender, Receiver}};
+    use std::sync::mpsc::{channel, Receiver, Sender};
 
     use fbp::add::AddNode;
 
     /// Test scenario:
-    /// 
-    /// Output: r7
+    ///
+    /// Output: mock_r
     /// Inputs: s1-s4
-    /// 
-    ///       r7
+    ///
+    ///     mock_r
     ///       |
     ///      add3
     ///    /     \
@@ -23,8 +23,8 @@ mod nodes {
         let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
         let mut add1 = AddNode::new("Add1", 0, |i| i, |i| i);
-        let mut add2 = AddNode::new("Add1", 0, |i| i, |i| i);
-        let mut add3 = AddNode::new("Add1", 0, |i| i, |i| i);
+        let mut add2 = AddNode::new("Add2", 0, |i| i, |i| i);
+        let mut add3 = AddNode::new("Add3", 0, |i| i, |i| i);
         // Init queues
         let _ = add1.input()[0].send(1);
         let _ = add1.input()[1].send(2);
@@ -38,14 +38,12 @@ mod nodes {
         let mut jobs = vec![add1, add2, add3];
         println!("Jobs");
         for i in 0..9 {
-            println!("Job: {}", i%3);
-            jobs[i%3].handle()
+            println!("Job: {}", i % 3);
+            jobs[i % 3].handle()
         }
 
         assert!(mock_r.recv().unwrap() == 10);
     }
     #[test]
-    fn should_connect_homogenious_nodes() {
-
-    }
+    fn should_connect_homogenious_nodes() {}
 }

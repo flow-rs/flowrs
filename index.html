@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hello World - Rust</title>
+  </head>
+  <body>
+    <script type="module">
+      import init, {run_flow} from './pkg/flow.js'
+
+      // Always required for wasm
+      await init();
+
+      // Calling my first routine
+      await run_flow();
+    </script>
+  </body>
+</html>

@@ -1,8 +1,7 @@
-use crate::job::Job;
+use crate::job::{Job, Connectable};
 use std::{
     ops::Add,
-    sync::mpsc::{Receiver, Sender, channel},
-    time::Duration, vec,
+    sync::mpsc::{Receiver, Sender, channel}, vec,
 };
 
 pub struct AddNode<S, I, O>
@@ -36,7 +35,7 @@ impl<S, I, O> AddNode<S, I, O> {
     }
 }
 
-impl<S, I, O> Job<I, O> for AddNode<S, I, O>
+impl<S, I, O> Job for AddNode<S, I, O>
 where
     I: Add<Output = O> + Clone,
     S: Clone,
@@ -48,8 +47,9 @@ where
                 None => None,
                 Some(i) => {
                     let f = self.to_state;
-                    match i.recv_timeout(Duration::from_millis(10)) {
-                        Err(e) => return,
+                    // Avoiding recv_timout since wasm can't access system time without JS bindings
+                    match i.try_recv() {
+                        Err(_) => return,
                         Ok(v) => Some(f(v)),
                     }
                 }
@@ -58,7 +58,8 @@ where
                 let v1 = self.input.get(1);
                 let v = match v1 {
                     None => self.neutral_ele.clone(),
-                    Some(c) => match c.recv_timeout(Duration::from_millis(10)) {
+                    // Avoiding recv_timout since wasm can't access system time without JS bindings
+                    Some(c) => match c.try_recv() {
                         Ok(w) => w,
                         // Nothing to do, skipping cycle
                         Err(_) => return,
@@ -72,6 +73,18 @@ where
             }
         };
     }
+
+    fn name(&self) -> &String {
+        &self.name
+    }
+}
+
+impl<S, I, O> Connectable<I, O> for AddNode<S, I, O>
+where
+    I: Add<Output = O> + Clone,
+    S: Clone,
+    O: Clone,
+{
 
     fn input(&self) -> &Vec<Sender<I>> {
         &self.connectors

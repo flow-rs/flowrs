@@ -1,6 +1,6 @@
-use std::{fmt::Display, sync::mpsc::{Receiver, Sender, channel}, time::Duration, iter::Successors};
+use std::{fmt::Display, sync::mpsc::{Receiver, Sender, channel}};
 
-use crate::job::Job;
+use crate::{job::{Job, Connectable}, log};
 
 pub struct DebugNode<I, O> where I: Sized, O: Sized {
     pub name: String,
@@ -16,17 +16,27 @@ impl<I, O> DebugNode<I, O> {
     }
 }
 
-impl<I, O> Job<I, O> for DebugNode<I, O> where I: Display + Clone, O: Clone {
+impl<I, O> Job for DebugNode<I, O> where I: Display + Clone, O: Clone {
     fn handle(&mut self) {
         print!("{} node prints: ", self.name);
         self.input.iter().for_each(|c| {
-            match c.recv_timeout(Duration::from_millis(10)) {
-                Err(_) => println!("Nothing"),
-                Ok(x) => println!("{}", x)
+            // Avoiding recv_timout since wasm can't access system time without JS bindings
+            let msg = match c.try_recv() {
+                Err(_) => format!("Nothing"),
+                Ok(x) => format!("{}", x)
             };
+            // Log to Rust and Browser console
+            println!("{}", msg);
+            log(msg.as_str());
         });
     }
 
+    fn name(&self) -> &String {
+        &self.name
+    }
+}
+
+impl<I, O> Connectable<I, O> for DebugNode<I, O> where I: Display + Clone, O: Clone {
     fn input(&self) -> &Vec<Sender<I>> {
         &self.connectors
     }

@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod nodes {
-    use fbp::job::Job;
+    use flow::job::{Job, Connectable};
     use std::{ops::Add, sync::mpsc::{channel, Sender, Receiver}, vec};
 
-    use fbp::add::AddNode;
+    use flow::add::AddNode;
 
     #[test]
     fn should_add_132() {

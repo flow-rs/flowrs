@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod nodes {
-    use fbp::job::Job;
+    use flow::job::Job;
+    use flow::job::Connectable;
     use std::sync::mpsc::{channel, Receiver, Sender};
 
-    use fbp::add::AddNode;
+    use flow::add::AddNode;
 
     /// Test scenario:
     ///

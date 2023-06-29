@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod nodes {
-    use flow::job::Job;
     use flow::job::Connectable;
+    use flow::job::Context;
+    use flow::job::Job;
     use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::sync::Arc;
 
     use flow::add::AddNode;
 
@@ -23,17 +25,18 @@ mod nodes {
         // All 7 edges of the graph
         let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
-        let mut add1 = AddNode::new("Add1", 0, |i| i, |i| i);
-        let mut add2 = AddNode::new("Add2", 0, |i| i, |i| i);
-        let mut add3 = AddNode::new("Add3", 0, |i| i, |i| i);
+        let context = Arc::new(Context {});
+        let mut add1 = AddNode::new("Add1", context.clone(), 0);
+        let mut add2 = AddNode::new("Add2", context.clone(), 0);
+        let mut add3 = AddNode::new("Add3", context.clone(), 0);
         // Init queues
-        let _ = add1.input()[0].send(1);
-        let _ = add1.input()[1].send(2);
-        let _ = add2.input()[0].send(3);
-        let _ = add2.input()[1].send(4);
-        add1.connect(vec![add3.input()[0].clone()]);
-        add2.connect(vec![add3.input()[1].clone()]);
-        add3.connect(vec![mock_s]);
+        let _ = add1.send(1);
+        let _ = add1.send_at(1, 2);
+        let _ = add2.send(3);
+        let _ = add2.send_at(1, 4);
+        add1.chain(vec![add3.input()[0].clone()]);
+        add2.chain(vec![add3.input()[1].clone()]);
+        add3.chain(vec![mock_s]);
         // Mocking a FIFO Queue considering two steps per addition and a buffer of
         // three for scheduling cycles where no item was present for processing.
         let mut jobs = vec![add1, add2, add3];

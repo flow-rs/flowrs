@@ -1,4 +1,5 @@
 pub mod add;
-pub mod job;
-pub mod debug;
 pub mod chain;
+pub mod connection;
+pub mod debug;
+pub mod job;

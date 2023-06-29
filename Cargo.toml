@@ -8,6 +8,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+flow-derive = { path = "flow-derive" }
 wasm-bindgen = "0.2.87"
 
 [dev-dependencies]

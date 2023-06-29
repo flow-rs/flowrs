@@ -1,19 +1,27 @@
 #[cfg(test)]
 mod nodes {
-    use flow::job::{Job, Connectable};
-    use std::{ops::Add, sync::mpsc::{channel, Sender, Receiver}, vec};
+    use flow::job::{Connectable, Context, Job};
+    use std::{
+        ops::Add,
+        sync::{
+            mpsc::{channel, Receiver, Sender},
+            Arc,
+        },
+        vec,
+    };
 
     use flow::add::AddNode;
 
     #[test]
     fn should_add_132() {
+        let context = Arc::new(Context {});
         let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
-        let mut add = AddNode::new("AddNodeI32", 0, |i| i, |i| i);
+        let mut add = AddNode::new("AddNodeI32", context, 0);
 
-        let _ = add.input()[0].send(1);
-        let _ = add.input()[1].send(2);
-        add.connect(vec![mock_s]);
+        let _ = add.send(1);
+        let _ = add.send_at(1, 2);
+        add.chain(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");
         add.handle();
@@ -46,13 +54,14 @@ mod nodes {
                 IorS::Int(int1 + int2)
             }
         }
+        let context = Arc::new(Context {});
         let (mock_s, mock_r): (Sender<IorS>, Receiver<IorS>) = channel();
 
-        let mut add = AddNode::new("AddNodeI32", IorS::Int(0), |i| i, |i| i);
+        let mut add = AddNode::new("AddNodeI32", context, IorS::Int(0));
 
         let _ = add.input()[0].send(IorS::Int(1));
         let _ = add.input()[1].send(IorS::Str("2".into()));
-        add.connect(vec![mock_s]);
+        add.chain(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");
         add.handle();

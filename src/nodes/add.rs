@@ -1,12 +1,8 @@
 use std::ops::Add;
-use std::sync::{mpsc::Sender, Arc};
+use std::sync::Arc;
 
+use crate::job::{Context, Job};
 use crate::Connectable;
-
-use crate::job::Job;
-
-use super::connection::Connection;
-use super::job::Context;
 
 #[derive(Connectable)]
 pub struct AddNode<I, O>
@@ -46,23 +42,24 @@ where
                     // Avoiding recv_timout since wasm can't access system time without JS bindings
                     match i.try_recv() {
                         Err(_) => return,
-                        Ok(v) => Some(v),
+                        Ok(value) => Some(value),
                     }
                 }
             },
             Some(i) => {
-                let v1 = self.conn.input.get(1);
-                let v = match v1 {
+                // TODO: don't use conn at all
+                let recv = self.conn.input.get(1);
+                let value = match recv {
                     None => self.neutral_ele.clone(),
                     // Avoiding recv_timout since wasm can't access system time without JS bindings
-                    Some(c) => match c.try_recv() {
-                        Ok(w) => w,
+                    Some(chan) => match chan.try_recv() {
+                        Ok(value) => value,
                         // Nothing to do, skipping cycle
                         Err(_) => return,
                     },
                 };
-                for c in self.conn.output() {
-                    _ = c.send(i.clone() + v.clone())
+                for chan in self.output() {
+                    _ = chan.send(i.clone() + value.clone())
                 }
                 None
             }

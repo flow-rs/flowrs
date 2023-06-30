@@ -1,14 +1,10 @@
-use std::{
-    fmt::Display,
-    sync::{mpsc::Sender, Arc},
-};
+use std::{fmt::Display, sync::Arc};
 
 use crate::Connectable;
-
-use crate::{job::Job, log};
-
-use super::connection::Connection;
-use super::job::Context;
+use crate::{
+    job::{Context, Job},
+    log,
+};
 
 #[derive(Connectable)]
 pub struct DebugNode<I, O>
@@ -45,7 +41,7 @@ where
                 Err(_) => format!("Nothing"),
                 Ok(x) => format!("{}", x),
             };
-            // Log to Rust and Browser console
+            // Log to terminal and Browser console
             println!("{}", msg);
             log(msg.as_str());
         });

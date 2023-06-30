@@ -1,10 +1,51 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::{
+    fmt,
+    sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
+};
 
 use crate::job::Connectable;
+
+#[derive(Debug)]
+pub enum ConnectError<I> {
+    SendErr(SendError<I>),
+    RecvErr(RecvError),
+    ChanErr(ChannelError),
+}
+
+#[derive(Debug, Clone)]
+pub struct ChannelError {
+    index: usize,
+    size: usize,
+}
+
+impl<I> From<SendError<I>> for ConnectError<I> {
+    fn from(value: SendError<I>) -> Self {
+        ConnectError::SendErr(value)
+    }
+}
+
+impl<I> From<RecvError> for ConnectError<I> {
+    fn from(value: RecvError) -> Self {
+        ConnectError::RecvErr(value)
+    }
+}
+
+impl<I> From<ChannelError> for ConnectError<I> {
+    fn from(value: ChannelError) -> Self {
+        ConnectError::ChanErr(value)
+    }
+}
+
+impl fmt::Display for ChannelError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "This Node has not enough inputs. Attempted write on input {} while this node only has {} inputs.", self.index, self.size)
+    }
+}
 
 pub struct Connection<I, O> {
     connectors: Vec<Sender<I>>,
     pub input: Vec<Receiver<I>>,
+    input_size: usize,
     output: Vec<Sender<O>>,
 }
 
@@ -21,12 +62,13 @@ impl<I, O> Connection<I, O> {
             connectors,
             input,
             output: vec![],
+            input_size: inputs,
         }
     }
 }
 
 impl<I, O> Connectable<I, O> for Connection<I, O> {
-    fn input(&self) -> &Vec<Sender<I>> {
+    fn inputs(&self) -> &Vec<Sender<I>> {
         &self.connectors
     }
 
@@ -41,11 +83,31 @@ impl<I, O> Connectable<I, O> for Connection<I, O> {
         self
     }
 
-    fn send_at(&self, index: usize, value: I) {
-        let _ = &self.input()[index].send(value);
+    fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {
+        match self.inputs().get(index) {
+            Some(chan) => Ok(chan.clone().send(value)?),
+            None => Err(ConnectError::ChanErr(ChannelError {
+                index,
+                size: self.input_size,
+            })),
+        }
     }
 
-    fn send(&self, value: I) {
-        let _ = &self.input()[0].send(value);
+    fn send(&self, value: I) -> Result<(), ConnectError<I>> {
+        self.send_at(0, value)
+    }
+
+    fn input_at(&self, index: usize) -> Result<Sender<I>, ConnectError<I>> {
+        match self.connectors.get(index).cloned() {
+            Some(chan) => Ok(chan),
+            None => Err(ConnectError::ChanErr(ChannelError {
+                index,
+                size: self.input_size,
+            })),
+        }
+    }
+
+    fn input(&self) -> Result<Sender<I>, ConnectError<I>> {
+        self.input_at(0)
     }
 }

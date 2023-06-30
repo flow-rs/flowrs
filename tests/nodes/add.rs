@@ -59,8 +59,8 @@ mod nodes {
 
         let mut add = AddNode::new("AddNodeI32", context, IorS::Int(0));
 
-        let _ = add.input()[0].send(IorS::Int(1));
-        let _ = add.input()[1].send(IorS::Str("2".into()));
+        let _ = add.send_at(0, IorS::Int(1));
+        let _ = add.send_at(1, IorS::Str("2".into()));
         add.chain(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");

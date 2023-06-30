@@ -14,9 +14,9 @@ mod nodes {
     fn should_debug() {
         let context = Arc::new(Context {});
         let mut debug: DebugNode<i32, i32> = DebugNode::new("DebugNode", context);
-        let _ = debug.input()[0].send(1);
-        let _ = debug.input()[0].send(2);
-        let _ = debug.input()[0].send(3);
+        let _ = debug.send(1);
+        let _ = debug.send(2);
+        let _ = debug.send(3);
         debug.handle();
         debug.handle();
         debug.handle();

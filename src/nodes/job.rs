@@ -4,13 +4,18 @@ use super::connection::ConnectError;
 
 pub struct Context {}
 
+pub trait Node<I, O>: Job + Connectable<I, O> {}
+impl<I, O, T: Job + Connectable<I, O>> Node<I, O> for T {}
+
 pub trait Job {
-    fn handle(&mut self);
     fn name(&self) -> &String;
+    fn handle(&mut self);
+    fn init(&mut self);
+    fn destory(&mut self);
 }
 
 pub trait Connectable<I, O> {
-    fn chain(&mut self, successors: Vec<Sender<O>>) -> &Self;
+    fn chain(&mut self, successors: Vec<Sender<O>>);
     fn inputs(&self) -> &Vec<Sender<I>>;
     fn input(&self) -> Result<Sender<I>, ConnectError<I>>;
     fn input_at(&self, index: usize) -> Result<Sender<I>, ConnectError<I>>;

@@ -19,6 +19,8 @@ fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         })),
         _ => None,
     };
+    // The generics can be applied as stated since any additional generics won't be used.
+    let (_, ty_generics, where_clause) = ast.generics.split_for_impl();
     // The nested connection field is required to know what field to delegate the impl to.
     match conn_field.unwrap().next().clone() {
         None => panic!("Your Struct requires a field of type Connection<I, O> in order to derive from Connectable.\n
@@ -31,7 +33,7 @@ fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
                 use crate::nodes::connection::ConnectError;
                 use super::connection::Connection;
                 use std::sync::mpsc::Sender;
-                impl<I, O> Connectable<I, O> for #struct_ident<I, O> {
+                impl #ty_generics Connectable<I, O> for #struct_ident #ty_generics #where_clause {
                     fn inputs(&self) -> &Vec<Sender<I>> {
                         &self.#field_ident.inputs()
                     }
@@ -40,9 +42,8 @@ fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
                         &self.#field_ident.output()
                     }
 
-                    fn chain(&mut self, successors: Vec<std::sync::mpsc::Sender<O>>) -> &Self {
+                    fn chain(&mut self, successors: Vec<std::sync::mpsc::Sender<O>>) {
                         self.#field_ident.chain(successors);
-                        self
                     }
 
                     fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {
@@ -58,7 +59,7 @@ fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
                     }
 
                     fn input(&self) -> Result<Sender<I>, ConnectError<I>> {
-                        self.input_at(0)
+                        self.#field_ident.input()
                     }
                 }
             }

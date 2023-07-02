@@ -10,8 +10,8 @@ where
     I: Sized,
 {
     conn: Connection<I, O>,
+    _context: Arc<Context>,
     name: String,
-    context: Arc<Context>,
     pub state: Option<I>,
     neutral_ele: I,
 }
@@ -24,7 +24,7 @@ impl<I, O> AddNode<I, O> {
             conn,
             state: None,
             name: name.into(),
-            context,
+            _context: context,
         }
     }
 }
@@ -68,5 +68,13 @@ where
 
     fn name(&self) -> &String {
         &self.name
+    }
+
+    fn init(&mut self) {
+        ()
+    }
+
+    fn destory(&mut self) {
+        ()
     }
 }

@@ -6,17 +6,17 @@
   </head>
   <body>
     <script type="module">
-      import init, {run_flow, AppState} from './pkg/flow.js'
+      import init, {example_flow, AppState} from './pkg/flow.js'
 
       // Always required for wasm
       await init();
 
       // Calling my first routine
-      const appState = await AppState.new();
-      const i1 = await appState.add_node("Test", "add");
-      const i2 = await appState.add_node("Test", "debug");
-      console.log(i1, i2);
-      await run_flow();
+      const appState = AppState.new();
+      const id1 = appState.add_number_node("Test", "add");
+      const id2 = appState.add_number_node("Test", "debug");
+      console.log(id1, id2);
+      example_flow();
     </script>
   </body>
 </html>

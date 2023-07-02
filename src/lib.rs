@@ -1,7 +1,17 @@
 mod nodes;
 
 use std::collections::HashMap;
+use std::option::Iter;
 use std::sync::Arc;
+
+pub use self::nodes::add;
+pub use self::nodes::connection;
+pub use self::nodes::debug;
+pub use self::nodes::job;
+pub use self::nodes::job::Node;
+pub use self::nodes::repeat;
+pub use flow_derive::Connectable;
+use nodes::repeat::RepeatNode;
 
 use crate::add::AddNode;
 use crate::debug::DebugNode;
@@ -9,12 +19,6 @@ use crate::job::Connectable;
 use crate::job::Context;
 use crate::job::Job;
 use wasm_bindgen::prelude::wasm_bindgen;
-
-pub use self::nodes::add;
-pub use self::nodes::connection;
-pub use self::nodes::debug;
-pub use self::nodes::job;
-pub use flow_derive::Connectable;
 
 #[wasm_bindgen]
 pub struct AppState {
@@ -33,11 +37,15 @@ impl AppState {
         }
     }
 
-    pub fn add_node(&mut self, name: &str, kind: &str) -> u32 {
+    pub fn add_number_node(&mut self, name: &str, kind: &str) -> u32 {
         let node: Box<dyn Job> = match kind {
-            "add" => Box::new(AddNode::new(name, self.context.clone(), 0)),
+            "add" => Box::new(AddNode::<i32, i32>::new(name, self.context.clone(), 0)),
             "debug" => Box::new(DebugNode::<i32, i32>::new(name, self.context.clone())),
-            _ => panic!("Invalid node type"),
+            "repeat" => Box::new(RepeatNode::<Iter<i32>, &i32>::new(
+                name,
+                self.context.clone(),
+            )),
+            _ => panic!("Unsupported node type"),
         };
         let _ = &self.jobs.insert(self.counter, node);
         self.counter += 1;
@@ -55,7 +63,7 @@ extern "C" {
 /// Executing an example flow with three add nodes and a debug node that
 /// alerts the browser upon every cycle (capped at 100 cycles).
 #[wasm_bindgen]
-pub fn run_flow() {
+pub fn example_flow() {
     let context = Arc::new(Context {});
     let mut add1 = AddNode::new("Add1", context.clone(), 0);
     let mut add2 = AddNode::new("Add2", context.clone(), 0);

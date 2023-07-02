@@ -76,11 +76,10 @@ impl<I, O> Connectable<I, O> for Connection<I, O> {
         &self.output
     }
 
-    fn chain(&mut self, successors: Vec<Sender<O>>) -> &Self {
+    fn chain(&mut self, successors: Vec<Sender<O>>) {
         for succ in successors {
             let _ = &self.output.push(succ);
         }
-        self
     }
 
     fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {

@@ -13,7 +13,7 @@ where
     O: Sized,
 {
     pub conn: Connection<I, O>,
-    context: Arc<Context>,
+    _context: Arc<Context>,
     name: String,
 }
 
@@ -23,7 +23,7 @@ impl<I, O> DebugNode<I, O> {
         Self {
             conn,
             name: name.into(),
-            context,
+            _context: context,
         }
     }
 }
@@ -49,5 +49,13 @@ where
 
     fn name(&self) -> &String {
         &self.name
+    }
+
+    fn init(&mut self) {
+        ()
+    }
+
+    fn destory(&mut self) {
+        ()
     }
 }

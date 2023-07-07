@@ -1,9 +1,10 @@
-use std::{
-    fmt,
-    sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
-};
+use std::{sync::mpsc::{SendError, RecvError, Sender, Receiver, channel}, fmt};
+
+use serde::Deserializer;
 
 use crate::job::Connectable;
+
+
 
 #[derive(Debug)]
 pub enum ConnectError<I> {
@@ -47,6 +48,13 @@ pub struct Connection<I, O> {
     pub input: Vec<Receiver<I>>,
     input_size: usize,
     output: Vec<Sender<O>>,
+}
+
+impl<'de, I, O> serde::Deserialize<'de> for Connection<I, O> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let input_size = usize::deserialize(d)?;
+        Ok(Connection::<I, O>::new(input_size))
+    }
 }
 
 impl<I, O> Connection<I, O> {

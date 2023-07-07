@@ -1,12 +1,14 @@
 use std::{fmt::Display, sync::Arc};
 
+use serde::Deserialize;
+
 use crate::Connectable;
 use crate::{
     job::{Context, Job},
     log,
 };
 
-#[derive(Connectable)]
+#[derive(Connectable, Deserialize)]
 pub struct DebugNode<I, O>
 where
     I: Sized,

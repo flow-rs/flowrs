@@ -70,4 +70,28 @@ mod nodes {
         assert!(add.state == None);
         assert!(mock_r.recv().unwrap() == IorS::Int(3));
     }
+
+    #[test]
+    fn should_deserialize_from_json() {
+        let context = Arc::new(Context {});
+        let json = r#"{"conn": 2, "_context": {}, "name": "Hello Node",  "state": null, "neutral_ele": 0}"#;
+        let actual: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
+        let expected: AddNode<i32, i32> = AddNode::new("Hello Node", context.clone(), 0);
+        assert!(expected.state == actual.state);
+        assert!(expected.name() == actual.name());
+    }
+
+    #[test]
+    #[should_panic(expected = "key must be a string")]
+    fn should_no_deserialize_from_invalid_json() {
+        let json = r#"{"conn": 2, _context: {}, "name": "Hello Node", "state": null, "neutral_ele": 0}"#;
+        let _: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "missing field `_context`")]
+    fn should_no_deserialize_from_invalid_node() {
+        let json = r#"{"conn": 2, "name": "Hello Node", "state": null, "neutral_ele": 0}"#;
+        let _: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
+    }
 }

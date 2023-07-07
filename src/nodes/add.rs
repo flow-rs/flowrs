@@ -1,10 +1,12 @@
 use std::ops::Add;
 use std::sync::Arc;
 
+use serde::{Deserialize};
+
 use crate::job::{Context, Job};
 use crate::Connectable;
 
-#[derive(Connectable)]
+#[derive(Connectable, Deserialize)]
 pub struct AddNode<I, O>
 where
     I: Sized,

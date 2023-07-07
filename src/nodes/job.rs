@@ -1,7 +1,10 @@
 use std::sync::mpsc::Sender;
 
+use serde::Deserialize;
+
 use super::connection::ConnectError;
 
+#[derive(Deserialize)]
 pub struct Context {}
 
 pub trait Node<I, O>: Job + Connectable<I, O> {}

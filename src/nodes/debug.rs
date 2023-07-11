@@ -1,5 +1,6 @@
 use std::{fmt::Display, sync::Arc};
 
+use flow_derive::build_job;
 use serde::Deserialize;
 
 use crate::Connectable;
@@ -11,15 +12,19 @@ use crate::{
 #[derive(Connectable, Deserialize)]
 pub struct DebugNode<I, O>
 where
-    I: Sized,
-    O: Sized,
+    I: Sized + Clone,
+    O: Sized + Clone,
 {
     pub conn: Connection<I, O>,
     _context: Arc<Context>,
     name: String,
 }
 
-impl<I, O> DebugNode<I, O> {
+impl<I, O> DebugNode<I, O>
+where
+    I: Clone,
+    O: Clone,
+{
     pub fn new(name: &str, context: Arc<Context>) -> Self {
         let conn = Connection::new(1);
         Self {
@@ -30,34 +35,15 @@ impl<I, O> DebugNode<I, O> {
     }
 }
 
+#[build_job]
 impl<I, O> Job for DebugNode<I, O>
 where
     I: Display + Clone,
     O: Clone,
 {
-    fn handle(&mut self) {
-        print!("{} node prints: ", self.name);
-        self.conn.input.iter().for_each(|c| {
-            // Avoiding recv_timout since wasm can't access system time without JS bindings
-            let msg = match c.try_recv() {
-                Err(_) => format!("Nothing"),
-                Ok(x) => format!("{}", x),
-            };
-            // Log to terminal and Browser console
-            println!("{}", msg);
-            log(msg.as_str());
-        });
-    }
-
-    fn name(&self) -> &String {
-        &self.name
-    }
-
-    fn init(&mut self) {
-        ()
-    }
-
-    fn destory(&mut self) {
-        ()
+    fn handle(next_elem: I) {
+        let msg = format!("{}", next_elem.clone());
+        println!("{}", msg);
+        log(msg.as_str());
     }
 }

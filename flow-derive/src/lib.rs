@@ -1,76 +1,52 @@
-use core::panic;
+mod connectable;
+mod job;
 
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Type};
+use syn::ItemImpl;
 
-fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
-    // The struct name is required to know what Struct to impl the trait for.
-    let struct_ident = ast.ident;
-    let conn_field = match ast.data {
-        syn::Data::Struct(s) => Some(s.fields.into_iter().filter(|f| {
-            match &f.ty {
-                Type::Path(p) => p
-                    .path
-                    .segments
-                    .first()
-                    .is_some_and(|f| f.ident.to_string() == "Connection"),
-                _ => false,
-            }
-        })),
-        _ => None,
-    };
-    // The generics can be applied as stated since any additional generics won't be used.
-    let (_, ty_generics, where_clause) = ast.generics.split_for_impl();
-    // The nested connection field is required to know what field to delegate the impl to.
-    match conn_field.unwrap().next().clone() {
-        None => panic!("Your Struct requires a field of type Connection<I, O> in order to derive from Connectable.\n
-        Example:\n
-        pub struct MyNode<I, O> {{conn: Connection<I, O>, ...}}\n
-        Alternatively you can implement the Connectable trait manually without using this macro."),
-        Some(field) => {
-            let field_ident = field.ident;
-            quote::quote! {
-                use crate::nodes::connection::ConnectError;
-                use super::connection::Connection;
-                use std::sync::mpsc::Sender;
-                impl #ty_generics Connectable<I, O> for #struct_ident #ty_generics #where_clause {
-                    fn inputs(&self) -> &Vec<Sender<I>> {
-                        &self.#field_ident.inputs()
-                    }
-
-                    fn output(&self) -> &Vec<Sender<O>> {
-                        &self.#field_ident.output()
-                    }
-
-                    fn chain(&mut self, successors: Vec<std::sync::mpsc::Sender<O>>) {
-                        self.#field_ident.chain(successors);
-                    }
-
-                    fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {
-                        self.#field_ident.send_at(index, value)
-                    }
-
-                    fn send(&self, value: I) -> Result<(), ConnectError<I>> {
-                        self.#field_ident.send(value)
-                    }
-
-                    fn input_at(&self, index: usize) -> Result<Sender<I>, ConnectError<I>> {
-                        self.#field_ident.input_at(index)
-                    }
-
-                    fn input(&self) -> Result<Sender<I>, ConnectError<I>> {
-                        self.#field_ident.input()
-                    }
-                }
-            }
-            .into()
-        }
-    }
-}
+use connectable::impl_connectable_trait;
+use job::impl_job_trait;
 
 #[proc_macro_derive(Connectable)]
 pub fn connectable_derive_macro(item: TokenStream) -> TokenStream {
     let ast = syn::parse(item).unwrap();
 
     impl_connectable_trait(ast)
+}
+
+/// A macro that converts multiple methods of the signature f: I -> () into a sequentially
+/// structured handle method. Note that this macro shall only be used for implementations of the Job
+/// trait and also requires the Connectable<I, O> trait to be satisfied.
+/// 
+/// # Example
+/// 
+/// ```
+/// #[build_job]
+/// impl<I, O> Job for AddNode<I, O>
+/// where
+///     I: Add<Output = O> + Clone,
+///     O: Clone
+/// {
+///     fn handle_lhs(next_elem: I) {
+///         self.state = Some(next_elem);
+///     }
+///
+///     fn handle_rhs(next_elem: I) {
+///         if let Some(input) = &self.state {
+///             self.send_out(input.clone() + next_elem.clone());
+///             self.state = None;
+///         }
+///     }
+/// }
+/// ```
+/// 
+/// In this example it is guaranteed that handle_lhs and handle_rhs
+/// will wlays be executed sequentially to preserve synchronisazion
+/// of given inputs. E.G. handle_lhs won't be executed twice before
+/// handle_rhs was executed.
+#[proc_macro_attribute]
+pub fn build_job(_: TokenStream, item: TokenStream) -> TokenStream {
+    let ast: ItemImpl = syn::parse(item.clone()).unwrap();
+
+    impl_job_trait(ast)
 }

@@ -1,28 +1,32 @@
 use std::ops::Add;
 use std::sync::Arc;
 
-use serde::{Deserialize};
+use flow_derive::build_job;
+use serde::Deserialize;
 
 use crate::job::{Context, Job};
-use crate::Connectable;
+use crate::{Connectable, Node};
 
 #[derive(Connectable, Deserialize)]
 pub struct AddNode<I, O>
 where
-    I: Sized,
+    I: Sized + Clone,
+    O: Clone
 {
     conn: Connection<I, O>,
     _context: Arc<Context>,
     name: String,
     pub state: Option<I>,
-    neutral_ele: I,
 }
 
-impl<I, O> AddNode<I, O> {
-    pub fn new(name: &str, context: Arc<Context>, neutral_ele: I) -> Self {
+impl<I, O> AddNode<I, O>
+where
+    I: Clone,
+    O: Clone
+{
+    pub fn new(name: &str, context: Arc<Context>) -> Self {
         let conn = Connection::new(2);
         Self {
-            neutral_ele,
             conn,
             state: None,
             name: name.into(),
@@ -31,52 +35,34 @@ impl<I, O> AddNode<I, O> {
     }
 }
 
+#[build_job]
 impl<I, O> Job for AddNode<I, O>
+where
+    I: Add<Output = O> + Clone,
+    O: Clone
+{
+    fn handle_lhs(next_elem: I) {
+        self.state = Some(next_elem);
+    }
+
+    fn handle_rhs(next_elem: I) {
+        if let Some(input) = &self.state {
+            self.send_out(input.clone() + next_elem.clone());
+            self.state = None;
+        }
+    }
+}
+
+impl<I, O> Node<I, O> for AddNode<I, O>
 where
     I: Add<Output = O> + Clone,
     O: Clone,
 {
-    fn handle(&mut self) {
-        self.state = match &self.state {
-            None => match self.conn.input.get(0) {
-                None => None,
-                Some(i) => {
-                    // Avoiding recv_timout since wasm can't access system time without JS bindings
-                    match i.try_recv() {
-                        Err(_) => return,
-                        Ok(value) => Some(value),
-                    }
-                }
-            },
-            Some(i) => {
-                // TODO: don't use conn at all
-                let recv = self.conn.input.get(1);
-                let value = match recv {
-                    None => self.neutral_ele.clone(),
-                    // Avoiding recv_timout since wasm can't access system time without JS bindings
-                    Some(chan) => match chan.try_recv() {
-                        Ok(value) => value,
-                        // Nothing to do, skipping cycle
-                        Err(_) => return,
-                    },
-                };
-                for chan in self.output() {
-                    _ = chan.send(i.clone() + value.clone())
-                }
-                None
-            }
-        };
-    }
-
-    fn name(&self) -> &String {
-        &self.name
-    }
-
     fn init(&mut self) {
         ()
     }
 
-    fn destory(&mut self) {
+    fn shutdown(&mut self) {
         ()
     }
 }

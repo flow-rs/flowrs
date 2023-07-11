@@ -27,9 +27,9 @@ mod nodes {
         let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
         let context = Arc::new(Context {});
-        let mut add1 = AddNode::new("Add1", context.clone(), 0);
-        let mut add2 = AddNode::new("Add2", context.clone(), 0);
-        let mut add3 = AddNode::new("Add3", context.clone(), 0);
+        let mut add1 = AddNode::new("Add1", context.clone());
+        let mut add2 = AddNode::new("Add2", context.clone());
+        let mut add3 = AddNode::new("Add3", context.clone());
         // Init queues
         let _ = add1.send_at(0, 1);
         let _ = add1.send_at(1, 2);

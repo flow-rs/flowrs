@@ -1,10 +1,12 @@
-use std::{sync::mpsc::{SendError, RecvError, Sender, Receiver, channel}, fmt};
+use std::{
+    fmt,
+    sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
+    vec,
+};
 
 use serde::Deserializer;
 
 use crate::job::Connectable;
-
-
 
 #[derive(Debug)]
 pub enum ConnectError<I> {
@@ -45,6 +47,7 @@ impl fmt::Display for ChannelError {
 
 pub struct Connection<I, O> {
     connectors: Vec<Sender<I>>,
+    pub state: Vec<Option<I>>,
     pub input: Vec<Receiver<I>>,
     input_size: usize,
     output: Vec<Sender<O>>,
@@ -61,13 +64,16 @@ impl<I, O> Connection<I, O> {
     pub fn new(inputs: usize) -> Self {
         let mut connectors = vec![];
         let mut input = vec![];
+        let mut state = vec![];
         for _ in 0..inputs {
             let (sender, receiver) = channel();
             connectors.push(sender);
             input.push(receiver);
+            state.push(None);
         }
         Self {
             connectors,
+            state,
             input,
             output: vec![],
             input_size: inputs,
@@ -75,7 +81,11 @@ impl<I, O> Connection<I, O> {
     }
 }
 
-impl<I, O> Connectable<I, O> for Connection<I, O> {
+impl<I, O> Connectable<I, O> for Connection<I, O>
+where
+    I: Clone,
+    O: Clone,
+{
     fn inputs(&self) -> &Vec<Sender<I>> {
         &self.connectors
     }
@@ -88,6 +98,12 @@ impl<I, O> Connectable<I, O> for Connection<I, O> {
         for succ in successors {
             let _ = &self.output.push(succ);
         }
+    }
+
+    fn send_out(&self, elem: O) {
+        self.output().iter().for_each(|chan| {
+            let _ = chan.send(elem.clone());
+        });
     }
 
     fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {
@@ -116,5 +132,9 @@ impl<I, O> Connectable<I, O> for Connection<I, O> {
 
     fn input(&self) -> Result<Sender<I>, ConnectError<I>> {
         self.input_at(0)
+    }
+
+    fn conn(&mut self) -> &mut Connection<I, O> {
+        self
     }
 }

@@ -8,7 +8,8 @@ use crate::Connectable;
 #[derive(Connectable, Deserialize)]
 pub struct RepeatNode<I, O>
 where
-    I: Iterator,
+    I: Iterator + Clone,
+    O: Clone
 {
     conn: Connection<I, O>,
     _context: Arc<Context>,
@@ -58,13 +59,5 @@ where
             },
         };
         self.state = new_state;
-    }
-
-    fn init(&mut self) {
-        ()
-    }
-
-    fn destory(&mut self) {
-        ()
     }
 }

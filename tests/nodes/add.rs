@@ -17,19 +17,19 @@ mod nodes {
         let context = Arc::new(Context {});
         let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 
-        let mut add = AddNode::new("AddNodeI32", context, 0);
+        let mut add = AddNode::new("AddNodeI32", context);
 
         let _ = add.send(1);
         let _ = add.send_at(1, 2);
         add.chain(vec![mock_s]);
 
-        assert!(add.state == None, "State was not empty at start");
+        assert!(add.state == None, "State was not empty at start {:?}", add.state);
         add.handle();
-        assert!(add.state == Some(1));
+        assert!(add.state == Some(1), "Unexpected State: {:?}", add.state);
         add.handle();
-        assert!(add.state == None);
         assert!(add.output().len() == 1);
         assert!(mock_r.recv().unwrap() == 3);
+        assert!(add.state == None);
     }
 
     #[test]
@@ -57,7 +57,7 @@ mod nodes {
         let context = Arc::new(Context {});
         let (mock_s, mock_r): (Sender<IorS>, Receiver<IorS>) = channel();
 
-        let mut add = AddNode::new("AddNodeI32", context, IorS::Int(0));
+        let mut add = AddNode::new("AddNodeI32", context);
 
         let _ = add.send_at(0, IorS::Int(1));
         let _ = add.send_at(1, IorS::Str("2".into()));
@@ -76,7 +76,7 @@ mod nodes {
         let context = Arc::new(Context {});
         let json = r#"{"conn": 2, "_context": {}, "name": "Hello Node",  "state": null, "neutral_ele": 0}"#;
         let actual: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
-        let expected: AddNode<i32, i32> = AddNode::new("Hello Node", context.clone(), 0);
+        let expected: AddNode<i32, i32> = AddNode::new("Hello Node", context.clone());
         assert!(expected.state == actual.state);
         assert!(expected.name() == actual.name());
     }

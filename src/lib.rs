@@ -39,7 +39,7 @@ impl AppState {
 
     pub fn add_number_node(&mut self, name: &str, kind: &str) -> u32 {
         let node: Box<dyn Job> = match kind {
-            "add" => Box::new(AddNode::<i32, i32>::new(name, self.context.clone(), 0)),
+            "add" => Box::new(AddNode::<i32, i32>::new(name, self.context.clone())),
             "debug" => Box::new(DebugNode::<i32, i32>::new(name, self.context.clone())),
             "repeat" => Box::new(RepeatNode::<Iter<i32>, &i32>::new(
                 name,
@@ -65,9 +65,9 @@ extern "C" {
 #[wasm_bindgen]
 pub fn example_flow() {
     let context = Arc::new(Context {});
-    let mut add1 = AddNode::new("Add1", context.clone(), 0);
-    let mut add2 = AddNode::new("Add2", context.clone(), 0);
-    let mut add3 = AddNode::new("Add3", context.clone(), 0);
+    let mut add1 = AddNode::new("Add1", context.clone());
+    let mut add2 = AddNode::new("Add2", context.clone());
+    let mut add3 = AddNode::new("Add3", context.clone());
     let debug: DebugNode<i32, i32> = DebugNode::new("PrintNode", context);
     // Init queues
     let _ = add1.send_at(0, 1);
@@ -89,8 +89,7 @@ pub fn example_flow() {
         let len = jobs.len();
         jobs[i % len].handle();
         alert(&format!(
-            "Job: {} with index {} is running.",
-            jobs[i % len].name(),
+            "Job: {} with index  is running.",
             i % len
         ));
     }

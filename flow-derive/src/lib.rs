@@ -7,6 +7,28 @@ use syn::ItemImpl;
 use connectable::impl_connectable_trait;
 use job::impl_job_trait;
 
+/// The Connectable derive macro fulfills the trait bounds of the Connectable<I, O> trait by passing
+/// all methods to an existing Connection fields. This means that a struct field of the type Connection
+/// must be present for this macro.
+/// 
+/// # Example
+/// 
+/// ```
+/// #[derive(Connectable)]
+/// pub struct DebugNode<I, O> {
+///     conn: Connection<I, O>,
+///     name: String,
+/// }
+/// 
+/// fn main() {
+///     let node: DebugNode<i32, i32> = DebugNode {
+///         conn: Connection::new(1),
+///         name: "MyNode".into(),
+///     };
+///     // inputs() is a method of the Connectable<I, O> trait
+///     println!("{}", node.inputs().len());
+/// }
+/// ```
 #[proc_macro_derive(Connectable)]
 pub fn connectable_derive_macro(item: TokenStream) -> TokenStream {
     let ast = syn::parse(item).unwrap();

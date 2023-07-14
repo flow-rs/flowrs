@@ -10,7 +10,7 @@ use syn::{
 /// statement.
 pub fn impl_job_trait(mut ast: ItemImpl) -> TokenStream {
     let fns: Vec<ImplItemFn> = get_funcs(&ast.clone());
-    // The function blocks have to be extractd in order to create a handle method form it's business logic.
+    // All function blocks have to be extractd in order to create a handle method form their business logic.
     let fns_match_signature = fns
         .clone()
         .iter()
@@ -108,6 +108,8 @@ fn get_branch_stmt(
                     }
                 }
             };
+            // As function headers are discarded, the required field of type I must be presented for
+            // the existing code block dependent on that function parameter.
             let mut #input_ident_name = self.conn().state[#i].clone().unwrap();
             #func;
             #closing_stmt
@@ -118,6 +120,13 @@ fn get_branch_stmt(
 
 fn get_closing_stmt(len: usize, index: usize) -> Stmt {
     let stmt;
+    // For Nodes where at least one item per queue must be present in order to calculate
+    // the desired output, each input must be collected exactly once before more items
+    // of that exact queue will be consumed again. Therefore by receiving the last item
+    // required to calculate an output, the state for all input queues will be cleared
+    // allowing new items to be accepted. To keep the `handle` method granular for
+    // better scheduling, only one queue is handled per sched cycle which is the reason
+    // for the return statement at the end of any branch except for the last one.
     if index == len - 1 {
         stmt = quote::quote! {
             self.conn().state = (0..#len).enumerate().map(|(i, _)| None).collect();

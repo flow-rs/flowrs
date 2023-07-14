@@ -15,7 +15,7 @@ where
     I: Sized + Clone,
     O: Sized + Clone,
 {
-    pub conn: Connection<I, O>,
+    conn: Connection<I, O>,
     _context: Arc<Context>,
     name: String,
 }

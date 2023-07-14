@@ -45,6 +45,44 @@ impl fmt::Display for ChannelError {
     }
 }
 
+/// The [Connection] struct together with the [Connectable] trait handles the traffic
+/// between nodes with a thread-safe implementation using [`channel`]s.
+/// When creating a new [Node][crate::job::Node], most interaction with the [Connection] struct can be
+/// handled with the [build_job][flow_derive::build_job] macro as part of a [Job][crate::job::Job] implemenation.
+/// 
+/// The following methods are recommended for Structs containing a [Connection] and implementing the 
+/// [Connectable] trait:
+/// 
+/// * [input_at()][Connection::input_at()]
+/// * [input()][Connection::input()]
+/// * [chain()][Connection::chain()]
+/// * [send_at()][Connection::send_at()]
+/// * [send()][Connection::send()]
+/// 
+/// # Example
+/// 
+/// The [AddNode][crate::add::AddNode] in the following example implements the [Connectable] trait:
+/// ```
+/// let context = Arc::new(Context {});
+/// let mut add1 = AddNode::new("Add1", context.clone());
+/// let mut add2 = AddNode::new("Add2", context.clone());
+/// let mut add3 = AddNode::new("Add3", context.clone());
+/// // Init queues
+/// let _ = add1.send_at(0, 1);
+/// let _ = add1.send_at(1, 2);
+/// let _ = add2.send_at(0, 3);
+/// let _ = add2.send_at(1, 4);
+/// add1.chain(vec![add3.input_at(0)?]);
+/// add2.chain(vec![add3.input_at(1)?]);
+/// add3.chain(vec![mock_s]);
+/// ```
+/// 
+/// When implementing a custom [Node][crate::job::Node] that exceeds the possibilities of the [build_job][flow_derive::build_job] trait,
+/// the following fields are helpful:
+/// 
+/// * [input][Connection::input] (the vector of input [Receiver]s)
+/// * [state][Connection::state] (an internal state capable of storing connection data per input [channel])
+/// 
 pub struct Connection<I, O> {
     connectors: Vec<Sender<I>>,
     pub state: Vec<Option<I>>,

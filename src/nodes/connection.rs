@@ -1,7 +1,7 @@
 use std::{
     fmt,
     sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
-    vec,
+    vec, cell::Cell,
 };
 
 use serde::Deserializer;
@@ -63,17 +63,25 @@ impl fmt::Display for ChannelError {
 /// 
 /// The [AddNode][crate::add::AddNode] in the following example implements the [Connectable] trait:
 /// ```
+/// use flow::connection::ConnectError;
+/// use flow::job::Connectable;
+/// use flow::job::Context;
+/// use flow::job::Job;
+/// use std::sync::mpsc::{channel, Receiver, Sender};
+/// use std::sync::Arc;
+/// use flow::add::AddNode;
+/// let (mock_s, mock_r): (Sender<i32>, Receiver<i32>) = channel();
 /// let context = Arc::new(Context {});
-/// let mut add1 = AddNode::new("Add1", context.clone());
-/// let mut add2 = AddNode::new("Add2", context.clone());
-/// let mut add3 = AddNode::new("Add3", context.clone());
+/// let add1 = AddNode::new("Add1", context.clone());
+/// let add2 = AddNode::new("Add2", context.clone());
+/// let add3: AddNode<i32, i32> = AddNode::new("Add3", context.clone());
 /// // Init queues
 /// let _ = add1.send_at(0, 1);
 /// let _ = add1.send_at(1, 2);
 /// let _ = add2.send_at(0, 3);
 /// let _ = add2.send_at(1, 4);
-/// add1.chain(vec![add3.input_at(0)?]);
-/// add2.chain(vec![add3.input_at(1)?]);
+/// add1.chain(vec![add3.input_at(0).unwrap()]);
+/// add2.chain(vec![add3.input_at(1).unwrap()]);
 /// add3.chain(vec![mock_s]);
 /// ```
 /// 
@@ -84,11 +92,11 @@ impl fmt::Display for ChannelError {
 /// * [state][Connection::state] (an internal state capable of storing connection data per input [channel])
 /// 
 pub struct Connection<I, O> {
-    connectors: Vec<Sender<I>>,
     pub state: Vec<Option<I>>,
     pub input: Vec<Receiver<I>>,
+    connectors: Vec<Sender<I>>,
     input_size: usize,
-    output: Vec<Sender<O>>,
+    output: Cell<Vec<Sender<O>>>,
 }
 
 impl<'de, I, O> serde::Deserialize<'de> for Connection<I, O> {
@@ -113,7 +121,7 @@ impl<I, O> Connection<I, O> {
             connectors,
             state,
             input,
-            output: vec![],
+            output: Cell::new(vec![]),
             input_size: inputs,
         }
     }
@@ -128,20 +136,24 @@ where
         &self.connectors
     }
 
-    fn output(&self) -> &Vec<Sender<O>> {
+    fn output(&self) -> &Cell<Vec<Sender<O>>> {
         &self.output
     }
 
-    fn chain(&mut self, successors: Vec<Sender<O>>) {
+    fn chain(&self, successors: Vec<Sender<O>>) {
         for succ in successors {
-            let _ = &self.output.push(succ);
+            let mut output = self.output.take();
+            output.push(succ);
+            let _ = &self.output.set(output.clone());
         }
     }
 
     fn send_out(&self, elem: O) {
-        self.output().iter().for_each(|chan| {
+        let output = self.output.take();
+        output.iter().for_each(|chan| {
             let _ = chan.send(elem.clone());
         });
+        self.output.set(output);
     }
 
     fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {

@@ -58,11 +58,15 @@ where
     I: Add<Output = O> + Clone,
     O: Clone,
 {
-    fn init(&mut self) {
+    fn on_init(&mut self) {
         ()
     }
 
-    fn shutdown(&mut self) {
+    fn on_ready(&mut self) {
+        ()
+    }
+
+    fn on_shutdown(&mut self) {
         ()
     }
 }

@@ -24,10 +24,10 @@ mod nodes {
         add.chain(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start {:?}", add.state);
-        add.handle();
+        add.on_handle();
         assert!(add.state == Some(1), "Unexpected State: {:?}", add.state);
-        add.handle();
-        assert!(add.output().len() == 1);
+        add.on_handle();
+        assert!(add.output().take().len() == 1);
         assert!(mock_r.recv().unwrap() == 3);
         assert!(add.state == None);
     }
@@ -64,9 +64,9 @@ mod nodes {
         add.chain(vec![mock_s]);
 
         assert!(add.state == None, "State was not empty at start");
-        add.handle();
+        add.on_handle();
         assert!(add.state == Some(IorS::Int(1)));
-        add.handle();
+        add.on_handle();
         assert!(add.state == None);
         assert!(mock_r.recv().unwrap() == IorS::Int(3));
     }
@@ -74,7 +74,7 @@ mod nodes {
     #[test]
     fn should_deserialize_from_json() {
         let context = Arc::new(Context {});
-        let json = r#"{"conn": 2, "_context": {}, "name": "Hello Node",  "state": null, "neutral_ele": 0}"#;
+        let json = r#"{"conn": 2, "_context": {}, "name": "Hello Node",  "state": null}"#;
         let actual: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
         let expected: AddNode<i32, i32> = AddNode::new("Hello Node", context.clone());
         assert!(expected.state == actual.state);
@@ -84,14 +84,14 @@ mod nodes {
     #[test]
     #[should_panic(expected = "key must be a string")]
     fn should_no_deserialize_from_invalid_json() {
-        let json = r#"{"conn": 2, _context: {}, "name": "Hello Node", "state": null, "neutral_ele": 0}"#;
+        let json = r#"{"conn": 2, _context: {}, "name": "Hello Node", "state": null}"#;
         let _: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "missing field `_context`")]
     fn should_no_deserialize_from_invalid_node() {
-        let json = r#"{"conn": 2, "name": "Hello Node", "state": null, "neutral_ele": 0}"#;
+        let json = r#"{"conn": 2, "name": "Hello Node", "state": null}"#;
         let _: AddNode<i32, i32> = serde_json::from_str(json).unwrap();
     }
 }

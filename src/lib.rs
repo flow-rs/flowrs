@@ -1,20 +1,24 @@
 mod nodes;
+mod flow;
 
 use std::collections::HashMap;
 use std::option::Iter;
 use std::sync::Arc;
 
 pub use self::nodes::add;
+pub use self::nodes::basic;
 pub use self::nodes::connection;
 pub use self::nodes::debug;
 pub use self::nodes::job;
 pub use self::nodes::job::Node;
 pub use self::nodes::repeat;
+pub use self::flow::app_state;
+pub use self::nodes::js_interp;
 pub use flow_derive::Connectable;
-use nodes::repeat::RepeatNode;
 
 use crate::add::AddNode;
 use crate::debug::DebugNode;
+use crate::repeat::RepeatNode;
 use crate::job::Connectable;
 use crate::job::Context;
 use crate::job::Job;
@@ -65,9 +69,9 @@ extern "C" {
 #[wasm_bindgen]
 pub fn example_flow() {
     let context = Arc::new(Context {});
-    let mut add1 = AddNode::new("Add1", context.clone());
-    let mut add2 = AddNode::new("Add2", context.clone());
-    let mut add3 = AddNode::new("Add3", context.clone());
+    let add1 = AddNode::new("Add1", context.clone());
+    let add2 = AddNode::new("Add2", context.clone());
+    let add3 = AddNode::new("Add3", context.clone());
     let debug: DebugNode<i32, i32> = DebugNode::new("PrintNode", context);
     // Init queues
     let _ = add1.send_at(0, 1);
@@ -87,7 +91,7 @@ pub fn example_flow() {
     ];
     for i in 0..100 {
         let len = jobs.len();
-        jobs[i % len].handle();
+        jobs[i % len].on_handle();
         alert(&format!(
             "Job: {} with index  is running.",
             i % len

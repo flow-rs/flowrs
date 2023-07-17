@@ -17,9 +17,9 @@ mod nodes {
         let _ = debug.send(1);
         let _ = debug.send(2);
         let _ = debug.send(3);
-        debug.handle();
-        debug.handle();
-        debug.handle();
+        debug.on_handle();
+        debug.on_handle();
+        debug.on_handle();
     }
 
 

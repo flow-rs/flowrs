@@ -31,17 +31,17 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
             quote::quote! {
                 use crate::nodes::connection::ConnectError;
                 use super::connection::Connection;
-                use std::sync::mpsc::Sender;
+                use std::{sync::mpsc::Sender, cell::Cell};
                 impl #ty_generics Connectable<I, O> for #struct_ident #ty_generics #where_clause {
                     fn inputs(&self) -> &Vec<Sender<I>> {
                         &self.#field_ident.inputs()
                     }
 
-                    fn output(&self) -> &Vec<Sender<O>> {
+                    fn output(&self) -> &Cell<Vec<Sender<O>>> {
                         &self.#field_ident.output()
                     }
 
-                    fn chain(&mut self, successors: Vec<std::sync::mpsc::Sender<O>>) {
+                    fn chain(&self, successors: Vec<std::sync::mpsc::Sender<O>>) {
                         self.#field_ident.chain(successors);
                     }
 

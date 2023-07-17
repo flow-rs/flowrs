@@ -42,12 +42,13 @@ where
         &self.name
     }
 
-    fn handle(&mut self) {
+    fn on_handle(&mut self) {
         let new_state = match &self.state {
             // Sending each value of an input to each successor in a single handle to keep the pace.
             Some(iter) => {
                 iter.clone().for_each(|entry| {
                     self.output()
+                        .take()
                         .iter()
                         .for_each(|chan| chan.send(entry.clone()).unwrap())
                 });

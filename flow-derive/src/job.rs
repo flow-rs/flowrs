@@ -10,7 +10,7 @@ use syn::{
 /// statement.
 pub fn impl_job_trait(mut ast: ItemImpl) -> TokenStream {
     let fns: Vec<ImplItemFn> = get_funcs(&ast.clone());
-    // All function blocks have to be extractd in order to create a handle method form their business logic.
+    // All function blocks have to be extractd in order to create a `on_handle` method form their business logic.
     let fns_match_signature = fns
         .clone()
         .iter()
@@ -46,10 +46,10 @@ pub fn impl_job_trait(mut ast: ItemImpl) -> TokenStream {
             ..Default::default()
         },
     };
-    // The wrapping and repeated parsing for the handle method saves the overhead of
+    // The wrapping and repeated parsing for the `on_handle` method saves the overhead of
     // constructing the AST manually.
     let handle_fn_stmt: TokenStream = quote::quote! {
-        fn handle(&mut self) {
+        fn on_handle(&mut self) {
             #block_stmt
             ()
         }
@@ -58,7 +58,7 @@ pub fn impl_job_trait(mut ast: ItemImpl) -> TokenStream {
     let name_fn_stmt: TokenStream = quote::quote! {
         fn name(&self) -> &String {
             &self.name
-    }
+        }
     }
     .into();
     let handle = syn::parse(handle_fn_stmt).unwrap();
@@ -124,7 +124,7 @@ fn get_closing_stmt(len: usize, index: usize) -> Stmt {
     // the desired output, each input must be collected exactly once before more items
     // of that exact queue will be consumed again. Therefore by receiving the last item
     // required to calculate an output, the state for all input queues will be cleared
-    // allowing new items to be accepted. To keep the `handle` method granular for
+    // allowing new items to be accepted. To keep the `on_handle` method granular for
     // better scheduling, only one queue is handled per sched cycle which is the reason
     // for the return statement at the end of any branch except for the last one.
     if index == len - 1 {

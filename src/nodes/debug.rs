@@ -1,13 +1,14 @@
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use flow_derive::build_job;
 use serde::Deserialize;
 
-use crate::Connectable;
 use crate::{
     job::{Context, Job},
     log,
 };
+use crate::{Connectable, Node};
 
 #[derive(Connectable, Deserialize)]
 pub struct DebugNode<I, O>
@@ -38,12 +39,30 @@ where
 #[build_job]
 impl<I, O> Job for DebugNode<I, O>
 where
-    I: Display + Clone,
+    I: Debug + Clone,
     O: Clone,
 {
     fn handle(next_elem: I) {
-        let msg = format!("{}", next_elem.clone());
+        let msg = format!("{:?}", next_elem.clone());
         println!("{}", msg);
         log(msg.as_str());
+    }
+}
+
+impl<I, O> Node<I, O> for DebugNode<I, O>
+where
+    I: Clone + Debug,
+    O: Clone,
+{
+    fn on_init(&mut self) {
+        ()
+    }
+
+    fn on_ready(&mut self) {
+        ()
+    }
+
+    fn on_shutdown(&mut self) {
+        ()
     }
 }

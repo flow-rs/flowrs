@@ -144,7 +144,7 @@ where
         for succ in successors {
             let mut output = self.output.take();
             output.push(succ);
-            let _ = &self.output.set(output.clone());
+            self.output.set(output.clone())
         }
     }
 

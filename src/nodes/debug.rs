@@ -1,6 +1,8 @@
-use std::{fmt::Debug, rc::Rc, sync::Arc};
+use std::{fmt::Debug, sync::{Arc, Mutex}, any::Any, rc::Rc};
 
-use crate::{flow::app_state::FlowType, job::RuntimeConnectable, nodes::job::Node};
+use serde_json::Value;
+
+use crate::{job::RuntimeConnectable, nodes::job::Node};
 
 use super::{connection::Edge, job::Context};
 
@@ -10,25 +12,25 @@ where
 {
     name: String,
     state: Option<I>,
-    props: I,
+    props: Value,
     context: Arc<Context>,
 
     pub input: Edge<I>,
-    pub output: Option<Edge<I>>,
+    pub output: Arc<Mutex<Option<Edge<I>>>>,
 }
 
 impl<I> DebugNode<I>
 where
     I: Clone,
 {
-    pub fn new(name: &str, context: Arc<Context>, props: I) -> Self {
+    pub fn new(name: &str, context: Arc<Context>, props: Value) -> Self {
         Self {
             name: name.into(),
             state: None,
             props,
             context,
             input: Edge::new(),
-            output: None,
+            output: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -37,7 +39,6 @@ impl<I> Node for DebugNode<I>
 where
     I: Clone + Debug,
 {
-    type Output = I;
     fn on_init(&mut self) {}
 
     fn on_ready(&mut self) {}
@@ -51,24 +52,22 @@ where
     fn update(&mut self) {
         if let Ok(input) = self.input.next_elem() {
             println!("{:?}", input);
+            self.output.lock().unwrap().clone().unwrap().send(input).unwrap();
         }
-    }
-
-    fn connect(&mut self, edge: Edge<I>) {
-        self.output = Some(edge)
     }
 }
 
 impl<I: Clone + 'static> RuntimeConnectable for DebugNode<I> {
-    fn input_at(&self, index: usize) -> FlowType {
+    fn input_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
-            0 => FlowType(Rc::new(self.input.clone())),
+            0 => Rc::new(self.input.clone()),
             _ => panic!("Intex out of bounds for DebugNode"),
         }
     }
 
-    fn output_at(&self, index: usize) -> FlowType {
+    fn output_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
+            0 => Rc::new(self.output.clone()),
             _ => panic!("Intex out of bounds for DebugNode"),
         }
     }

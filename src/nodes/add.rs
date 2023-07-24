@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::any::Any;
 use std::ops::Add;
-use std::sync::Arc;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use crate::flow::app_state::FlowType;
 use crate::job::RuntimeConnectable;
 
 use super::{
@@ -26,7 +26,7 @@ pub struct AddNode<I, O> {
 
     pub input_1: Edge<I>,
     pub input_2: Edge<I>,
-    pub output_1: Option<Edge<O>>,
+    pub output_1: Arc<Mutex<Option<Edge<O>>>>,
 }
 
 impl<I, O> AddNode<I, O>
@@ -41,7 +41,7 @@ where
             props,
             context,
 
-            output_1: None,
+            output_1: Arc::new(Mutex::new(None)),
             input_1: Edge::new(),
             input_2: Edge::new(),
         }
@@ -53,7 +53,7 @@ where
             AddNodeState::I2(i) => {
                 let out = i.clone() + v;
                 self.state = AddNodeState::None;
-                let _ = self.output_1.clone().unwrap().send(out);
+                let _ = self.output_1.lock().unwrap().clone().expect("This node has no Output.").send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I1(v),
         }
@@ -65,7 +65,7 @@ where
             AddNodeState::I1(i) => {
                 let out = i.clone() + v;
                 self.state = AddNodeState::None;
-                let _ = self.output_1.clone().expect("This node has no Output.").send(out);
+                let _ = self.output_1.lock().unwrap().clone().expect("This node has no Output.").send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I2(v),
         }
@@ -77,7 +77,6 @@ where
     I: Add<Output = O> + Clone,
     O: Clone,
 {
-    type Output = O;
     fn on_init(&mut self) {}
 
     fn on_ready(&mut self) {}
@@ -100,25 +99,21 @@ where
             self.handle_2(i2);
         }
     }
-
-    fn connect(&mut self, edge: Edge<O>) {
-        self.output_1 = Some(edge)
-    }
 }
 
 // To be replaced by macro
 impl<I: Clone + 'static, O: Clone + 'static> RuntimeConnectable for AddNode<I, O> {
-    fn input_at(&self, index: usize) -> FlowType {
+    fn input_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
-            0 => FlowType(Rc::new(self.input_1.clone())),
-            1 => FlowType(Rc::new(self.input_2.clone())),
+            0 => Rc::new(self.input_1.clone()),
+            1 => Rc::new(self.input_2.clone()),
             _ => panic!("Intex out of bounds for AddNode")
         }
     }
 
-    fn output_at(&self, index: usize) -> FlowType {
+    fn output_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
-            0 => FlowType(Rc::new(self.output_1.clone().unwrap())),
+            0 => Rc::new(self.output_1.clone()),
             _ => panic!("Intex out of bounds for AddNode")
         }
     }

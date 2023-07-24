@@ -73,3 +73,22 @@ impl<I> Edge<I> {
         Ok(self.receiver.lock().unwrap().try_recv()?)
     }
 }
+
+pub type Input<I> = Edge<I>;
+
+#[derive(Clone)]
+pub struct Output<T>(Arc<Mutex<Option<Edge<T>>>>);
+
+impl<O> Output<O> {
+    pub fn new() -> Self {
+        Self (Arc::new(Mutex::new(None)))
+    }
+    
+    pub fn send(&mut self, elem: O) -> Result<(), ConnectError<O>> {
+        self.0.lock().unwrap().as_mut().unwrap().send(elem)
+    }
+}
+
+pub fn connect<I>(lhs: &mut Option<Edge<I>>, rhs: Edge<I>) {
+    *lhs = Some(rhs)
+}

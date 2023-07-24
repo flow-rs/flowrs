@@ -1,6 +1,10 @@
-use std::{fmt::Debug, rc::Rc, sync::Arc};
+use std::{
+    any::Any,
+    fmt::Debug,
+    sync::{Arc, Mutex}, rc::Rc,
+};
 
-use crate::{flow::app_state::FlowType, job::RuntimeConnectable, nodes::job::Node};
+use crate::{job::RuntimeConnectable, nodes::job::Node};
 
 use super::{connection::Edge, job::Context};
 
@@ -13,7 +17,7 @@ where
     props: I,
     context: Arc<Context>,
 
-    pub output: Option<Edge<I>>,
+    pub output: Arc<Mutex<Option<Edge<I>>>>,
 }
 
 impl<I> BasicNode<I>
@@ -26,7 +30,7 @@ where
             state: None,
             props,
             context,
-            output: None,
+            output: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -35,7 +39,6 @@ impl<I> Node for BasicNode<I>
 where
     I: Clone + Debug,
 {
-    type Output = I;
     fn on_init(&mut self) {
         ()
     }
@@ -43,6 +46,8 @@ where
     fn on_ready(&mut self) {
         let elem = &self.props;
         self.output
+            .lock()
+            .unwrap()
             .clone()
             .expect("This Basic Node has no successor.")
             .send(elem.clone())
@@ -56,20 +61,16 @@ where
     }
 
     fn update(&mut self) {}
-
-    fn connect(&mut self, edge: Edge<I>) {
-        self.output = Some(edge)
-    }
 }
 
 impl<I: Clone + 'static> RuntimeConnectable for BasicNode<I> {
-    fn input_at(&self, index: usize) -> FlowType {
+    fn input_at(&self, _: usize) -> Rc<dyn Any> {
         panic!("Index out of bounds for BasicNode")
     }
 
-    fn output_at(&self, index: usize) -> FlowType {
+    fn output_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
-            0 => FlowType(Rc::new(self.output.clone().unwrap())),
+            0 => {let re = self.output.clone(); Rc::new(re)},
             _ => panic!("Intex out of bounds for BasicNode"),
         }
     }

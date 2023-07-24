@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod nodes {
-    use std::sync::Arc;
+    use std::{sync::Arc, borrow::BorrowMut};
 
-    use flow::{basic::BasicNode, job::Context, connection::{Edge, ConnectError}, Node};
+    use flow::{basic::BasicNode, job::Context, connection::{Edge, ConnectError, connect}, Node};
 
 
     #[test]
@@ -10,7 +10,7 @@ mod nodes {
         let context = Arc::new(Context {});
         let mut node = BasicNode::new("My Node", context, 42);
         let mock_output = Edge::new();
-        node.connect(mock_output.clone());
+        connect(node.output.lock().unwrap().borrow_mut(), mock_output.clone());
         node.on_ready();
 
         let expected = 42;

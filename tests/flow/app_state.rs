@@ -44,19 +44,16 @@ mod app_state {
             ],
             "edges": [
                 {
-                    "input": "lhs",
-                    "output": "add",
-                    "index": 0
+                    "source": {"node": "lhs", "index": 0},
+                    "dest": {"node": "add", "index": 0}
                 },
                 {
-                    "input": "rhs",
-                    "output": "add",
-                    "index": 1
+                    "source": {"node": "rhs", "index": 0},
+                    "dest": {"node": "add", "index": 1}
                 },
                 {
-                    "input": "add",
-                    "output": "debug",
-                    "index": 0
+                    "source": {"node": "add", "index": 0},
+                    "dest": {"node": "debug", "index": 0}
                 }
             ]
         }

@@ -1,12 +1,13 @@
 use std::{
     any::Any,
     fmt::Debug,
-    sync::{Arc, Mutex}, rc::Rc,
+    rc::Rc,
+    sync::Arc,
 };
 
-use crate::{job::RuntimeConnectable, nodes::job::Node};
+use crate::{connection::Output, job::RuntimeConnectable, nodes::job::Node};
 
-use super::{connection::Edge, job::Context};
+use super::job::Context;
 
 pub struct BasicNode<I>
 where
@@ -17,7 +18,7 @@ where
     props: I,
     context: Arc<Context>,
 
-    pub output: Arc<Mutex<Option<Edge<I>>>>,
+    pub output: Output<I>,
 }
 
 impl<I> BasicNode<I>
@@ -30,7 +31,7 @@ where
             state: None,
             props,
             context,
-            output: Arc::new(Mutex::new(None)),
+            output: Output::new(),
         }
     }
 }
@@ -45,13 +46,7 @@ where
 
     fn on_ready(&mut self) {
         let elem = &self.props;
-        self.output
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("This Basic Node has no successor.")
-            .send(elem.clone())
-            .unwrap();
+        self.output.send(elem.clone()).unwrap();
     }
 
     fn on_shutdown(&mut self) {}
@@ -70,7 +65,10 @@ impl<I: Clone + 'static> RuntimeConnectable for BasicNode<I> {
 
     fn output_at(&self, index: usize) -> Rc<dyn Any> {
         match index {
-            0 => {let re = self.output.clone(); Rc::new(re)},
+            0 => {
+                let re = self.output.clone();
+                Rc::new(re)
+            }
             _ => panic!("Intex out of bounds for BasicNode"),
         }
     }

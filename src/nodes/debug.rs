@@ -1,10 +1,10 @@
-use std::{fmt::Debug, sync::{Arc, Mutex}, any::Any, rc::Rc};
+use std::{fmt::Debug, sync::Arc, any::Any, rc::Rc};
 
 use serde_json::Value;
 
-use crate::{job::RuntimeConnectable, nodes::job::Node};
+use crate::{job::RuntimeConnectable, nodes::job::Node, connection::{Input, Output}};
 
-use super::{connection::Edge, job::Context};
+use super::job::Context;
 
 pub struct DebugNode<I>
 where
@@ -15,8 +15,8 @@ where
     props: Value,
     context: Arc<Context>,
 
-    pub input: Edge<I>,
-    pub output: Arc<Mutex<Option<Edge<I>>>>,
+    pub input: Input<I>,
+    pub output: Output<I>,
 }
 
 impl<I> DebugNode<I>
@@ -29,8 +29,8 @@ where
             state: None,
             props,
             context,
-            input: Edge::new(),
-            output: Arc::new(Mutex::new(None)),
+            input: Input::new(),
+            output: Output::new(),
         }
     }
 }
@@ -52,7 +52,7 @@ where
     fn update(&mut self) {
         if let Ok(input) = self.input.next_elem() {
             println!("{:?}", input);
-            self.output.lock().unwrap().clone().unwrap().send(input).unwrap();
+            self.output.send(input).unwrap();
         }
     }
 }

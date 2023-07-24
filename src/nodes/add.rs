@@ -1,16 +1,14 @@
 use std::any::Any;
 use std::ops::Add;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::connection::{Input, Output};
 use crate::job::RuntimeConnectable;
 
-use super::{
-    connection::Edge,
-    job::{Context, Node},
-};
+use super::job::{Context, Node};
 
 enum AddNodeState<I> {
     I1(I),
@@ -24,9 +22,9 @@ pub struct AddNode<I, O> {
     props: Value,
     context: Arc<Context>,
 
-    pub input_1: Edge<I>,
-    pub input_2: Edge<I>,
-    pub output_1: Arc<Mutex<Option<Edge<O>>>>,
+    pub input_1: Input<I>,
+    pub input_2: Input<I>,
+    pub output_1: Output<O>,
 }
 
 impl<I, O> AddNode<I, O>
@@ -41,9 +39,9 @@ where
             props,
             context,
 
-            output_1: Arc::new(Mutex::new(None)),
-            input_1: Edge::new(),
-            input_2: Edge::new(),
+            input_1: Input::new(),
+            input_2: Input::new(),
+            output_1: Output::new(),
         }
     }
 
@@ -53,7 +51,7 @@ where
             AddNodeState::I2(i) => {
                 let out = i.clone() + v;
                 self.state = AddNodeState::None;
-                let _ = self.output_1.lock().unwrap().clone().expect("This node has no Output.").send(out);
+                let _ = self.output_1.send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I1(v),
         }
@@ -65,7 +63,7 @@ where
             AddNodeState::I1(i) => {
                 let out = i.clone() + v;
                 self.state = AddNodeState::None;
-                let _ = self.output_1.lock().unwrap().clone().expect("This node has no Output.").send(out);
+                let _ = self.output_1.send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I2(v),
         }

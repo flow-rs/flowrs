@@ -63,4 +63,52 @@ mod app_state {
         assert!(app_state.nodes.len() == 4);
         app_state.run();
     }
+
+    #[test]
+    fn should_fail_on_invalid_types() {
+        let json_str = r#"
+        {
+            "nodes": [
+                {
+                    "name": "lhs",
+                    "kind": "nodes.basic",
+                    "props": ""
+                },
+                {
+                    "name": "rhs",
+                    "kind": "nodes.basic",
+                    "props": 30
+                },
+                {
+                    "name": "add",
+                    "kind": "nodes.arithmetics.add",
+                    "props": {"none": "Undefined"}
+                },
+                {
+                    "name": "debug",
+                    "kind": "nodes.debug",
+                    "props": {"none": "Undefined"}
+                }
+            ],
+            "edges": [
+                {
+                    "source": {"node": "lhs", "index": 0},
+                    "dest": {"node": "add", "index": 0}
+                },
+                {
+                    "source": {"node": "rhs", "index": 0},
+                    "dest": {"node": "add", "index": 1}
+                },
+                {
+                    "source": {"node": "add", "index": 0},
+                    "dest": {"node": "debug", "index": 0}
+                }
+            ]
+        }
+        "#;
+
+        let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
+        assert!(app_state.nodes.len() == 4);
+        app_state.run();
+    }
 }

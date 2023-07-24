@@ -12,7 +12,7 @@ use serde_json::Value;
 use crate::{
     add::AddNode,
     basic::BasicNode,
-    connection::{connect, ConnectError, Edge},
+    connection::{connect, ConnectError, Edge, Output, Input},
     job::{Context, RuntimeConnectable},
     nodes::debug::DebugNode,
     Node,
@@ -135,15 +135,15 @@ impl AppState {
         // TODO: RefCell is not an ideal solution here.
         let out_edge = self.nodes[lhs_idx]
             .output_at(index_out)
-            .downcast_ref::<Arc<Mutex<Option<Edge<FlowType>>>>>()
+            .downcast_ref::<Output<FlowType>>()
             .expect(&format!("{} Nodes output at {} couldn't be downcasted", lhs, index_in))
             .clone();
         let in_edge = self.nodes[rhs_idx]
             .input_at(index_in)
-            .downcast_ref::<Edge<FlowType>>()
+            .downcast_ref::<Input<FlowType>>()
             .unwrap()
             .to_owned();
-        connect(out_edge.lock().unwrap().borrow_mut(), in_edge);
+        connect(out_edge, in_edge);
         Ok(())
     }
 

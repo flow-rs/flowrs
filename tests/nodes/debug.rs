@@ -12,8 +12,8 @@ mod nodes {
         let mock_output = Edge::new();
         let mut fst = DebugNode::new("AddNodeI32", context.clone(), Value::Null);
         let mut snd = DebugNode::new("AddNodeI32", context, Value::Null);
-        connect(fst.output.clone().lock().unwrap().borrow_mut(), snd.input.clone());
-        connect(snd.output.clone().lock().unwrap().borrow_mut(), mock_output.clone());
+        connect(fst.output.clone(), snd.input.clone());
+        connect(snd.output.clone(), mock_output.clone());
         let _ = fst.input.send(1);
         fst.update();
         snd.update();

@@ -50,7 +50,7 @@ impl fmt::Display for ChannelError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Edge<I> {
     sender: Sender<I>,
     receiver: Arc<Mutex<Receiver<I>>>,
@@ -76,19 +76,28 @@ impl<I> Edge<I> {
 
 pub type Input<I> = Edge<I>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Output<T>(Arc<Mutex<Option<Edge<T>>>>);
 
 impl<O> Output<O> {
     pub fn new() -> Self {
-        Self (Arc::new(Mutex::new(None)))
+        Self(Arc::new(Mutex::new(None)))
     }
-    
+
     pub fn send(&mut self, elem: O) -> Result<(), ConnectError<O>> {
-        self.0.lock().unwrap().as_mut().unwrap().send(elem)
+        self.0
+            .lock()
+            .unwrap()
+            .as_mut()
+            .expect("You attemnted to send to an output where no succesor Node is connected.")
+            .send(elem)
+    }
+
+    pub fn set(&mut self, edge: Edge<O>) {
+        let _ = self.0.lock().unwrap().insert(edge);
     }
 }
 
-pub fn connect<I>(lhs: &mut Option<Edge<I>>, rhs: Edge<I>) {
-    *lhs = Some(rhs)
+pub fn connect<I>(mut lhs: Output<I>, rhs: Input<I>) {
+    lhs.set(rhs)
 }

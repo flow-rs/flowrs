@@ -4,7 +4,6 @@ mod nodes {
     use flow::job::Context;
     use flow::Node;
     use serde_json::Value;
-    use std::borrow::BorrowMut;
     use std::sync::Arc;
 
     use flow::add::AddNode;
@@ -14,7 +13,7 @@ mod nodes {
         let context = Arc::new(Context {});
         let mut add = AddNode::new("AddNodeI32", context, Value::Null);
         let mock_output = Edge::new();
-        connect(add.output_1.lock().unwrap().borrow_mut(), mock_output.clone());
+        connect(add.output_1.clone(), mock_output.clone());
         let _ = add.input_1.send(1);
         let _ = add.input_2.send(2);
         add.update();

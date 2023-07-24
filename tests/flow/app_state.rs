@@ -2,6 +2,7 @@
 mod app_state {
     use flow::app_state::AppState;
 
+
     #[test]
     fn should_deserialize_empty_state() {
         let json_str = r#"
@@ -23,16 +24,21 @@ mod app_state {
                 {
                     "name": "lhs",
                     "kind": "nodes.basic",
-                    "props": {"value": {"I32": 12}}
+                    "props": 12
                 },
                 {
                     "name": "rhs",
                     "kind": "nodes.basic",
-                    "props": {"value": {"I32": 30}}
+                    "props": 30
                 },
                 {
                     "name": "add",
                     "kind": "nodes.arithmetics.add",
+                    "props": {"none": "Undefined"}
+                },
+                {
+                    "name": "debug",
+                    "kind": "nodes.debug",
                     "props": {"none": "Undefined"}
                 }
             ],
@@ -46,15 +52,18 @@ mod app_state {
                     "input": "rhs",
                     "output": "add",
                     "index": 1
+                },
+                {
+                    "input": "add",
+                    "output": "debug",
+                    "index": 0
                 }
             ]
         }
         "#;
 
-        let json_data: AppState = serde_json::from_str(json_str).unwrap();
-        assert!(json_data.nodes.len() == 3);
-        assert!(json_data.nodes.get("lhs").unwrap().output().take().len() == 1);
-        assert!(json_data.nodes.get("rhs").unwrap().output().take().len() == 1);
-        assert!(json_data.nodes.get("add").unwrap().output().take().len() == 0);
+        let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
+        assert!(app_state.nodes.len() == 4);
+        app_state.run();
     }
 }

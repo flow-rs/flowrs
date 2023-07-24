@@ -1,64 +1,76 @@
-use std::sync::Arc;
+use std::{fmt::Debug, rc::Rc, sync::Arc};
 
-use flow_derive::build_job;
-use serde::Deserialize;
+use crate::{flow::app_state::FlowType, job::RuntimeConnectable, nodes::job::Node};
 
-use crate::job::{Context, Job};
-use crate::{Connectable, Node};
+use super::{connection::Edge, job::Context};
 
-#[derive(Connectable, Deserialize)]
-pub struct BasicNode<I, O>
-where
-    I: Sized + Clone,
-    O: Sized + Clone,
-{
-    conn: Connection<I, O>,
-    _context: Arc<Context>,
-    props: O,
-    name: String,
-}
-
-impl<I, O> BasicNode<I, O>
+pub struct BasicNode<I>
 where
     I: Clone,
-    O: Clone,
 {
-    pub fn new(name: &str, context: Arc<Context>, props: O) -> Self {
-        let conn = Connection::new(1);
+    name: String,
+    state: Option<I>,
+    props: I,
+    context: Arc<Context>,
+
+    pub output: Option<Edge<I>>,
+}
+
+impl<I> BasicNode<I>
+where
+    I: Clone,
+{
+    pub fn new(name: &str, context: Arc<Context>, props: I) -> Self {
         Self {
-            conn,
             name: name.into(),
-            _context: context,
-            props
+            state: None,
+            props,
+            context,
+            output: None,
         }
     }
 }
 
-#[build_job]
-impl<I, O> Job for BasicNode<I, O>
+impl<I> Node for BasicNode<I>
 where
-    I: Clone,
-    O: Clone,
+    I: Clone + Debug,
 {
-    fn handle(_next_elem: I) {
-        ()
-    }
-}
-
-impl<I, O> Node<I, O> for BasicNode<I, O>
-where
-    I: Clone,
-    O: Clone,
-{
+    type Output = I;
     fn on_init(&mut self) {
         ()
     }
 
     fn on_ready(&mut self) {
-        self.send_out(self.props.clone())
+        let elem = &self.props;
+        self.output
+            .clone()
+            .expect("This Basic Node has no successor.")
+            .send(elem.clone())
+            .unwrap();
     }
 
-    fn on_shutdown(&mut self) {
-        ()
+    fn on_shutdown(&mut self) {}
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn update(&mut self) {}
+
+    fn connect(&mut self, edge: Edge<I>) {
+        self.output = Some(edge)
+    }
+}
+
+impl<I: Clone + 'static> RuntimeConnectable for BasicNode<I> {
+    fn input_at(&self, index: usize) -> FlowType {
+        panic!("Index out of bounds for BasicNode")
+    }
+
+    fn output_at(&self, index: usize) -> FlowType {
+        match index {
+            0 => FlowType(Rc::new(self.output.clone().unwrap())),
+            _ => panic!("Intex out of bounds for BasicNode"),
+        }
     }
 }

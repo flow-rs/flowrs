@@ -1,100 +1,19 @@
 mod nodes;
 mod flow;
 
-use std::collections::HashMap;
-use std::option::Iter;
-use std::sync::Arc;
-
 pub use self::nodes::add;
 pub use self::nodes::basic;
 pub use self::nodes::connection;
-pub use self::nodes::debug;
 pub use self::nodes::job;
 pub use self::nodes::job::Node;
-pub use self::nodes::repeat;
-pub use self::flow::app_state;
-pub use self::nodes::js_interp;
+pub use flow::app_state;
 pub use flow_derive::Connectable;
 
-use crate::add::AddNode;
-use crate::debug::DebugNode;
-use crate::repeat::RepeatNode;
-use crate::job::Connectable;
-use crate::job::Context;
-use crate::job::Job;
 use wasm_bindgen::prelude::wasm_bindgen;
-
-#[wasm_bindgen]
-pub struct AppState {
-    jobs: HashMap<u32, Box<dyn Job>>,
-    context: Arc<Context>,
-    counter: u32,
-}
-
-#[wasm_bindgen]
-impl AppState {
-    pub fn new() -> AppState {
-        AppState {
-            jobs: HashMap::new(),
-            context: Arc::new(Context {}),
-            counter: 0,
-        }
-    }
-
-    pub fn add_number_node(&mut self, name: &str, kind: &str) -> u32 {
-        let node: Box<dyn Job> = match kind {
-            "add" => Box::new(AddNode::<i32, i32>::new(name, self.context.clone())),
-            "debug" => Box::new(DebugNode::<i32, i32>::new(name, self.context.clone())),
-            "repeat" => Box::new(RepeatNode::<Iter<i32>, &i32>::new(
-                name,
-                self.context.clone(),
-            )),
-            _ => panic!("Unsupported node type"),
-        };
-        let _ = &self.jobs.insert(self.counter, node);
-        self.counter += 1;
-        &self.counter - 1
-    }
-}
 
 #[wasm_bindgen]
 extern "C" {
     fn alert(s: &str);
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
-}
-
-/// Executing an example flow with three add nodes and a debug node that
-/// alerts the browser upon every cycle (capped at 100 cycles).
-#[wasm_bindgen]
-pub fn example_flow() {
-    let context = Arc::new(Context {});
-    let add1 = AddNode::new("Add1", context.clone());
-    let add2 = AddNode::new("Add2", context.clone());
-    let add3 = AddNode::new("Add3", context.clone());
-    let debug: DebugNode<i32, i32> = DebugNode::new("PrintNode", context);
-    // Init queues
-    let _ = add1.send_at(0, 1);
-    let _ = add1.send_at(1, 2);
-    let _ = add2.send_at(0, 3);
-    let _ = add2.send_at(1, 4);
-    add1.chain(vec![add3.input().unwrap(), debug.input().unwrap()]);
-    add2.chain(vec![add3.input_at(1).unwrap(), debug.input().unwrap()]);
-    add3.chain(vec![debug.input().unwrap()]);
-    // Mocking a FIFO Queue considering two steps per addition and a buffer of
-    // three for scheduling cycles where no item was present for processing.
-    let mut jobs: Vec<Box<dyn Job>> = vec![
-        Box::new(add1),
-        Box::new(add2),
-        Box::new(add3),
-        Box::new(debug),
-    ];
-    for i in 0..100 {
-        let len = jobs.len();
-        jobs[i % len].on_handle();
-        alert(&format!(
-            "Job: {} with index  is running.",
-            i % len
-        ));
-    }
 }

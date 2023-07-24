@@ -4,7 +4,7 @@ use crate::{flow::app_state::FlowType, job::RuntimeConnectable, nodes::job::Node
 
 use super::{connection::Edge, job::Context};
 
-pub struct DebugNode<I>
+pub struct ToStringNode<I, O1, O2>
 where
     I: Clone,
 {
@@ -14,10 +14,11 @@ where
     context: Arc<Context>,
 
     pub input: Edge<I>,
-    pub output: Option<Edge<I>>,
+    pub output_1: Option<Edge<O1>>,
+    pub output_2: Option<Edge<O2>>,
 }
 
-impl<I> DebugNode<I>
+impl<I, O1, O2> ToStringNode<I, O1, O2>
 where
     I: Clone,
 {
@@ -28,16 +29,24 @@ where
             props,
             context,
             input: Edge::new(),
-            output: None,
+            output_1: None,
+            output_2: None,
         }
     }
 }
 
-impl<I> Node for DebugNode<I>
+enum Out<O1, O2> {
+    Out1(O1),
+    Out2(O2)
+}
+
+impl<I, O1, O2> Node for ToStringNode<I, O1, O2>
 where
     I: Clone + Debug,
+    O1: ToString,
+    O2: ToString,
 {
-    type Output = I;
+    type Output = Out<O1, O2>;
     fn on_init(&mut self) {}
 
     fn on_ready(&mut self) {}
@@ -54,12 +63,14 @@ where
         }
     }
 
-    fn connect(&mut self, edge: Edge<I>) {
-        self.output = Some(edge)
+    fn connect<T>(&mut self, edge_in: Edge<T>, edge_out: Edge<T>) {
+        match T {
+            
+        };
     }
 }
 
-impl<I: Clone + 'static> RuntimeConnectable for DebugNode<I> {
+impl<I: Clone + 'static, O1: Clone + 'static, O2: Clone + 'static> RuntimeConnectable for ToStringNode<I, O1, O2> {
     fn input_at(&self, index: usize) -> FlowType {
         match index {
             0 => FlowType(Rc::new(self.input.clone())),
@@ -69,6 +80,8 @@ impl<I: Clone + 'static> RuntimeConnectable for DebugNode<I> {
 
     fn output_at(&self, index: usize) -> FlowType {
         match index {
+            0 => FlowType(Rc::new(self.output_1.clone())),
+            1 => FlowType(Rc::new(self.output_2.clone())),
             _ => panic!("Intex out of bounds for DebugNode"),
         }
     }

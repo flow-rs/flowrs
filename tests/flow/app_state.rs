@@ -17,6 +17,7 @@ mod app_state {
     }
 
     #[test]
+    #[should_panic(expected = r#"You attemnted to send to an output where no succesor Node is connected."#)]
     fn should_deserialize_non_empty_state() {
         let json_str = r#"
         {
@@ -65,6 +66,7 @@ mod app_state {
     }
 
     #[test]
+    #[should_panic(expected = r#"Addition of JSON values of type String("string") and Number(30) is not supported."#)]
     fn should_fail_on_invalid_types() {
         let json_str = r#"
         {
@@ -72,7 +74,7 @@ mod app_state {
                 {
                     "name": "lhs",
                     "kind": "nodes.basic",
-                    "props": ""
+                    "props": "string"
                 },
                 {
                     "name": "rhs",

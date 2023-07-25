@@ -2,8 +2,11 @@
 mod nodes {
     use std::sync::Arc;
 
-    use flow::{basic::BasicNode, job::Context, connection::{Edge, ConnectError, connect}, Node};
-
+    use flow::{
+        basic::BasicNode,
+        connection::{connect, ConnectError, Edge},
+        node::{Context, Node},
+    };
 
     #[test]
     fn should_send_on_ready() -> Result<(), ConnectError<i32>> {

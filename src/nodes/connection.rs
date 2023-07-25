@@ -1,5 +1,7 @@
 use std::{
+    any::Any,
     fmt,
+    rc::Rc,
     sync::{
         mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError},
         Arc, Mutex,
@@ -100,4 +102,9 @@ impl<O> Output<O> {
 
 pub fn connect<I>(mut lhs: Output<I>, rhs: Input<I>) {
     lhs.set(rhs)
+}
+
+pub trait RuntimeConnectable {
+    fn input_at(&self, index: usize) -> Rc<dyn Any>;
+    fn output_at(&self, index: usize) -> Rc<dyn Any>;
 }

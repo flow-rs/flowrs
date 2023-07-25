@@ -1,13 +1,11 @@
-use std::{
-    any::Any,
-    fmt::Debug,
-    rc::Rc,
-    sync::Arc,
+use std::{any::Any, fmt::Debug, rc::Rc, sync::Arc};
+
+use crate::{
+    connection::{Output, RuntimeConnectable},
+    nodes::node::Node,
 };
 
-use crate::{connection::Output, job::RuntimeConnectable, nodes::job::Node};
-
-use super::job::Context;
+use super::node::Context;
 
 pub struct BasicNode<I>
 where

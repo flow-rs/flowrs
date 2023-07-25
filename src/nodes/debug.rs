@@ -1,10 +1,13 @@
-use std::{fmt::Debug, sync::Arc, any::Any, rc::Rc};
+use std::{any::Any, fmt::Debug, rc::Rc, sync::Arc};
 
 use serde_json::Value;
 
-use crate::{job::RuntimeConnectable, nodes::job::Node, connection::{Input, Output}};
+use crate::{
+    connection::{Input, Output, RuntimeConnectable},
+    nodes::node::Node,
+};
 
-use super::job::Context;
+use super::node::Context;
 
 pub struct DebugNode<I>
 where

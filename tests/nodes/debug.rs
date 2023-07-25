@@ -1,9 +1,13 @@
 #[cfg(test)]
 mod nodes {
 
-    use std::{sync::Arc, borrow::BorrowMut};
+    use std::sync::Arc;
 
-    use flow::{connection::{ConnectError, Edge, connect}, job::Context, debug::DebugNode, Node};
+    use flow::{
+        connection::{connect, ConnectError, Edge},
+        debug::DebugNode,
+        node::{Context, Node},
+    };
     use serde_json::Value;
 
     #[test]

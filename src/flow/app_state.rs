@@ -1,10 +1,4 @@
-use std::{
-    any::Any,
-    collections::HashMap,
-    ops::Add,
-    rc::Rc,
-    sync::{Arc, Mutex}, borrow::BorrowMut,
-};
+use std::{any::Any, collections::HashMap, ops::Add, rc::Rc, sync::Arc};
 
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
@@ -12,10 +6,10 @@ use serde_json::Value;
 use crate::{
     add::AddNode,
     basic::BasicNode,
-    connection::{connect, ConnectError, Edge, Output, Input},
-    job::{Context, RuntimeConnectable},
+    connection::{connect, ConnectError, Input, Output, RuntimeConnectable},
+    node::Context,
+    node::Node,
     nodes::debug::DebugNode,
-    Node,
 };
 
 #[derive(Clone, Debug)]
@@ -101,7 +95,7 @@ impl AppState {
 
     pub fn add_node(&mut self, name: &str, kind: String, props: Value) -> String {
         let node: Box<dyn RuntimeNode> = match kind.as_str() {
-            "nodes.arithmetics.add" => Box::new(AddNode::<FlowType, FlowType>::new(
+            "nodes.arithmetics.add" => Box::new(AddNode::<FlowType, FlowType, FlowType>::new(
                 name,
                 self.context.clone(),
                 Value::Null,
@@ -136,7 +130,10 @@ impl AppState {
         let out_edge = self.nodes[lhs_idx]
             .output_at(index_out)
             .downcast_ref::<Output<FlowType>>()
-            .expect(&format!("{} Nodes output at {} couldn't be downcasted", lhs, index_in))
+            .expect(&format!(
+                "{} Nodes output at {} couldn't be downcasted",
+                lhs, index_in
+            ))
             .clone();
         let in_edge = self.nodes[rhs_idx]
             .input_at(index_in)

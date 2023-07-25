@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod nodes {
     use flow::connection::{ConnectError, Edge, connect};
-    use flow::job::Context;
-    use flow::Node;
+    use flow::node::{Context, Node};
     use serde_json::Value;
     use std::sync::Arc;
 

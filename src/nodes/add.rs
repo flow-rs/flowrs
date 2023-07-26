@@ -90,12 +90,10 @@ where
     // To be replaced by macro
     fn update(&mut self) {
         if let Ok(i1) = self.input_1.next_elem() {
-            println!("TEST1");
             self.handle_1(i1);
         }
 
         if let Ok(i2) = self.input_2.next_elem() {
-            println!("TEST2");
             self.handle_2(i2);
         }
     }

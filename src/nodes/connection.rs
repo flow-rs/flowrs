@@ -52,10 +52,19 @@ impl fmt::Display for ChannelError {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Edge<I> {
     sender: Sender<I>,
-    receiver: Arc<Mutex<Receiver<I>>>,
+    receiver: Option<Receiver<I>>,
+}
+
+impl<I> Clone for Edge<I> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            receiver: None,
+        }
+    }
 }
 
 impl<I> Edge<I> {
@@ -63,7 +72,7 @@ impl<I> Edge<I> {
         let (sender, receiver) = channel();
         Self {
             sender,
-            receiver: Arc::new(Mutex::new(receiver)),
+            receiver: Some(receiver),
         }
     }
 
@@ -71,8 +80,12 @@ impl<I> Edge<I> {
         Ok(self.sender.send(elem)?)
     }
 
-    pub fn next_elem(&self) -> Result<I, ConnectError<I>> {
-        Ok(self.receiver.lock().unwrap().try_recv()?)
+    pub fn next_elem(&mut self) -> Result<I, ConnectError<I>> {
+        Ok(self
+            .receiver
+            .as_mut()
+            .expect("Only the Node that created this edge can receive from it.")
+            .try_recv()?)
     }
 }
 

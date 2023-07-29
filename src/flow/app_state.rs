@@ -1,21 +1,22 @@
-use std::{
-    any::Any,
-    collections::HashMap,
-    ops::Add,
-    rc::Rc,
-    sync::Arc
-};
+use std::{any::Any, collections::HashMap, ops::Add, rc::Rc};
 
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 use crate::{
-    add::AddNode, basic::BasicNode, connection::ConnectError, debug::DebugNode, job::Context, Node,
+    add::AddNode,
+    basic::BasicNode,
+    connection::{connect, ConnectError, Input, Output, RuntimeConnectable},
+    node::Node,
+    node::{Context, State},
+    nodes::debug::DebugNode,
 };
 
 #[derive(Clone, Debug)]
 pub struct FlowType(pub Rc<dyn Any>);
 
+pub trait RuntimeNode: Node + RuntimeConnectable {}
+impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
 // This implementation gives some control over which types should be
 // addable throughout the entire flow. As of now only homogenious types
 // allow addition.
@@ -28,12 +29,12 @@ impl Add for FlowType {
     fn add(self, rhs: Self) -> Self::Output {
         if let Some(lhs) = self.0.downcast_ref::<i64>() {
             if let Some(rhs) = rhs.0.downcast_ref::<i64>() {
-                return FlowType(Rc::new(lhs+rhs));
+                return FlowType(Rc::new(lhs + rhs));
             }
         }
         if let Some(lhs) = self.0.downcast_ref::<i32>() {
             if let Some(rhs) = rhs.0.downcast_ref::<i32>() {
-                return FlowType(Rc::new(lhs+rhs));
+                return FlowType(Rc::new(lhs + rhs));
             }
         }
         if let Some(lhs) = self.0.downcast_ref::<String>() {
@@ -46,31 +47,40 @@ impl Add for FlowType {
         if let Some(lhs) = self.0.downcast_ref::<Value>() {
             if let Some(rhs) = rhs.0.downcast_ref::<Value>() {
                 return match (lhs, rhs) {
-                    (Value::Number(a), Value::Number(b)) => FlowType(Rc::new(a.as_f64().unwrap() + b.as_f64().unwrap())),
+                    (Value::Number(a), Value::Number(b)) => {
+                        FlowType(Rc::new(a.as_f64().unwrap() + b.as_f64().unwrap()))
+                    }
                     (Value::String(a), Value::String(b)) => {
                         let mut res = a.clone();
                         res.push_str(b);
                         FlowType(Rc::new(a.clone()))
-                    },
+                    }
                     (Value::Array(a), Value::Array(b)) => {
                         let mut res = a.clone();
                         res.append(b.to_owned().as_mut());
                         FlowType(Rc::new(a.clone()))
-                    },
-                    (a, b) => panic!("Addition of JSON values of type {:?} and {:?} is not supported.", a, b)
-                }
+                    }
+                    (a, b) => panic!(
+                        "Addition of JSON values of type {:?} and {:?} is not supported.",
+                        a, b
+                    ),
+                };
             }
         }
-        panic!("Addition not supported for type {:?} and {:?}.", self.type_id(), rhs.type_id());
+        panic!(
+            "Addition not supported for type {:?} and {:?}.",
+            self.type_id(),
+            rhs.type_id()
+        );
     }
 }
 
 pub struct AppState {
     // For a yet TBD reason a HashMap of dyn types looses track of channel pointers.
     // As a workaround Nodes are resolved in a two step process and stored in a Vec.
-    pub nodes: Vec<Box<dyn Node<FlowType, FlowType>>>,
+    pub nodes: Vec<Box<dyn RuntimeNode>>,
     pub node_idc: HashMap<String, usize>,
-    pub context: Arc<Context>,
+    pub context: State<Context>,
 }
 
 impl AppState {
@@ -78,44 +88,58 @@ impl AppState {
         AppState {
             nodes: Vec::new(),
             node_idc: HashMap::new(),
-            context: Arc::new(Context {}),
+            context: State::new(Context {}),
         }
     }
 
-    pub fn get_node(&mut self, name: &str) -> &dyn Node<FlowType, FlowType> {
-        let index = *self.node_idc.get(name).unwrap();
-        self.nodes[index].as_ref()
-    }
-
     pub fn add_node(&mut self, name: &str, kind: String, props: Value) -> String {
-        let node: Box<dyn Node<FlowType, FlowType>> = match kind.as_str() {
-            "nodes.arithmetics.add" => {
-                Box::new(AddNode::new(name, self.context.clone()))
-            }
+        let node: Box<dyn RuntimeNode> = match kind.as_str() {
+            "nodes.arithmetics.add" => Box::new(AddNode::<FlowType, FlowType, FlowType>::new(
+                name,
+                self.context.clone(),
+                Value::Null,
+            )),
             "nodes.basic" => Box::new(BasicNode::new(
                 name,
                 self.context.clone(),
                 FlowType(Rc::new(props)),
             )),
-            "nodes.debug" => Box::new(DebugNode::new(name, self.context.clone())),
-            value => panic!("Node kind `{}` is not yet supported.", value),
+            "nodes.debug" => Box::new(DebugNode::<FlowType>::new(
+                name,
+                self.context.clone(),
+                Value::Null,
+            )),
+            _ => panic!("Nodes of type {} are not yet supported.", kind),
         };
         self.nodes.push(node);
         self.node_idc.insert(name.to_owned(), self.nodes.len() - 1);
         name.to_owned()
     }
 
-    pub fn chain_at(
+    pub fn connect_at(
         &mut self,
         lhs: String,
         rhs: String,
-        index: usize,
+        index_in: usize,
+        index_out: usize,
     ) -> Result<(), ConnectError<FlowType>> {
         let lhs_idx = self.node_idc.get(&lhs).unwrap().clone();
         let rhs_idx = self.node_idc.get(&rhs).unwrap().clone();
-        let lhs_node = &self.nodes[lhs_idx];
-        let rhs_node = &self.nodes[rhs_idx];
-        lhs_node.chain(vec![rhs_node.input_at(index)?]);
+        // TODO: RefCell is not an ideal solution here.
+        let out_edge = self.nodes[lhs_idx]
+            .output_at(index_out)
+            .downcast_ref::<Output<FlowType>>()
+            .expect(&format!(
+                "{} Nodes output at {} couldn't be downcasted",
+                lhs, index_in
+            ))
+            .clone();
+        let in_edge = self.nodes[rhs_idx]
+            .input_at(index_in)
+            .downcast_ref::<Input<FlowType>>()
+            .unwrap()
+            .to_owned();
+        connect(out_edge, in_edge);
         Ok(())
     }
 
@@ -124,7 +148,9 @@ impl AppState {
         self.nodes.iter_mut().for_each(|job| job.on_ready());
         // Capped at 100 here for testing purposes. TODO: change to infinite loop with stop condition.
         for _ in 0..100 {
-            self.nodes.iter_mut().for_each(|job| job.on_handle());
+            self.nodes.iter_mut().for_each(|job| {
+                let _ = job.update();
+            });
         }
         self.nodes.iter_mut().for_each(|job| job.on_shutdown());
     }
@@ -135,20 +161,18 @@ struct JsonNode {
     name: String,
     kind: String,
     props: Value,
-    //inputs: Vec<Queue>,
-    //outputs: Vec<Queue>,
 }
 
 #[derive(Deserialize)]
-struct Queue {
-    //ty: String,
+struct JsonConnection {
+    node: String,
+    index: usize,
 }
 
 #[derive(Deserialize)]
 struct JsonEdge {
-    input: String,
-    index: usize,
-    output: String,
+    source: JsonConnection,
+    dest: JsonConnection,
 }
 
 #[derive(Deserialize)]
@@ -168,7 +192,12 @@ impl<'de> Deserialize<'de> for AppState {
             app_state.add_node(&node.name, node.kind.clone(), node.props.to_owned());
         });
         json_data.edges.iter().for_each(|edge| {
-            let _ = app_state.chain_at(edge.input.clone(), edge.output.clone(), edge.index);
+            let _ = app_state.connect_at(
+                edge.source.node.clone(),
+                edge.dest.node.clone(),
+                edge.dest.index,
+                edge.source.index,
+            );
         });
 
         Ok(app_state)

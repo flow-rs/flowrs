@@ -1,76 +1,99 @@
 use core::panic;
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Type};
+use syn::{Arm, DataStruct, DeriveInput, Field, Type};
 
 pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
-    // The struct name is required to know what Struct to impl the trait for.
-    let struct_ident = ast.ident;
-    let conn_field = match ast.data {
-        syn::Data::Struct(s) => Some(s.fields.into_iter().filter(|f| {
-            match &f.ty {
-                Type::Path(p) => p
-                    .path
-                    .segments
-                    .first()
-                    .is_some_and(|f| f.ident.to_string() == "Connection"),
-                _ => false,
-            }
-        })),
-        _ => None,
+    let struct_ident = ast.clone().ident;
+    let struct_ident_str = struct_ident.to_string();
+    let inputs;
+    let outputs;
+    match ast.data {
+        syn::Data::Struct(s) => {
+            inputs = validate_struct_field(s.clone(), "Input", "input");
+            outputs = validate_struct_field(s, "Output", "output");
+        }
+        _ => panic!("The derive(Connection) macro only works for structs."),
     };
-    // The generics can be applied as stated since any additional generics won't be used.
-    let (_, ty_generics, where_clause) = ast.generics.split_for_impl();
-    // The nested connection field is required to know what field to delegate the impl to.
-    match conn_field.unwrap().next().clone() {
-        None => panic!("Your Struct requires a field of type Connection<I, O> in order to derive from Connectable.\n
-        Example:\n
-        pub struct MyNode<I, O> {{conn: Connection<I, O>, ...}}\n
-        Alternatively you can implement the Connectable trait manually without using this macro."),
-        Some(field) => {
-            let field_ident = field.ident;
-            quote::quote! {
-                use crate::nodes::connection::ConnectError;
-                use super::connection::Connection;
-                use std::{sync::mpsc::Sender, cell::Cell};
-                impl #ty_generics Connectable<I, O> for #struct_ident #ty_generics #where_clause {
-                    fn inputs(&self) -> &Vec<Sender<I>> {
-                        &self.#field_ident.inputs()
-                    }
-
-                    fn output(&self) -> &Cell<Vec<Sender<O>>> {
-                        &self.#field_ident.output()
-                    }
-
-                    fn chain(&self, successors: Vec<std::sync::mpsc::Sender<O>>) {
-                        self.#field_ident.chain(successors);
-                    }
-
-                    fn send_at(&self, index: usize, value: I) -> Result<(), ConnectError<I>> {
-                        self.#field_ident.send_at(index, value)
-                    }
-
-                    fn send(&self, value: I) -> Result<(), ConnectError<I>> {
-                        self.#field_ident.send(value)
-                    }
-
-                    fn input_at(&self, index: usize) -> Result<Sender<I>, ConnectError<I>> {
-                        self.#field_ident.input_at(index)
-                    }
-
-                    fn input(&self) -> Result<Sender<I>, ConnectError<I>> {
-                        self.#field_ident.input()
-                    }
-
-                    fn conn(&mut self) -> &mut Connection<I, O> {
-                        &mut self.#field_ident
-                    }
-
-                    fn send_out(&self, elem: O) {
-                        self.#field_ident.send_out(elem.clone());
-                    }
+    let input_len = inputs.len();
+    let output_len = outputs.len();
+    let inpu_arms: Vec<Arm> = inputs
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let ident = &field.ident;
+            let arm: TokenStream = quote::quote! {
+                #index => Rc::new(self.#ident.clone()),
+            }
+            .into();
+            let arm_ast: Arm = syn::parse(arm.clone()).unwrap();
+            arm_ast
+        })
+        .collect::<Vec<Arm>>();
+    let output_arms: Vec<Arm> = outputs
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let ident = &field.ident;
+            let arm: TokenStream = quote::quote! {
+                #index => Rc::new(self.#ident.clone()),
+            }
+            .into();
+            let arm_ast: Arm = syn::parse(arm.clone()).unwrap();
+            arm_ast
+        })
+        .collect::<Vec<Arm>>();
+    let (_, ty_generics, _) = ast.generics.split_for_impl();
+    quote::quote! {
+        impl #ty_generics RuntimeConnectable for #struct_ident #ty_generics
+        where
+            I1: Clone + 'static,
+            I2: Clone + 'static,
+            O: Clone + 'static,
+        {
+            fn input_at(&self, index: usize) -> Rc<dyn Any> {
+                match index {
+                    #(#inpu_arms)*
+                    _ => panic!("Index {} out of bounds for {} with input len {}.", index, #struct_ident_str, #input_len),
                 }
             }
-            .into()
+
+            fn output_at(&self, index: usize) -> Rc<dyn Any> {
+                match index {
+                    #(#output_arms)*
+                    _ => panic!("Index {} out of bounds for {} with output len {}.", index, #struct_ident_str, #output_len),
+                }
+            }
         }
     }
+    .into()
+}
+
+fn validate_struct_field(strct: DataStruct, ty: &str, mcro: &str) -> Vec<Field> {
+    strct
+        .fields
+        .into_iter()
+        .filter_map(|f| {
+            let type_valid = match f.clone().ty {
+                Type::Path(p) => match p.path.segments.first() {
+                    Some(segment) => segment.ident.to_string() == ty,
+                    None => false,
+                },
+                _ => false,
+            };
+            let helper_macro_valid = match f.attrs.get(0) {
+                Some(attr) => match &attr.meta {
+                    syn::Meta::Path(p) => match p.segments.first() {
+                        Some(segment) => segment.ident.to_string() == mcro,
+                        None => false,
+                    },
+                    _ => false,
+                },
+                None => false,
+            };
+            match type_valid && helper_macro_valid {
+                true => Some(f),
+                false => None,
+            }
+        })
+        .collect()
 }

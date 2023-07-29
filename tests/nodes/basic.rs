@@ -1,18 +1,21 @@
 #[cfg(test)]
 mod nodes {
-
-    use std::sync::Arc;
-    use flow::job::Context;
-    use flow::job::Job;
-
-    use flow::debug::DebugNode;
+    use flow::{
+        basic::BasicNode,
+        connection::{connect, ConnectError, Edge},
+        node::{Context, Node, State},
+    };
 
     #[test]
-    fn should_deserialize_from_json() {
-        let context = Arc::new(Context {});
-        let json = r#"{"conn": 1, "_context": {}, "name": "Hello Node"}"#;
-        let actual: DebugNode<i32, i32> = serde_json::from_str(json).unwrap();
-        let expected: DebugNode<i32, i32> = DebugNode::new("Hello Node", context.clone());
-        assert!(expected.name() == actual.name());
+    fn should_send_on_ready() -> Result<(), ConnectError<i32>> {
+        let context = State::new(Context {});
+        let node = BasicNode::new("My Node", context, 42);
+        let mock_output = Edge::new();
+        connect(node.output.clone(), mock_output.clone());
+        node.on_ready();
+
+        let expected = 42;
+        let actual = mock_output.next_elem()?;
+        Ok(assert!(expected == actual))
     }
 }

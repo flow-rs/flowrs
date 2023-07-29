@@ -1,64 +1,76 @@
-use std::sync::Arc;
+use std::{any::Any, fmt::Debug, rc::Rc};
 
-use flow_derive::build_job;
-use serde::Deserialize;
+use crate::{
+    connection::{Output, RuntimeConnectable},
+    node::{State, UpdateError},
+    nodes::node::Node,
+};
 
-use crate::job::{Context, Job};
-use crate::{Connectable, Node};
+use super::node::Context;
 
-#[derive(Connectable, Deserialize)]
-pub struct BasicNode<I, O>
-where
-    I: Sized + Clone,
-    O: Sized + Clone,
-{
-    conn: Connection<I, O>,
-    _context: Arc<Context>,
-    props: O,
-    name: String,
-}
-
-impl<I, O> BasicNode<I, O>
+pub struct BasicNode<I>
 where
     I: Clone,
-    O: Clone,
 {
-    pub fn new(name: &str, context: Arc<Context>, props: O) -> Self {
-        let conn = Connection::new(1);
+    name: String,
+    _state: State<Option<I>>,
+    props: I,
+    _context: State<Context>,
+
+    pub output: Output<I>,
+}
+
+impl<I> BasicNode<I>
+where
+    I: Clone,
+{
+    pub fn new(name: &str, context: State<Context>, props: I) -> Self {
         Self {
-            conn,
             name: name.into(),
+            _state: State::new(None),
+            props,
             _context: context,
-            props
+            output: Output::new(),
         }
     }
 }
 
-#[build_job]
-impl<I, O> Job for BasicNode<I, O>
+impl<I> Node for BasicNode<I>
 where
-    I: Clone,
-    O: Clone,
+    I: Clone + Debug,
 {
-    fn handle(_next_elem: I) {
+    fn on_init(&self) {
         ()
+    }
+
+    fn on_ready(&self) {
+        let elem = &self.props;
+        self.output.clone().send(elem.clone()).unwrap();
+    }
+
+    fn on_shutdown(&self) {}
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn update(&self) -> Result<(), UpdateError> {
+        Ok(())
     }
 }
 
-impl<I, O> Node<I, O> for BasicNode<I, O>
-where
-    I: Clone,
-    O: Clone,
-{
-    fn on_init(&mut self) {
-        ()
+impl<I: Clone + 'static> RuntimeConnectable for BasicNode<I> {
+    fn input_at(&self, _: usize) -> Rc<dyn Any> {
+        panic!("Index out of bounds for BasicNode")
     }
 
-    fn on_ready(&mut self) {
-        self.send_out(self.props.clone())
-    }
-
-    fn on_shutdown(&mut self) {
-        ()
+    fn output_at(&self, index: usize) -> Rc<dyn Any> {
+        match index {
+            0 => {
+                let re = self.output.clone();
+                Rc::new(re)
+            }
+            _ => panic!("Intex out of bounds for BasicNode"),
+        }
     }
 }

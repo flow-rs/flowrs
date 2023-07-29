@@ -1,68 +1,79 @@
-use std::fmt::Debug;
-use std::sync::Arc;
+use std::{any::Any, fmt::Debug, rc::Rc};
 
-use flow_derive::build_job;
-use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{
-    job::{Context, Job},
-    log,
+    connection::{Input, Output, RuntimeConnectable},
+    node::{State, UpdateError},
+    nodes::node::Node,
 };
-use crate::{Connectable, Node};
 
-#[derive(Connectable, Deserialize)]
-pub struct DebugNode<I, O>
-where
-    I: Sized + Clone,
-    O: Sized + Clone,
-{
-    conn: Connection<I, O>,
-    _context: Arc<Context>,
-    name: String,
-}
+use super::node::Context;
 
-impl<I, O> DebugNode<I, O>
+pub struct DebugNode<I>
 where
     I: Clone,
-    O: Clone,
 {
-    pub fn new(name: &str, context: Arc<Context>) -> Self {
-        let conn = Connection::new(1);
+    name: String,
+    _state: State<Option<I>>,
+    _props: Value,
+    _context: State<Context>,
+
+    pub input: Input<I>,
+    pub output: Output<I>,
+}
+
+impl<I> DebugNode<I>
+where
+    I: Clone,
+{
+    pub fn new(name: &str, context: State<Context>, props: Value) -> Self {
         Self {
-            conn,
             name: name.into(),
+            _state: State::new(None),
+            _props: props,
             _context: context,
+            input: Input::new(),
+            output: Output::new(),
         }
     }
 }
 
-#[build_job]
-impl<I, O> Job for DebugNode<I, O>
+impl<I> Node for DebugNode<I>
 where
-    I: Debug + Clone,
-    O: Clone,
+    I: Clone + Debug,
 {
-    fn handle(next_elem: I) {
-        let msg = format!("{:?}", next_elem.clone());
-        println!("{}", msg);
-        log(msg.as_str());
+    fn on_init(&self) {}
+
+    fn on_ready(&self) {}
+
+    fn on_shutdown(&self) {}
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn update(&self) -> Result<(), UpdateError> {
+        if let Ok(input) = self.input.next_elem() {
+            println!("{:?}", input);
+            self.output.clone().send(input).unwrap();
+        }
+        Ok(())
     }
 }
 
-impl<I, O> Node<I, O> for DebugNode<I, O>
-where
-    I: Clone + Debug,
-    O: Clone,
-{
-    fn on_init(&mut self) {
-        ()
+impl<I: Clone + 'static> RuntimeConnectable for DebugNode<I> {
+    fn input_at(&self, index: usize) -> Rc<dyn Any> {
+        match index {
+            0 => Rc::new(self.input.clone()),
+            _ => panic!("Intex out of bounds for DebugNode"),
+        }
     }
 
-    fn on_ready(&mut self) {
-        ()
-    }
-
-    fn on_shutdown(&mut self) {
-        ()
+    fn output_at(&self, index: usize) -> Rc<dyn Any> {
+        match index {
+            0 => Rc::new(self.output.clone()),
+            _ => panic!("Intex out of bounds for DebugNode"),
+        }
     }
 }

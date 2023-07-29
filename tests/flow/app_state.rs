@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod app_state {
-    use flow::app_state::AppState;
+    use std::sync::mpsc::{Sender, Receiver, channel};
+
+    use flow::app_state::{AppState, FlowType};
 
 
     #[test]
@@ -59,6 +61,9 @@ mod app_state {
             ]
         }
         "#;
+        let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
+        app_state.run();
+    }
 
         let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
         assert!(app_state.nodes.len() == 4);

@@ -17,7 +17,6 @@ pub struct FlowType(pub Rc<dyn Any>);
 
 pub trait RuntimeNode: Node + RuntimeConnectable {}
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
-
 // This implementation gives some control over which types should be
 // addable throughout the entire flow. As of now only homogenious types
 // allow addition.

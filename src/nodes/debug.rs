@@ -7,7 +7,6 @@ use crate::{
     node::{State, UpdateError},
     nodes::node::Node,
 };
-use crate::{Connectable, Node};
 
 use super::node::Context;
 
@@ -76,23 +75,5 @@ impl<I: Clone + 'static> RuntimeConnectable for DebugNode<I> {
             0 => Rc::new(self.output.clone()),
             _ => panic!("Intex out of bounds for DebugNode"),
         }
-    }
-}
-
-impl<I, O> Node<I, O> for DebugNode<I, O>
-where
-    I: Clone + Debug,
-    O: Clone,
-{
-    fn on_init(&mut self) {
-        ()
-    }
-
-    fn on_ready(&mut self) {
-        ()
-    }
-
-    fn on_shutdown(&mut self) {
-        ()
     }
 }

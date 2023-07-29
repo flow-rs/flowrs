@@ -1,9 +1,7 @@
 #[cfg(test)]
 mod app_state {
-    use std::sync::mpsc::{Sender, Receiver, channel};
 
-    use flow::app_state::{AppState, FlowType};
-
+    use flow::app_state::AppState;
 
     #[test]
     fn should_deserialize_empty_state() {
@@ -19,7 +17,9 @@ mod app_state {
     }
 
     #[test]
-    #[should_panic(expected = r#"You attemnted to send to an output where no succesor Node is connected."#)]
+    #[should_panic(
+        expected = r#"You attemnted to send to an output where no succesor Node is connected."#
+    )]
     fn should_deserialize_non_empty_state() {
         let json_str = r#"
         {
@@ -62,16 +62,14 @@ mod app_state {
         }
         "#;
         let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
-        app_state.run();
-    }
-
-        let mut app_state: AppState = serde_json::from_str(json_str).unwrap();
         assert!(app_state.nodes.len() == 4);
         app_state.run();
     }
 
     #[test]
-    #[should_panic(expected = r#"Addition of JSON values of type String("string") and Number(30) is not supported."#)]
+    #[should_panic(
+        expected = r#"Addition of JSON values of type String("string") and Number(30) is not supported."#
+    )]
     fn should_fail_on_invalid_types() {
         let json_str = r#"
         {

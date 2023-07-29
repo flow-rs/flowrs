@@ -80,10 +80,14 @@ impl<I> Edge<I> {
         Ok(self.sender.send(elem)?)
     }
 
-    pub fn next_elem(&mut self) -> Result<I, ConnectError<I>> {
+    pub fn has_next(&self) -> bool {
+        self.receiver.as_ref().iter().peekable().peek().is_some()
+    }
+
+    pub fn next_elem(&self) -> Result<I, ConnectError<I>> {
         Ok(self
             .receiver
-            .as_mut()
+            .as_ref()
             .expect("Only the Node that created this edge can receive from it.")
             .try_recv()?)
     }

@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, ops::Add, rc::Rc, sync::Arc};
+use std::{any::Any, collections::HashMap, ops::Add, rc::Rc};
 
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
@@ -7,8 +7,8 @@ use crate::{
     add::AddNode,
     basic::BasicNode,
     connection::{connect, ConnectError, Input, Output, RuntimeConnectable},
-    node::Context,
     node::Node,
+    node::{Context, State},
     nodes::debug::DebugNode,
 };
 
@@ -81,7 +81,7 @@ pub struct AppState {
     // As a workaround Nodes are resolved in a two step process and stored in a Vec.
     pub nodes: Vec<Box<dyn RuntimeNode>>,
     pub node_idc: HashMap<String, usize>,
-    pub context: Arc<Context>,
+    pub context: State<Context>,
 }
 
 impl AppState {
@@ -89,7 +89,7 @@ impl AppState {
         AppState {
             nodes: Vec::new(),
             node_idc: HashMap::new(),
-            context: Arc::new(Context {}),
+            context: State::new(Context {}),
         }
     }
 
@@ -149,7 +149,9 @@ impl AppState {
         self.nodes.iter_mut().for_each(|job| job.on_ready());
         // Capped at 100 here for testing purposes. TODO: change to infinite loop with stop condition.
         for _ in 0..100 {
-            self.nodes.iter_mut().for_each(|job| job.update());
+            self.nodes.iter_mut().for_each(|job| {
+                let _ = job.update();
+            });
         }
         self.nodes.iter_mut().for_each(|job| job.on_shutdown());
     }

@@ -1,7 +1,8 @@
-use std::{any::Any, fmt::Debug, rc::Rc, sync::Arc};
+use std::{any::Any, fmt::Debug, rc::Rc};
 
 use crate::{
     connection::{Output, RuntimeConnectable},
+    node::{State, UpdateError},
     nodes::node::Node,
 };
 
@@ -12,9 +13,9 @@ where
     I: Clone,
 {
     name: String,
-    state: Option<I>,
+    _state: State<Option<I>>,
     props: I,
-    context: Arc<Context>,
+    _context: State<Context>,
 
     pub output: Output<I>,
 }
@@ -23,12 +24,12 @@ impl<I> BasicNode<I>
 where
     I: Clone,
 {
-    pub fn new(name: &str, context: Arc<Context>, props: I) -> Self {
+    pub fn new(name: &str, context: State<Context>, props: I) -> Self {
         Self {
             name: name.into(),
-            state: None,
+            _state: State::new(None),
             props,
-            context,
+            _context: context,
             output: Output::new(),
         }
     }
@@ -38,22 +39,24 @@ impl<I> Node for BasicNode<I>
 where
     I: Clone + Debug,
 {
-    fn on_init(&mut self) {
+    fn on_init(&self) {
         ()
     }
 
-    fn on_ready(&mut self) {
+    fn on_ready(&self) {
         let elem = &self.props;
-        self.output.send(elem.clone()).unwrap();
+        self.output.clone().send(elem.clone()).unwrap();
     }
 
-    fn on_shutdown(&mut self) {}
+    fn on_shutdown(&self) {}
 
     fn name(&self) -> &str {
         &self.name
     }
 
-    fn update(&mut self) {}
+    fn update(&self) -> Result<(), UpdateError> {
+        Ok(())
+    }
 }
 
 impl<I: Clone + 'static> RuntimeConnectable for BasicNode<I> {

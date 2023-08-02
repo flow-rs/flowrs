@@ -1,24 +1,26 @@
-use std::{thread, sync::{ Arc, Mutex}};
+use std::sync::{Arc, Mutex};
 
-use crate::{
-    node::Node,
-    flow::version::Version
-};
+use crate::{sched::version::Version, node::Node};
 
 pub struct Flow {
-    name: String, 
+    name: String,
     version: Version,
-    nodes: Vec<Arc<Mutex<dyn Node>>>
+    nodes: Vec<Arc<Mutex<dyn Node>>>,
 }
 
 impl Flow {
-
-    pub fn new(name: &str, v:Version) -> Self {
-        Self { name: name.to_string(), version: v, nodes: Vec::new() }
+    pub fn new(name: &str, v: Version) -> Self {
+        Self {
+            name: name.to_string(),
+            version: v,
+            nodes: Vec::new(),
+        }
     }
 
     pub fn add_node<T>(&mut self, node: T)
-    where T: Node {
+    where
+        T: Node,
+    {
         self.nodes.push(Arc::new(Mutex::new(node)));
     }
 

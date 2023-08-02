@@ -1,16 +1,3 @@
-# Running the Example
-
-```sh
-$ wasm-pack build --target web
-$ python3 -m http.server
-```
-
-Open the browser at [http://0.0.0.0:8000/](http://0.0.0.0:8000/).
-
-Step through the flow:
-
-![flow example](assets/example.png)
-
 # Executing Tests
 
 All Rust internal test can be executed using:
@@ -19,8 +6,6 @@ All Rust internal test can be executed using:
 $ cargo test
 ```
 
-while tests that require WASM can be executing using:
+# Contributing
 
-```sh
-$ wasm-pack test --node
-```
+Please read our [Contribution Guidelines](./CONTRIBUTING.md) first.

@@ -7,6 +7,7 @@ use std::{
         Arc, Mutex,
     },
 };
+use crate::node::{State, Context};
 
 #[derive(Debug)]
 pub enum ConnectError<I> {
@@ -95,25 +96,35 @@ impl<I> Edge<I> {
 
 pub type Input<I> = Edge<I>;
 
-#[derive(Clone, Debug)]
-pub struct Output<T>(Arc<Mutex<Option<Edge<T>>>>);
+#[derive(Clone)]
+pub struct Output<T>{
+    edge: Arc<Mutex<Option<Edge<T>>>>,
+    context: State<Context>
+}
 
 impl<O> Output<O> {
-    pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(None)))
+    pub fn new(context: State<Context> ) -> Self {
+        Self{
+            edge: Arc::new(Mutex::new(None)),
+            context: context
+        }
     }
 
     pub fn send(&mut self, elem: O) -> Result<(), ConnectError<O>> {
-        self.0
+        let res = self.edge
             .lock()
             .unwrap()
             .as_mut()
-            .expect("You attemnted to send to an output where no succesor Node is connected.")
-            .send(elem)
+            .expect("You attempted to send to an output where no succesor Node is connected.")
+            .send(elem);
+
+            self.context.0.lock().unwrap().on_change();
+
+        res
     }
 
     pub fn set(&mut self, edge: Edge<O>) {
-        let _ = self.0.lock().unwrap().insert(edge);
+        let _ = self.edge.lock().unwrap().insert(edge);
     }
 }
 

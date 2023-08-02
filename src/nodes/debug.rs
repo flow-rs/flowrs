@@ -32,16 +32,16 @@ where
             name: name.into(),
             _state: State::new(None),
             _props: props,
-            _context: context,
+            _context: context.clone(),
             input: Input::new(),
-            output: Output::new(),
+            output: Output::new(context.clone()),
         }
     }
 }
 
 impl<I> Node for DebugNode<I>
 where
-    I: Clone + Debug,
+    I: Clone + Debug + Send + 'static,
 {
     fn on_init(&self) {}
 

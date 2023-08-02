@@ -9,7 +9,7 @@ mod nodes {
 
     #[test]
     fn should_add_132() -> Result<(), ConnectError<i32>> {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let mock_output = Edge::new();
         let fst = DebugNode::new("AddNodeI32", context.clone(), Value::Null);
         let snd = DebugNode::new("AddNodeI32", context, Value::Null);

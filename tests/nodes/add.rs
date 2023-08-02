@@ -11,7 +11,7 @@ mod nodes {
 
     #[test]
     fn should_add_132() -> Result<(), ConnectError<i32>> {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add = AddNode::new("AddNodeI32", context, Value::Null);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
@@ -34,7 +34,7 @@ mod nodes {
     /// [100, 99, ..., 0]
     #[test]
     fn should_add_multiple_132_sequentially() -> Result<(), ConnectError<i32>> {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add = AddNode::new("AddNodeI32", context, Value::Null);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
@@ -63,7 +63,7 @@ mod nodes {
 
     #[test]
     fn should_add_multiple_132_parallel() -> Result<(), ConnectError<i32>> {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add1 = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         let add2 = AddNode::new("AddNodeI32", context, Value::Null);
         let mock_output = Edge::new();
@@ -109,7 +109,7 @@ mod nodes {
 
     #[test]
     fn should_return_lhs_at_runtime() {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add: AddNode<i32, i32, i32> = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         let input1: Rc<dyn Any> = add.input_at(0);
         let input1_downcasted = input1.downcast::<Input<i32>>();
@@ -118,7 +118,7 @@ mod nodes {
 
     #[test]
     fn should_return_rhs_at_runtime() {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add: AddNode<i32, i32, i32> = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         let input1: Rc<dyn Any> = add.input_at(1);
         let input1_downcasted = input1.downcast::<Input<i32>>();
@@ -127,7 +127,7 @@ mod nodes {
 
     #[test]
     fn should_return_output_at_runtime() {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add: AddNode<i32, i32, i32> = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         let input1: Rc<dyn Any> = add.output_at(0);
         let input1_downcasted = input1.downcast::<Output<i32>>();
@@ -137,7 +137,7 @@ mod nodes {
     #[test]
     #[should_panic(expected = "Index 2 out of bounds for AddNode with input len 2.")]
     fn should_fail_on_index_out_of_bounds() {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add: AddNode<i32, i32, i32> = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         add.input_at(2);
     }
@@ -145,7 +145,7 @@ mod nodes {
     #[test]
     #[should_panic(expected = "Index 1 out of bounds for AddNode with output len 1.")]
     fn should_fail_on_output_out_of_bounds() {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let add: AddNode<i32, i32, i32> = AddNode::new("AddNodeI32", context.clone(), Value::Null);
         add.output_at(1);
     }

@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, ops::Add, rc::Rc};
+use std::{any::Any, collections::HashMap, ops::Add, sync::Arc};
 
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct FlowType(pub Rc<dyn Any>);
+pub struct FlowType(pub Arc<dyn Any + Send + Sync>);
 
 pub trait RuntimeNode: Node + RuntimeConnectable {}
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
@@ -29,36 +29,36 @@ impl Add for FlowType {
     fn add(self, rhs: Self) -> Self::Output {
         if let Some(lhs) = self.0.downcast_ref::<i64>() {
             if let Some(rhs) = rhs.0.downcast_ref::<i64>() {
-                return FlowType(Rc::new(lhs + rhs));
+                return FlowType(Arc::new(lhs + rhs));
             }
         }
         if let Some(lhs) = self.0.downcast_ref::<i32>() {
             if let Some(rhs) = rhs.0.downcast_ref::<i32>() {
-                return FlowType(Rc::new(lhs + rhs));
+                return FlowType(Arc::new(lhs + rhs));
             }
         }
         if let Some(lhs) = self.0.downcast_ref::<String>() {
             if let Some(rhs) = rhs.0.downcast_ref::<String>() {
                 let mut res = lhs.clone();
                 res.push_str(rhs);
-                return FlowType(Rc::new(res));
+                return FlowType(Arc::new(res));
             }
         }
         if let Some(lhs) = self.0.downcast_ref::<Value>() {
             if let Some(rhs) = rhs.0.downcast_ref::<Value>() {
                 return match (lhs, rhs) {
                     (Value::Number(a), Value::Number(b)) => {
-                        FlowType(Rc::new(a.as_f64().unwrap() + b.as_f64().unwrap()))
+                        FlowType(Arc::new(a.as_f64().unwrap() + b.as_f64().unwrap()))
                     }
                     (Value::String(a), Value::String(b)) => {
                         let mut res = a.clone();
                         res.push_str(b);
-                        FlowType(Rc::new(a.clone()))
+                        FlowType(Arc::new(a.clone()))
                     }
                     (Value::Array(a), Value::Array(b)) => {
                         let mut res = a.clone();
                         res.append(b.to_owned().as_mut());
-                        FlowType(Rc::new(a.clone()))
+                        FlowType(Arc::new(a.clone()))
                     }
                     (a, b) => panic!(
                         "Addition of JSON values of type {:?} and {:?} is not supported.",
@@ -78,7 +78,7 @@ impl Add for FlowType {
 pub struct AppState {
     // For a yet TBD reason a HashMap of dyn types looses track of channel pointers.
     // As a workaround Nodes are resolved in a two step process and stored in a Vec.
-    pub nodes: Vec<Box<dyn RuntimeNode>>,
+    pub nodes: Vec<Box<dyn RuntimeNode + Send>>,
     pub node_idc: HashMap<String, usize>,
     pub context: State<Context>,
 }
@@ -88,12 +88,12 @@ impl AppState {
         AppState {
             nodes: Vec::new(),
             node_idc: HashMap::new(),
-            context: State::new(Context {}),
+            context: State::new(Context::new()),
         }
     }
 
     pub fn add_node(&mut self, name: &str, kind: String, props: Value) -> String {
-        let node: Box<dyn RuntimeNode> = match kind.as_str() {
+        let node: Box<dyn RuntimeNode + Send> = match kind.as_str() {
             "nodes.arithmetics.add" => Box::new(AddNode::<FlowType, FlowType, FlowType>::new(
                 name,
                 self.context.clone(),
@@ -102,7 +102,7 @@ impl AppState {
             "nodes.basic" => Box::new(BasicNode::new(
                 name,
                 self.context.clone(),
-                FlowType(Rc::new(props)),
+                FlowType(Arc::new(props)),
             )),
             "nodes.debug" => Box::new(DebugNode::<FlowType>::new(
                 name,

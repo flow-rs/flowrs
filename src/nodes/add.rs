@@ -37,20 +37,20 @@ where
 
 impl<I1, I2, O> AddNode<I1, I2, O>
 where
-    I1: Clone + Add<I2, Output = O>,
-    I2: Clone,
-    O: Clone,
+    I1: Clone + Add<I2, Output = O> + Send + 'static,
+    I2: Clone + Send + 'static,
+    O: Clone + Send + 'static,
 {
     pub fn new(name: &str, context: State<Context>, props: Value) -> Self {
         Self {
             name: name.into(),
             state: State::new(AddNodeState::None),
             _props: props,
-            _context: context,
+            _context: context.clone(),
 
             input_1: Input::new(),
             input_2: Input::new(),
-            output_1: Output::new(),
+            output_1: Output::new(context.clone()),
         }
     }
 
@@ -95,9 +95,9 @@ where
 
 impl<I1, I2, O> Node for AddNode<I1, I2, O>
 where
-    I1: Add<I2, Output = O> + Clone,
-    I2: Clone,
-    O: Clone,
+    I1: Add<I2, Output = O> + Clone + Send + 'static,
+    I2: Clone + Send + 'static,
+    O: Clone + Send + 'static,
 {
     fn on_init(&self) {}
 
@@ -111,11 +111,15 @@ where
 
     // To be replaced by macro
     fn update(&self) -> Result<(), UpdateError> {
+
+
         if let Ok(i1) = self.input_1.next_elem() {
+            println!("UPDATE1");
             self.handle_1(i1)?;
         }
 
         if let Ok(i2) = self.input_2.next_elem() {
+            println!("UPDATE2");
             self.handle_2(i2)?;
         }
         Ok(())

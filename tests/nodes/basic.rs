@@ -8,7 +8,7 @@ mod nodes {
 
     #[test]
     fn should_send_on_ready() -> Result<(), ConnectError<i32>> {
-        let context = State::new(Context {});
+        let context = State::new(Context::new());
         let node = BasicNode::new("My Node", context, 42);
         let mock_output = Edge::new();
         connect(node.output.clone(), mock_output.clone());

@@ -29,15 +29,15 @@ where
             name: name.into(),
             _state: State::new(None),
             props,
-            _context: context,
-            output: Output::new(),
+            _context: context.clone(),
+            output: Output::new(context.clone()),
         }
     }
 }
 
 impl<I> Node for BasicNode<I>
 where
-    I: Clone + Debug,
+    I: Clone + Debug + Send + 'static,
 {
     fn on_init(&self) {
         ()

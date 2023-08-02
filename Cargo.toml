@@ -2,13 +2,22 @@
 name = "flowrs"
 version = "0.1.0"
 edition = "2021"
+authors = ["wuermseer.florian@gmail.com", "markus.friedrich@hm.edu"]
+description = "A generic and Type-Safe WASM library for Flow-Based Programming."
+repository = "https://github.com/flow-rs/flowrs"
+license = "Apache-2.0"
+license-file = "LICENSE"
+readme = "README.md"
+documentation = "https://docs.rs/flowrs"
+keywords = ["flow", "fbp", "wasm"]
+categories = ["data-structures", "wasm"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flow-derive = { path = "flow-derive" }
+flowrs-derive = { version = "0.2.0", path = "flowrs_derive" }
 serde = { version = "1.0.166", features = ["derive", "rc"] }
 serde_json = "1.0.100"
 threadpool = "1.8.1"

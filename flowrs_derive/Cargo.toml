@@ -1,0 +1,21 @@
+[package]
+name = "flowrs-derive"
+version = "0.2.0"
+edition = "2021"
+authors = ["wuermseer.florian@gmail.com", "markus.friedrich@hm.edu"]
+description = "A macro for connecting flowrs Nodes during runtime."
+repository = "https://github.com/flow-rs/flowrs/tree/master/flow_derive"
+license = "Apache-2.0"
+readme = "README.md"
+documentation = "https://docs.rs/flowrs_derive"
+keywords = ["flow", "fbp", "wasm"]
+categories = ["data-structures", "wasm"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quote = "1.0.29"
+syn = { version = "2.0.28", features = ["full"] }
+
+[lib]
+proc-macro = true

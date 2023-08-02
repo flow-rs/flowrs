@@ -1,6 +1,6 @@
 use core::panic;
 use proc_macro::TokenStream;
-use syn::{Arm, DataStruct, DeriveInput, Field, Type};
+use syn::{Arm, DataStruct, DeriveInput, Field, Type, WherePredicate};
 
 pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let struct_ident = ast.clone().ident;
@@ -43,12 +43,12 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         })
         .collect::<Vec<Arm>>();
     let (_, ty_generics, _) = ast.generics.split_for_impl();
+    let mut generic_bounds = get_generic_bounds(inputs.clone());
+    generic_bounds.append(&mut get_generic_bounds(outputs));
     quote::quote! {
         impl #ty_generics RuntimeConnectable for #struct_ident #ty_generics
         where
-            I1: Clone + 'static,
-            I2: Clone + 'static,
-            O: Clone + 'static,
+            #(#generic_bounds,)*
         {
             fn input_at(&self, index: usize) -> Rc<dyn Any> {
                 match index {
@@ -66,6 +66,33 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         }
     }
     .into()
+}
+
+fn get_generic_bounds(fields: Vec<Field>) -> Vec<WherePredicate> {
+    fields
+        .iter()
+        .map(|f| match &f.ty {
+            Type::Path(path) => match &path.path.segments.first().unwrap().arguments {
+                syn::PathArguments::AngleBracketed(angle) => match angle.args.first().unwrap() {
+                    syn::GenericArgument::Type(generic) => match generic {
+                        Type::Path(t_path) => {
+                            let ident = t_path.path.segments.first().unwrap().ident.clone();
+                            let cond: TokenStream = quote::quote! {
+                                #ident: Clone + 'static
+                            }
+                            .into();
+                            let cond_ast: WherePredicate = syn::parse(cond.clone()).unwrap();
+                            cond_ast
+                        }
+                        _ => todo!(),
+                    },
+                    _ => todo!(),
+                },
+                _ => todo!(),
+            },
+            _ => todo!(),
+        })
+        .collect::<Vec<WherePredicate>>()
 }
 
 fn validate_struct_field(strct: DataStruct, ty: &str, mcro: &str) -> Vec<Field> {

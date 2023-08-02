@@ -1,6 +1,6 @@
 [package]
 name = "flowrs-derive"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["wuermseer.florian@gmail.com", "markus.friedrich@hm.edu"]
 description = "A macro for connecting flowrs Nodes during runtime."

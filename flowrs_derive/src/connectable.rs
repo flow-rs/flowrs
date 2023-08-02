@@ -1,6 +1,6 @@
 use core::panic;
 use proc_macro::TokenStream;
-use syn::{Arm, DataStruct, DeriveInput, Field, Type, WherePredicate};
+use syn::{Arm, DataStruct, DeriveInput, Field, Ident, Type, WherePredicate};
 
 pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let struct_ident = ast.clone().ident;
@@ -84,15 +84,22 @@ fn get_generic_bounds(fields: Vec<Field>) -> Vec<WherePredicate> {
                             let cond_ast: WherePredicate = syn::parse(cond.clone()).unwrap();
                             cond_ast
                         }
-                        _ => todo!(),
+                        _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
                     },
-                    _ => todo!(),
+                    _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
                 },
-                _ => todo!(),
+                _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
             },
-            _ => todo!(),
+            _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
         })
         .collect::<Vec<WherePredicate>>()
+}
+
+fn generic_err(field_name: Ident) -> String {
+    format!(
+        "Field: {} is not a valid Input/Output field for the flowrs_derive macro.",
+        field_name
+    )
 }
 
 fn validate_struct_field(strct: DataStruct, ty: &str, mcro: &str) -> Vec<Field> {

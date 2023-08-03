@@ -1,4 +1,6 @@
 use std::sync::{Arc, Mutex};
+use thiserror::Error;
+use anyhow::Result;
 
 pub trait ChangeObserver: Send {
     fn on_change(&mut self);
@@ -27,18 +29,41 @@ impl Context {
     }
 }
 
-pub trait Node: Send + 'static {
+pub trait Node : Send + 'static {
     fn name(&self) -> &str;
 
-    fn on_init(&self);
-    fn on_ready(&self);
-    fn on_shutdown(&self);
+    fn on_init(&self) -> Result<(), InitError>;
+    fn on_ready(&self) -> Result<(), ReadyError>;
+    fn on_shutdown(&self) -> Result<(), ShutdownError>;
     fn update(&self) -> Result<(), UpdateError>;
 }
 
-pub fn to_shared<T: Node>(value: T) -> Arc<Mutex<T>> {
-    Arc::new(Mutex::new(value))
-}
+#[derive(Error, Debug)]
+pub enum InitError {
+    
+    //TODO: Add init specific errors.
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+} 
+
+#[derive(Error, Debug)]
+pub enum ReadyError {
+    
+    //TODO: Add ready specific errors.
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+} 
+
+#[derive(Error, Debug)]
+pub enum ShutdownError {
+    
+    //TODO: Add shutdown specific errors.
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+} 
 
 #[derive(Debug)]
 pub struct SequenceError {
@@ -46,10 +71,18 @@ pub struct SequenceError {
     pub message: String,
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum UpdateError {
-    SequenceError(SequenceError),
-}
+
+    #[error("Sequence error for node {node:?}. Message: {message:?}")]
+    SequenceError {
+        node: String,
+        message: String,
+    },
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+} 
 
 pub struct State<S: Clone>(pub Arc<Mutex<S>>);
 

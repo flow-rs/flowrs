@@ -1,4 +1,4 @@
 pub mod executor;
-pub mod flow_type;
+pub mod flow;
 pub mod scheduler;
 pub mod version;

@@ -7,7 +7,7 @@ use std::{
         Arc, Mutex,
     },
 };
-use crate::node::{State, Context};
+use crate::node::{ChangeObserver};
 
 #[derive(Debug)]
 pub enum ConnectError<I> {
@@ -99,14 +99,14 @@ pub type Input<I> = Edge<I>;
 #[derive(Clone)]
 pub struct Output<T>{
     edge: Arc<Mutex<Option<Edge<T>>>>,
-    context: State<Context>
+    change_notifier: Sender<bool>
 }
 
 impl<O> Output<O> {
-    pub fn new(context: State<Context> ) -> Self {
+    pub fn new(change_observer: &ChangeObserver) -> Self {
         Self{
             edge: Arc::new(Mutex::new(None)),
-            context: context
+            change_notifier: change_observer.notifier.clone()
         }
     }
 
@@ -118,7 +118,7 @@ impl<O> Output<O> {
             .expect("You attempted to send to an output where no succesor Node is connected.")
             .send(elem);
 
-            self.context.0.lock().unwrap().on_change();
+            let _ = self.change_notifier.send(true);
 
         res
     }

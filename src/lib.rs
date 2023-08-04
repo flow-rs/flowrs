@@ -1,5 +1,5 @@
-mod nodes;
-mod sched;
+pub mod nodes;
+pub mod sched;
 
 pub use self::nodes::connection;
 pub use self::nodes::node;

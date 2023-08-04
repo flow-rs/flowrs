@@ -1,31 +1,36 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc::{Sender, Receiver, channel}, Arc, Mutex};
 use thiserror::Error;
 use anyhow::Result;
 
-pub trait ChangeObserver: Send {
-    fn on_change(&mut self);
-}
-
 #[derive(Clone)]
 pub struct Context {
-    change_observer: Option<Arc<Mutex<dyn ChangeObserver>>>,
 }
 
 impl Context {
-    pub fn on_change(&self) {
-        if let Some(so) = &self.change_observer {
-            so.lock().unwrap().on_change();
-        }
-    }
-
     pub fn new() -> Self {
         Self {
-            change_observer: None,
+        }
+    }
+}
+
+pub struct ChangeObserver {
+    pub notifier: Sender<bool>,
+    pub observer: Receiver<bool>,  
+}
+
+impl ChangeObserver {
+    pub fn new() -> Self {
+        
+        let (sender, receiver) = channel();
+
+        Self {
+            notifier: sender,
+            observer: receiver
         }
     }
 
-    pub fn set_observer(&mut self, observer: Arc<Mutex<dyn ChangeObserver>>) {
-        self.change_observer = Some(observer);
+    pub fn wait_for_changes(&self){
+        let _  = self.observer.recv();
     }
 }
 
@@ -37,6 +42,17 @@ pub trait Node : Send + 'static {
     fn on_shutdown(&self) -> Result<(), ShutdownError>;
     fn update(&self) -> Result<(), UpdateError>;
 }
+
+/*
+pub trait SaveableNode {
+
+    save<T> (stream : T)
+    load<T>(stream : T ) {
+
+        stream.write(int32)
+    }
+}
+ */
 
 #[derive(Error, Debug)]
 pub enum InitError {

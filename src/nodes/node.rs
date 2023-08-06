@@ -13,9 +13,10 @@ impl Context {
     }
 }
 
+#[derive(Clone)]
 pub struct ChangeObserver {
     pub notifier: Sender<bool>,
-    pub observer: Receiver<bool>,  
+    pub observer: Arc<Mutex<Receiver<bool>>>,  
 }
 
 impl ChangeObserver {
@@ -25,12 +26,12 @@ impl ChangeObserver {
 
         Self {
             notifier: sender,
-            observer: receiver
+            observer: Arc::new(Mutex::new(receiver))
         }
     }
 
     pub fn wait_for_changes(&self){
-        let _  = self.observer.recv();
+        let _  = self.observer.lock().unwrap().recv();
     }
 }
 
@@ -92,6 +93,12 @@ pub enum UpdateError {
 
     #[error("Sequence error for node {node:?}. Message: {message:?}")]
     SequenceError {
+        node: String,
+        message: String,
+    },
+
+    #[error("Sequence error for node {node:?}. Message: {message:?}")]
+    ConnectError {
         node: String,
         message: String,
     },

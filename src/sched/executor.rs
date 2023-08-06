@@ -1,14 +1,13 @@
 use crate::{
+    node::{ChangeObserver, UpdateError},
     sched::flow::Flow,
-    node::{ChangeObserver},
     scheduler::{Scheduler, SchedulingInfo},
 };
+use anyhow::{Context as AnyhowContext, Result};
 use std::{
     fmt,
-    sync::{Arc, mpsc::Sender, Mutex},
+    sync::{mpsc::Sender, Arc, Mutex}, thread::{self, JoinHandle},
 };
-use threadpool::ThreadPool;
-use anyhow::{Context as AnyhowContext, Result};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ExecutorState {
@@ -35,7 +34,6 @@ impl fmt::Display for ExecutorState {
 
 impl ExecutionController {
     pub fn new(change_notifier: Sender<bool>) -> Self {
-
         Self {
             state: ExecutorState::Ready,
             cancellation_requested: false,
@@ -71,46 +69,28 @@ pub trait Executor {
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
 
-/// A Send + Sync thread pool.
-#[derive(Debug, Clone)]
-pub struct SyncThreadPool {
-    pool: Arc<Mutex<ThreadPool>>,
-}
-
-// From https://github.com/rust-threadpool/rust-threadpool/issues/96
-impl SyncThreadPool {
-    /// Create a new thread pool with the specified size.
-    pub fn new(num_threads: usize) -> Self {
-        Self {
-            pool: Arc::new(Mutex::new(ThreadPool::new(num_threads))),
-        }
-    }
-
-    /// Execute a job on the thread pool.
-    pub fn execute(&self, job: impl FnOnce() + Send + 'static) {
-        self.pool
-            .lock()
-            .expect("could not lock thread pool mutex")
-            .execute(job)
-    }
-}
-
 pub struct MultiThreadedExecutor {
-    thread_pool: SyncThreadPool,
     controller: Arc<Mutex<ExecutionController>>,
-    observer: ChangeObserver
+    observer: ChangeObserver,
+    num_threads: usize
 }
 
 impl MultiThreadedExecutor {
-    pub fn new(num_threads: usize, observer: ChangeObserver) -> Self {   
+    pub fn new(num_threads: usize, observer: ChangeObserver) -> Self {
         Self {
-            thread_pool: SyncThreadPool::new(num_threads),
-            controller: Arc::new(Mutex::new(ExecutionController::new(observer.notifier.clone()))),
-            observer: observer
+            num_threads,
+            controller: Arc::new(Mutex::new(ExecutionController::new(
+                observer.notifier.clone(),
+            ))),
+            observer,
         }
     }
 
-    fn run_update_loop<S>(&mut self, flow: &Flow, mut scheduler: S)
+    pub fn num_threads(&self) -> usize {
+        self.num_threads
+    }
+
+    fn run_update_loop<S>(&mut self, flow: &Flow, mut scheduler: S) -> Result<(), anyhow::Error>
     where
         S: Scheduler,
     {
@@ -125,56 +105,81 @@ impl MultiThreadedExecutor {
         };
 
         while !self.controller.lock().unwrap().cancellation_requested() {
-           
             //println!("{:?} SCHEDULE EPOCH", std::thread::current().id());
-            
+
             scheduler.restart_epoch();
-            
+
             while !scheduler.epoch_is_over(&info) {
                 let node_idx = scheduler.get_next_node_idx(&info);
 
-                if let Some(node) = flow.get_node(node_idx) {
-                    self.thread_pool.execute(move || {
-                        let _ = node.lock().unwrap().update();
-                    });
+                let mut chunks = vec![flow.nodes.clone().into_boxed_slice()];
+                // Using log2 to keep the recursive splitting aligned with the amount of threads.
+                for _ in 0..self.num_threads().ilog2() {
+                    for chunk in &mut chunks.clone() {
+                        let mid = chunk.len() / 2;
+                        let (lhs, rhs) = chunk.split_at(mid);
+                        chunks = vec![
+                            lhs.to_vec().into_boxed_slice(),
+                            rhs.to_vec().into_boxed_slice(),
+                        ]
+                    }
+                }
+                let handlers: Vec<JoinHandle<()>> = chunks
+                    .into_iter()
+                    .map(|chunk| {
+                        thread::spawn(move || {
+                            for node in chunk.into_iter() {
+                                node.lock().unwrap().update();
+                            }
+                        })
+                    })
+                    .collect();
+                for handle in handlers {
+                    match handle.join() {
+                        Ok(_) => (),
+                        Err(_) => return Err(anyhow::Error::msg("At least one node failed")),
+                    };
                 }
             }
 
             //println!("{:?} WAIT FOR CHANGES", std::thread::current().id());
             self.controller
-            .lock()
-            .unwrap()
-            .set_state(ExecutorState::Sleeping);
+                .lock()
+                .unwrap()
+                .set_state(ExecutorState::Sleeping);
 
             self.observer.wait_for_changes();
 
             //println!("{:?} WAIT FOR CHANGES DONE", std::thread::current().id());
             self.controller
-            .lock()
-            .unwrap()
-            .set_state(ExecutorState::Running);       
+                .lock()
+                .unwrap()
+                .set_state(ExecutorState::Running);
         }
 
         self.controller
             .lock()
             .unwrap()
             .set_state(ExecutorState::Ready);
+        Ok(())
     }
-
 }
 
 impl Executor for MultiThreadedExecutor {
-    fn run<S>(&mut self, flow: Flow, scheduler: S) -> Result<()> 
+    fn run<S>(&mut self, flow: Flow, scheduler: S) -> Result<(), anyhow::Error>
     where
         S: Scheduler + std::marker::Send,
     {
-        flow.init_all().context(format!("Unable to init all nodes."))?; 
+        flow.init_all()
+            .context(format!("Unable to init all nodes."))?;
 
-        flow.ready_all().context(format!("Unable to make all nodes ready."))?;
-    
-        self.run_update_loop(&flow, scheduler);
+        flow.ready_all()
+            .context(format!("Unable to make all nodes ready."))?;
 
-        flow.shutdown_all().context(format!("Unable to shutdown all nodes"))?;
+        self.run_update_loop(&flow, scheduler)?;
+
+        flow.shutdown_all()
+            .context(format!("Unable to shutdown all nodes"))?;
 
         Ok(())
     }

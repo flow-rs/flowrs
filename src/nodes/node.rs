@@ -13,10 +13,9 @@ impl Context {
     }
 }
 
-#[derive(Clone)]
 pub struct ChangeObserver {
     pub notifier: Sender<bool>,
-    pub observer: Arc<Mutex<Receiver<bool>>>,  
+    pub observer: Receiver<bool>,  
 }
 
 impl ChangeObserver {
@@ -26,12 +25,12 @@ impl ChangeObserver {
 
         Self {
             notifier: sender,
-            observer: Arc::new(Mutex::new(receiver))
+            observer: receiver,
         }
     }
 
     pub fn wait_for_changes(&self){
-        let _  = self.observer.lock().unwrap().recv();
+        let _  = self.observer.recv();
     }
 }
 

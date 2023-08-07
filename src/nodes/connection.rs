@@ -7,7 +7,7 @@ use std::{
         Arc, Mutex,
     },
 };
-use crate::node::{ChangeObserver};
+use crate::node::{ChangeObserver, Node};
 
 #[derive(Debug)]
 pub enum ConnectError<I> {
@@ -102,7 +102,7 @@ pub struct Output<T>{
     change_notifier: Sender<bool>
 }
 
-impl<O> Output<O> {
+impl<O: Clone> Output<O> {
     pub fn new(change_observer: &ChangeObserver) -> Self {
         Self{
             edge: Arc::new(Mutex::new(None)),
@@ -115,7 +115,7 @@ impl<O> Output<O> {
             .lock()
             .unwrap()
             .as_mut()
-            .expect("You attempted to send to an output where no succesor Node is connected.")
+            .ok_or(ConnectError::SendErr(SendError(elem.clone())))?
             .send(elem);
 
             let _ = self.change_notifier.send(true);
@@ -128,7 +128,7 @@ impl<O> Output<O> {
     }
 }
 
-pub fn connect<I>(mut lhs: Output<I>, rhs: Input<I>) {
+pub fn connect<I: Clone>(mut lhs: Output<I>, rhs: Input<I>) {
     lhs.set(rhs)
 }
 
@@ -136,3 +136,6 @@ pub trait RuntimeConnectable {
     fn input_at(&self, index: usize) -> Rc<dyn Any>;
     fn output_at(&self, index: usize) -> Rc<dyn Any>;
 }
+pub trait RuntimeNode: Node + RuntimeConnectable {}
+impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
+

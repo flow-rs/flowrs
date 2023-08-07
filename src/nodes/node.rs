@@ -25,7 +25,7 @@ impl ChangeObserver {
 
         Self {
             notifier: sender,
-            observer: receiver
+            observer: receiver,
         }
     }
 
@@ -92,6 +92,12 @@ pub enum UpdateError {
 
     #[error("Sequence error for node {node:?}. Message: {message:?}")]
     SequenceError {
+        node: String,
+        message: String,
+    },
+
+    #[error("Sequence error for node {node:?}. Message: {message:?}")]
+    ConnectError {
         node: String,
         message: String,
     },

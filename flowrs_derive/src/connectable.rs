@@ -43,9 +43,13 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         })
         .collect::<Vec<Arm>>();
     let (_, ty_generics, _) = ast.generics.split_for_impl();
-    let mut generic_bounds = get_generic_bounds(inputs.clone());
-    generic_bounds.append(&mut get_generic_bounds(outputs));
+    let mut seen_types = vec![];
+    let mut generic_bounds = get_generic_bounds(inputs.clone(), &mut seen_types);
+    generic_bounds.append(&mut get_generic_bounds(outputs, &mut seen_types));
     quote::quote! {
+        use flowrs::connection::RuntimeConnectable;
+        use std::rc::Rc;
+        use std::any::Any;
         impl #ty_generics RuntimeConnectable for #struct_ident #ty_generics
         where
             #(#generic_bounds,)*
@@ -68,21 +72,25 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     .into()
 }
 
-fn get_generic_bounds(fields: Vec<Field>) -> Vec<WherePredicate> {
+fn get_generic_bounds(fields: Vec<Field>, seen_types: &mut Vec<String>) -> Vec<WherePredicate> {
     fields
         .iter()
-        .map(|f| match &f.ty {
+        .filter_map(|f| match &f.ty {
             Type::Path(path) => match &path.path.segments.first().unwrap().arguments {
                 syn::PathArguments::AngleBracketed(angle) => match angle.args.first().unwrap() {
                     syn::GenericArgument::Type(generic) => match generic {
                         Type::Path(t_path) => {
                             let ident = t_path.path.segments.first().unwrap().ident.clone();
+                            if seen_types.contains(&ident.to_string()) {
+                                return None;
+                            }
                             let cond: TokenStream = quote::quote! {
                                 #ident: Clone + 'static
                             }
                             .into();
                             let cond_ast: WherePredicate = syn::parse(cond.clone()).unwrap();
-                            cond_ast
+                            seen_types.push(ident.to_string());
+                            Some(cond_ast)
                         }
                         _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
                     },

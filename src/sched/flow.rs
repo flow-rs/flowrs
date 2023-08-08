@@ -1,12 +1,13 @@
 use std::sync::{Arc, Mutex};
 use anyhow::{Context, Result};
 
-use crate::{sched::version::Version, node::Node, connection::{RuntimeConnectable, RuntimeNode}};
+use crate::{sched::version::Version, node::UpdateController, connection::{RuntimeNode}};
 
 pub struct Flow {
     name: String,
     version: Version,
     pub nodes: Vec<Arc<Mutex<dyn RuntimeNode + Send>>>,
+   
 }
 
 impl Flow {
@@ -20,7 +21,7 @@ impl Flow {
 
     pub fn add_node<T>(&mut self, node: T)
     where
-        T: RuntimeNode,
+        T: RuntimeNode + 'static,
     {
         self.nodes.push(Arc::new(Mutex::new(node)));
     }
@@ -55,7 +56,6 @@ impl Flow {
                 .context(format!("Unable to shutdown node '{}'.", name))?;
         }
         Ok(())
-
     }
 
     pub fn ready_all(&self) -> Result<()> {
@@ -69,4 +69,15 @@ impl Flow {
         }
         Ok(())
     }
+
+    pub fn get_update_controllers(&self) -> Vec<Arc<Mutex<dyn UpdateController>>> {
+        let mut update_controllers = Vec::new(); 
+        for node in &self.nodes {
+            if let Some(us) = node.lock().unwrap().update_controller() {
+                update_controllers.push(us.clone());
+            }
+        }
+        update_controllers
+    }
+
 }

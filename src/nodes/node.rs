@@ -30,29 +30,37 @@ impl ChangeObserver {
     }
 
     pub fn wait_for_changes(&self){
+        
+        // Wait for a change message.
+        // If first message received, get all others.  
         let _  = self.observer.recv();
+        loop {
+            match self.observer.try_recv() {
+                Ok(_) => (),
+                Err(_) => break,
+            }
+        }
     }
 }
 
-pub trait Node : Send + 'static {
+//pub struct UpdateController {
+//    cancellation_requested: std::sync::atomic::AtomicBool 
+//}
+
+pub trait UpdateController {
+    fn cancel(&mut self);
+}
+
+pub trait Node : Send {
     fn name(&self) -> &str;
 
-    fn on_init(&self) -> Result<(), InitError>;
-    fn on_ready(&self) -> Result<(), ReadyError>;
-    fn on_shutdown(&self) -> Result<(), ShutdownError>;
-    fn update(&self) -> Result<(), UpdateError>;
+    fn on_init(&self) -> Result<(), InitError> { Ok(())}
+    fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
+    fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
+    fn on_update(&self) -> Result<(), UpdateError> { Ok(())}
+
+    fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> { None}
 }
-
-/*
-pub trait SaveableNode {
-
-    save<T> (stream : T)
-    load<T>(stream : T ) {
-
-        stream.write(int32)
-    }
-}
- */
 
 #[derive(Error, Debug)]
 pub enum InitError {

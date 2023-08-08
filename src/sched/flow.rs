@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use anyhow::{Context, Result};
 
-use crate::{sched::version::Version, node::Node, connection::{RuntimeConnectable, RuntimeNode}};
+use crate::{sched::version::Version, connection::RuntimeNode};
 
 pub struct Flow {
     name: String,

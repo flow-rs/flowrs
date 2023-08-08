@@ -88,6 +88,18 @@ pub struct SequenceError {
 }
 
 #[derive(Error, Debug)]
+pub enum SendError {
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+}
+
+#[derive(Error, Debug)]
+pub enum ReceiveError {
+    #[error(transparent)]
+    Other(#[from] anyhow::Error)
+}
+
+#[derive(Error, Debug)]
 pub enum UpdateError {
 
     #[error("Sequence error for node {node:?}. Message: {message:?}")]

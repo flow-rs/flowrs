@@ -1,15 +1,11 @@
-use std::any::Any;
 use std::ops::Add;
-use std::rc::Rc;
-
-use serde_json::Value;
 
 use flowrs::{
-    connection::{Input, Output, RuntimeConnectable},
-    node::{ChangeObserver, Node, State, UpdateError, InitError, ShutdownError, ReadyError},
+    connection::{Input, Output},
+    node::{ChangeObserver, InitError, Node, ReadyError, ShutdownError, State, UpdateError},
 };
 
-use flowrs_derive::Connectable;
+use flowrs_derive::RuntimeConnectable;
 
 #[derive(Clone)]
 enum AddNodeState<I1, I2> {
@@ -18,7 +14,7 @@ enum AddNodeState<I1, I2> {
     None,
 }
 
-#[derive(Connectable)]
+#[derive(RuntimeConnectable)]
 pub struct AddNode<I1, I2, O>
 where
     I1: Clone,
@@ -26,7 +22,6 @@ where
 {
     name: String,
     state: State<AddNodeState<I1, I2>>,
-   
 
     #[input]
     pub input_1: Input<I1>,
@@ -46,7 +41,6 @@ where
         Self {
             name: name.into(),
             state: State::new(AddNodeState::None),
-          
 
             input_1: Input::new(),
             input_2: Input::new(),
@@ -66,7 +60,7 @@ where
             AddNodeState::I2(i) => {
                 let out = v + i.clone();
                 *state = AddNodeState::None;
-                let _ = self.output_1.clone().send(out);
+                self.output_1.clone().send(out);
             }
             AddNodeState::None => *state = AddNodeState::I1(v),
         }
@@ -85,7 +79,7 @@ where
             AddNodeState::I1(i) => {
                 let out = i.clone() + v;
                 *state = AddNodeState::None;
-                let _ = self.output_1.clone().send(out);
+                self.output_1.clone().send(out);
             }
             AddNodeState::None => *state = AddNodeState::I2(v),
         }
@@ -99,15 +93,15 @@ where
     I2: Clone + Send + 'static,
     O: Clone + Send + 'static,
 {
-    fn on_init(&self) -> Result<(), InitError>{ 
+    fn on_init(&self) -> Result<(), InitError> {
         Ok(())
     }
 
-    fn on_ready(&self)   -> Result<(), ReadyError>{
+    fn on_ready(&self) -> Result<(), ReadyError> {
         Ok(())
     }
 
-    fn on_shutdown(&self)  -> Result<(), ShutdownError> {
+    fn on_shutdown(&self) -> Result<(), ShutdownError> {
         Ok(())
     }
 
@@ -132,19 +126,20 @@ where
 
 #[cfg(test)]
 mod nodes {
-    use std::{thread, rc::Rc, any::Any};
+    use std::{any::Any, rc::Rc, thread};
 
-    use flowrs::{connection::{ConnectError, Edge, connect, Input, RuntimeConnectable, Output}, node::{ChangeObserver, State, Node}};
-    use serde_json::Value;
+    use anyhow::Error;
+    use flowrs::{
+        connection::{connect, Edge, Input, Output, RuntimeConnectable},
+        node::{ChangeObserver, Node},
+    };
 
     use super::AddNode;
 
-
-
     #[test]
-    fn should_add_132() -> Result<(), ConnectError<i32>> {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+    fn should_add_132() -> Result<(), Error> {
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
         let _ = add.input_1.send(1);
@@ -165,9 +160,9 @@ mod nodes {
     ///         /
     /// [100, 99, ..., 0]
     #[test]
-    fn should_add_multiple_132_sequentially() -> Result<(), ConnectError<i32>> {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+    fn should_add_multiple_132_sequentially() -> Result<(), Error> {
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
         (0..100).for_each(|int| {
@@ -194,10 +189,10 @@ mod nodes {
     }
 
     #[test]
-    fn should_add_multiple_132_parallel() -> Result<(), ConnectError<i32>> {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add1 = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
-        let add2 = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+    fn should_add_multiple_132_parallel() -> Result<(), Error> {
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add1 = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add2 = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
 
         let mock_output = Edge::new();
         connect(add1.output_1.clone(), add2.input_1.clone());
@@ -242,8 +237,8 @@ mod nodes {
 
     #[test]
     fn should_return_lhs_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         let input1: Rc<dyn Any> = add.input_at(0);
         let input1_downcasted = input1.downcast::<Input<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -251,8 +246,8 @@ mod nodes {
 
     #[test]
     fn should_return_rhs_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         let input1: Rc<dyn Any> = add.input_at(1);
         let input1_downcasted = input1.downcast::<Input<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -260,8 +255,8 @@ mod nodes {
 
     #[test]
     fn should_return_output_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         let input1: Rc<dyn Any> = add.output_at(0);
         let input1_downcasted = input1.downcast::<Output<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -270,16 +265,16 @@ mod nodes {
     #[test]
     #[should_panic(expected = "Index 2 out of bounds for AddNode with input len 2.")]
     fn should_fail_on_index_out_of_bounds() {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         add.input_at(2);
     }
 
     #[test]
     #[should_panic(expected = "Index 1 out of bounds for AddNode with output len 1.")]
     fn should_fail_on_output_out_of_bounds() {
-        let change_observer: ChangeObserver = ChangeObserver::new(); 
-        let add = AddNode::<i32,i32,i32>::new("AddNodeI32", &change_observer);
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
         add.output_at(1);
     }
 }

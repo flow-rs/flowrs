@@ -1,14 +1,12 @@
-use flowrs::connection::{Input, Output, RuntimeConnectable};
+use flowrs::connection::{Input, Output};
 use flowrs::node::{
     ChangeObserver, InitError, Node, ReadyError, ShutdownError, UpdateError,
 };
-use flowrs_derive::Connectable;
-use std::any::Any;
-use std::rc::Rc;
+use flowrs_derive::RuntimeConnectable;
 
 use std::fs::File;
 
-#[derive(Connectable)]
+#[derive(RuntimeConnectable)]
 pub struct DummyNode {
     name: String,
 
@@ -56,33 +54,33 @@ impl Node for DummyNode {
 #[cfg(test)]
 mod sched {
 
-    use flowrs::connection::{connect, Edge, Input};
+    use anyhow::Error;
+    use flowrs::connection::{connect, Input};
     use flowrs::{
         executor::{Executor, MultiThreadedExecutor},
         flow::Flow,
-        node::{ChangeObserver, InitError, Node, ReadyError, ShutdownError, State, UpdateError},
+        node::ChangeObserver,
         scheduler::RoundRobinScheduler,
         version::Version,
     };
-    use serde_json::Value;
 
     use crate::sched::sched::DummyNode;
     use std::{sync::mpsc, thread, time::Duration};
 
     #[test]
-    fn test_executor() {
+    fn test_executor() -> Result<(), Error> {
         let (sender, receiver) = mpsc::channel();
         let change_observer: ChangeObserver = ChangeObserver::new();
         let n1: DummyNode = DummyNode::new("node_1", &change_observer, false);
         let mock_input = Input::<i32>::new();
         connect(n1.output_1.clone(), mock_input.clone());
         let mut flow = Flow::new("flow_1", Version::new(1, 0, 0), vec![]);
-        n1.input_1.send(1);
+        n1.input_1.send(1)?;
         flow.add_node(n1);
         let thread_handle = thread::spawn(move || {
             let num_threads = 4;
             let mut executor = MultiThreadedExecutor::new(num_threads, change_observer);
-            let mut scheduler = RoundRobinScheduler::new();
+            let scheduler = RoundRobinScheduler::new();
             let _ = sender.send(executor.controller());
             executor.run(flow, scheduler);
         });
@@ -92,6 +90,7 @@ mod sched {
         controller.lock().unwrap().cancel();
         thread_handle.join().unwrap();
         //println!("Has next: {}",  mock_output.has_next());
+        Ok(())
     }
 
     #[test]

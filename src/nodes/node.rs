@@ -116,7 +116,7 @@ pub enum UpdateError {
         message: String,
     },
 
-    #[error("Sequence error for node {node:?}. Message: {message:?}")]
+    #[error("Connect error for node {node:?}. Message: {message:?}")]
     ConnectError {
         node: String,
         message: String,

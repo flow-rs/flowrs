@@ -22,7 +22,7 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         .map(|(index, field)| {
             let ident = &field.ident;
             let arm: TokenStream = quote::quote! {
-                #index => Rc::new(self.#ident.clone()),
+                #index => std::rc::Rc::new(self.#ident.clone()),
             }
             .into();
             let arm_ast: Arm = syn::parse(arm.clone()).unwrap();
@@ -35,7 +35,7 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         .map(|(index, field)| {
             let ident = &field.ident;
             let arm: TokenStream = quote::quote! {
-                #index => Rc::new(self.#ident.clone()),
+                #index => std::rc::Rc::new(self.#ident.clone()),
             }
             .into();
             let arm_ast: Arm = syn::parse(arm.clone()).unwrap();
@@ -47,21 +47,21 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let mut generic_bounds = get_generic_bounds(inputs.clone(), &mut seen_types);
     generic_bounds.append(&mut get_generic_bounds(outputs, &mut seen_types));
     quote::quote! {
-        use flowrs::connection::RuntimeConnectable;
-        use std::rc::Rc;
-        use std::any::Any;
-        impl #ty_generics RuntimeConnectable for #struct_ident #ty_generics
+        //use flowrs::connection::RuntimeConnectable;
+        //use std::rc::Rc;
+        //use std::any::Any;
+        impl #ty_generics flowrs::connection::RuntimeConnectable for #struct_ident #ty_generics
         where
             #(#generic_bounds,)*
         {
-            fn input_at(&self, index: usize) -> Rc<dyn Any> {
+            fn input_at(&self, index: usize) -> std::rc::Rc<dyn std::any::Any> {
                 match index {
                     #(#inpu_arms)*
                     _ => panic!("Index {} out of bounds for {} with input len {}.", index, #struct_ident_str, #input_len),
                 }
             }
 
-            fn output_at(&self, index: usize) -> Rc<dyn Any> {
+            fn output_at(&self, index: usize) -> std::rc::Rc<dyn std::any::Any> {
                 match index {
                     #(#output_arms)*
                     _ => panic!("Index {} out of bounds for {} with output len {}.", index, #struct_ident_str, #output_len),

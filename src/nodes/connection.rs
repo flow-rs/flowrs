@@ -76,7 +76,7 @@ impl<O> Output<O> {
     }
 
     pub fn send(&mut self, elem: O) -> Result<(), SendError> {
-        let res = self
+        let _res = self
             .edge
             .lock()
             .unwrap()

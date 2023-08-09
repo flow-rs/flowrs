@@ -97,7 +97,7 @@ impl StandardExecutor {
              
 
             // Sleep if necessary 
-            if (self.num_workers > 0) { // Sleep check only if multi-threaded.
+            if self.num_workers > 0 { // Sleep check only if multi-threaded.
                 self.controller
                     .lock()
                     .unwrap()

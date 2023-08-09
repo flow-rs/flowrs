@@ -52,7 +52,7 @@ pub trait UpdateController {
 }
 
 pub trait Node : Send {
-    fn name(&self) -> &str;
+    fn name(&self) -> &str { "no_name" }
 
     fn on_init(&self) -> Result<(), InitError> { Ok(())}
     fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}

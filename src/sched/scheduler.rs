@@ -23,7 +23,7 @@ impl RoundRobinScheduler {
 }
 
 impl Scheduler for RoundRobinScheduler {
-    fn get_next_node_idx(&mut self, info: &SchedulingInfo) -> usize {
+    fn get_next_node_idx(&mut self, _info: &SchedulingInfo) -> usize {
         self.cur_node_idx += 1;
 
         return self.cur_node_idx - 1;

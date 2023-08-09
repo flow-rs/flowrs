@@ -47,9 +47,6 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let mut generic_bounds = get_generic_bounds(inputs.clone(), &mut seen_types);
     generic_bounds.append(&mut get_generic_bounds(outputs, &mut seen_types));
     quote::quote! {
-        //use flowrs::connection::RuntimeConnectable;
-        //use std::rc::Rc;
-        //use std::any::Any;
         impl #ty_generics flowrs::connection::RuntimeConnectable for #struct_ident #ty_generics
         where
             #(#generic_bounds,)*

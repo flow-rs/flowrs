@@ -63,14 +63,15 @@ pub type Input<I> = Edge<I>;
 #[derive(Clone)]
 pub struct Output<T> {
     edge: Arc<Mutex<Option<Edge<T>>>>,
-    change_notifier: Sender<bool>,
+    change_notifier: Option<Sender<bool>>,
 }
 
 impl<O> Output<O> {
-    pub fn new(change_observer: &ChangeObserver) -> Self {
+    pub fn new(change_observer: Option<&ChangeObserver>) -> Self {
+        let change_notifier = change_observer.map(|observer| observer.notifier.clone());
         Self {
             edge: Arc::new(Mutex::new(None)),
-            change_notifier: change_observer.notifier.clone(),
+            change_notifier: change_notifier,
         }
     }
 
@@ -83,9 +84,11 @@ impl<O> Output<O> {
             .ok_or(SendError::Other(anyhow::Error::msg("Failed to send item to output")))?
             .send(elem);
 
-        let _ = self.change_notifier.send(true);
+        if let Some(cn) = &self.change_notifier { 
+            let _ = cn.send(true);
+        }
 
-        res
+        Ok(())
     }
 
     pub fn set(&mut self, edge: Edge<O>) {

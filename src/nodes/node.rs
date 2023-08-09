@@ -57,7 +57,7 @@ pub trait Node : Send {
     fn on_init(&self) -> Result<(), InitError> { Ok(())}
     fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
     fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
-    fn on_update(&self) -> Result<(), UpdateError> { Ok(())}
+    fn on_update(&mut self) -> Result<(), UpdateError> { Ok(())}
 
     fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> { None}
 }

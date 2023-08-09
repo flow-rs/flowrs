@@ -75,11 +75,11 @@ impl StandardExecutor {
             // Run an epoch (an update of each node).
             scheduler.restart_epoch();
 
-            println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
+            //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
 
             while !scheduler.epoch_is_over(&info) {
                 let node_idx = scheduler.get_next_node_idx(&info);
-                println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
+                //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
                 let node = flow.get_node(node_idx);
                 if let Some(n) = node {

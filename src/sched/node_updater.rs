@@ -80,7 +80,7 @@ impl NodeUpdater {
                     match update_receiver_res {
                         
                         Result::Err(err) => {
-                            println!("{:?} THREAD UPDATE ERROR {:?}", std::thread::current().id(), err);
+                            //println!("{:?} THREAD UPDATE ERROR {:?}", std::thread::current().id(), err);
                             let _res = error_sender_clone.send(UpdateError::Other(err.into()));
                             break Ok(());
                         }
@@ -97,7 +97,7 @@ impl NodeUpdater {
                                     //let name = node.lock().unwrap().name().to_string();
                                     //println!("{:?} THREAD UPDATE {}", std::thread::current().id(), name);
                                     
-                                    if let Ok(n) = node.try_lock() {
+                                    if let Ok(mut n) = node.try_lock() {
                                         if let Err(err) = n.on_update() {
                                             let _res = error_sender_clone.send(err);
                                             break Ok(());

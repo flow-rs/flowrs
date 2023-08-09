@@ -5,7 +5,7 @@ use flowrs::{
     node::{ChangeObserver, InitError, Node, ReadyError, ShutdownError, State, UpdateError},
 };
 
-use flowrs_derive::RuntimeConnectable;
+use flowrs_derive::Connectable;
 
 #[derive(Clone)]
 enum AddNodeState<I1, I2> {
@@ -14,7 +14,7 @@ enum AddNodeState<I1, I2> {
     None,
 }
 
-#[derive(RuntimeConnectable)]
+#[derive(Connectable)]
 pub struct AddNode<I1, I2, O>
 where
     I1: Clone,
@@ -37,7 +37,7 @@ where
     I2: Clone + Send + 'static,
     O: Clone + Send + 'static,
 {
-    pub fn new(name: &str, change_observer: &ChangeObserver) -> Self {
+    pub fn new(name: &str, change_observer: Option<&ChangeObserver>) -> Self {
         Self {
             name: name.into(),
             state: State::new(AddNodeState::None),
@@ -93,24 +93,14 @@ where
     I2: Clone + Send + 'static,
     O: Clone + Send + 'static,
 {
-    fn on_init(&self) -> Result<(), InitError> {
-        Ok(())
-    }
-
-    fn on_ready(&self) -> Result<(), ReadyError> {
-        Ok(())
-    }
-
-    fn on_shutdown(&self) -> Result<(), ShutdownError> {
-        Ok(())
-    }
+    
 
     fn name(&self) -> &str {
         &self.name
     }
 
     // To be replaced by macro
-    fn update(&self) -> Result<(), UpdateError> {
+    fn on_update(&mut self) -> Result<(), UpdateError> {
         if let Ok(i1) = self.input_1.next_elem() {
             println!("UPDATE1");
             self.handle_1(i1)?;
@@ -125,7 +115,7 @@ where
 }
 
 #[cfg(test)]
-mod nodes {
+mod test {
     use std::{any::Any, rc::Rc, thread};
 
     use anyhow::Error;
@@ -138,14 +128,13 @@ mod nodes {
 
     #[test]
     fn should_add_132() -> Result<(), Error> {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let mut add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
         let _ = add.input_1.send(1);
         let _ = add.input_2.send(2);
-        let _ = add.update();
-        let _ = add.update();
+        let _ = add.on_update();
+        let _ = add.on_update();
 
         let expected = 3;
         let actual = mock_output.next_elem()?;
@@ -161,8 +150,7 @@ mod nodes {
     /// [100, 99, ..., 0]
     #[test]
     fn should_add_multiple_132_sequentially() -> Result<(), Error> {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let mut add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         let mock_output = Edge::new();
         connect(add.output_1.clone(), mock_output.clone());
         (0..100).for_each(|int| {
@@ -172,7 +160,7 @@ mod nodes {
             let _ = add.input_2.send(int);
         });
         (0..100).for_each(|_| {
-            let _ = add.update();
+            let _ = add.on_update();
         });
         let mut actual = vec![];
         for _ in 0..100 {
@@ -186,13 +174,12 @@ mod nodes {
             exected,
             actual
         ))
-    }
+    } 
 
     #[test]
     fn should_add_multiple_132_parallel() -> Result<(), Error> {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add1 = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
-        let add2 = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let mut add1 = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
+        let mut add2 = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
 
         let mock_output = Edge::new();
         connect(add1.output_1.clone(), add2.input_1.clone());
@@ -209,7 +196,7 @@ mod nodes {
 
         let handle1 = thread::spawn(move || {
             (0..100).for_each(|_| {
-                match add1.update() {
+                match add1.on_update() {
                     Ok(_) => (),
                     Err(e) => println!("{:?}", e),
                 };
@@ -217,7 +204,7 @@ mod nodes {
         });
         let handle2 = thread::spawn(move || {
             (0..100).for_each(|_| {
-                match add2.update() {
+                match add2.on_update() {
                     Ok(_) => (),
                     Err(e) => println!("{:?}", e),
                 };
@@ -234,11 +221,11 @@ mod nodes {
         }
         Ok(assert!(!actual.is_empty()))
     }
+    
 
     #[test]
     fn should_return_lhs_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         let input1: Rc<dyn Any> = add.input_at(0);
         let input1_downcasted = input1.downcast::<Input<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -246,8 +233,7 @@ mod nodes {
 
     #[test]
     fn should_return_rhs_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         let input1: Rc<dyn Any> = add.input_at(1);
         let input1_downcasted = input1.downcast::<Input<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -255,8 +241,7 @@ mod nodes {
 
     #[test]
     fn should_return_output_at_runtime() {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         let input1: Rc<dyn Any> = add.output_at(0);
         let input1_downcasted = input1.downcast::<Output<i32>>();
         assert!(input1_downcasted.is_ok())
@@ -265,16 +250,15 @@ mod nodes {
     #[test]
     #[should_panic(expected = "Index 2 out of bounds for AddNode with input len 2.")]
     fn should_fail_on_index_out_of_bounds() {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         add.input_at(2);
     }
 
     #[test]
     #[should_panic(expected = "Index 1 out of bounds for AddNode with output len 1.")]
     fn should_fail_on_output_out_of_bounds() {
-        let change_observer: ChangeObserver = ChangeObserver::new();
-        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", &change_observer);
+        let add = AddNode::<i32, i32, i32>::new("AddNodeI32", None);
         add.output_at(1);
     }
 }
+

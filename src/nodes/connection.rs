@@ -39,11 +39,7 @@ impl<I> Edge<I> {
         }
     }
 
-    pub fn has_next(&self) -> bool {
-        self.receiver.as_ref().iter().peekable().peek().is_some()
-    }
-
-    pub fn next_elem(&self) -> Result<I, ReceiveError> {
+    pub fn next(&self) -> Result<I, ReceiveError> {
         let res = self
             .receiver
             .as_ref()
@@ -51,9 +47,7 @@ impl<I> Edge<I> {
             .try_recv();
         match res {
             Ok(i) => Ok(i),
-            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(
-                err.to_string(),
-            ))),
+            Err(err) => Err(ReceiveError::Other(err.into()))
         }
     }
 }

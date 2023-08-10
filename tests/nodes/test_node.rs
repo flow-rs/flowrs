@@ -101,12 +101,12 @@ where
 
     // To be replaced by macro
     fn on_update(&mut self) -> Result<(), UpdateError> {
-        if let Ok(i1) = self.input_1.next_elem() {
+        if let Ok(i1) = self.input_1.next() {
             println!("UPDATE1");
             self.handle_1(i1)?;
         }
 
-        if let Ok(i2) = self.input_2.next_elem() {
+        if let Ok(i2) = self.input_2.next() {
             println!("UPDATE2");
             self.handle_2(i2)?;
         }
@@ -137,7 +137,7 @@ mod test {
         let _ = add.on_update();
 
         let expected = 3;
-        let actual = mock_output.next_elem()?;
+        let actual = mock_output.next()?;
         Ok(assert!(expected == actual))
     }
 
@@ -164,7 +164,7 @@ mod test {
         });
         let mut actual = vec![];
         for _ in 0..100 {
-            let curr = mock_output.next_elem()?;
+            let curr = mock_output.next()?;
             actual.push(curr)
         }
         let exected = vec![100; 100];
@@ -216,7 +216,7 @@ mod test {
 
         let mut actual = vec![];
         for _ in 0..100 {
-            let curr = mock_output.next_elem();
+            let curr = mock_output.next();
             actual.push(curr)
         }
         Ok(assert!(!actual.is_empty()))

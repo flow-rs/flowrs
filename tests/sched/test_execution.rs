@@ -44,7 +44,8 @@ mod test_execution {
         execution::{Executor, StandardExecutor},
         flow::Flow,
         node::ChangeObserver,
-        scheduler::RoundRobinScheduler,
+        sched::scheduler::RoundRobinScheduler,
+        sched::node_updater::MultiThreadedNodeUpdater,
         version::Version,
     };
 
@@ -64,10 +65,11 @@ mod test_execution {
         flow.add_node(n1);
         let thread_handle = thread::spawn(move || {
             let num_threads = 4;
-            let mut executor = StandardExecutor::new(num_threads, change_observer);
+            let mut executor = StandardExecutor::new(change_observer);
+            let node_updater = MultiThreadedNodeUpdater::new(num_threads);
             let scheduler = RoundRobinScheduler::new();
             let _ = sender.send(executor.controller());
-            executor.run(flow, scheduler);
+            executor.run(flow, scheduler, node_updater);
         });
         let controller = receiver.recv().unwrap();
         thread::sleep(Duration::from_secs(3));
@@ -88,10 +90,10 @@ mod test_execution {
 
         flow.add_node(n1);
         flow.add_node(n2);
+        
+        let mut ex = StandardExecutor::new(change_observer);
 
-        let mut ex = StandardExecutor::new(1, change_observer);
-
-        match ex.run(flow, RoundRobinScheduler::new()) {
+        match ex.run(flow, RoundRobinScheduler::new(), MultiThreadedNodeUpdater::new(1)) {
             Ok(_) => todo!(),
             Err(err) => eprintln!("Error: {:?}", err),
         }

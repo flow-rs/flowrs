@@ -7,12 +7,25 @@ use crate::{
 };
 use crossbeam_channel::{unbounded, Sender, Receiver};
 
+pub enum SleepMode {
+    Reactive, 
+    FixedFrequency(u64),
+    None
+}
+
 enum WorkerCommand {
     Update(Arc<Mutex<dyn RuntimeNode + Send>>),
     Cancel
 }
 
-pub struct NodeUpdater {
+pub trait NodeUpdater {
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>);
+    fn errors(&mut self) -> Vec<UpdateError>;
+
+    fn sleep_mode(&self) -> SleepMode;
+}
+
+pub struct MultiThreadedNodeUpdater {
     num_workers: usize,
     workers: Vec<JoinHandle<Result<(), UpdateError>>>,
 
@@ -20,7 +33,7 @@ pub struct NodeUpdater {
     error_channel: (Sender<UpdateError>, Receiver<UpdateError>)
 }
 
-impl NodeUpdater {
+impl MultiThreadedNodeUpdater {
 
     pub fn new(num_workers: usize) -> Self {
         let mut obj = Self {
@@ -33,26 +46,6 @@ impl NodeUpdater {
 
         obj.create_workers();
         obj
-    }
-
-
-    pub fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>) -> Result<(), UpdateError> {
-
-        if self.num_workers == 0 { // single-threaded
-            return node.lock().unwrap().on_update();
-
-        } else { // multi-threaded 
-            if let Err(err) = self.command_channel.0.send(WorkerCommand::Update(node.clone())) {
-                Result::Err(UpdateError::Other(err.into()))
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    pub fn errors(&mut self) -> Vec<UpdateError> {
-       let errors: Vec<UpdateError> = self.error_channel.1.try_iter().collect();
-       errors
     }
 
     fn destroy_workers(&mut self) {
@@ -118,8 +111,67 @@ impl NodeUpdater {
 
 }
 
-impl Drop for NodeUpdater {
+impl NodeUpdater for MultiThreadedNodeUpdater {
+    
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>) {
+        self.command_channel.0.send(WorkerCommand::Update(node.clone())).expect("Unable to write to command channel.");
+    }
+
+    fn errors(&mut self) -> Vec<UpdateError> {
+       let errors: Vec<UpdateError> = self.error_channel.1.try_iter().collect();
+       errors
+    }
+
+    fn sleep_mode(&self) -> SleepMode {
+        SleepMode::Reactive
+    }
+}
+
+impl Drop for MultiThreadedNodeUpdater {
     fn drop(&mut self) {
         self.destroy_workers();
+    }
+}
+
+pub struct SingleThreadedNodeUpdater {
+    errors: Vec<UpdateError>,
+    fps: Option<u64>
+}
+
+impl SingleThreadedNodeUpdater {
+    pub fn new(fps: Option<u64>) -> Self {
+        Self {
+            errors: Vec::new(),
+            fps: fps
+        }
+    }
+}
+
+impl NodeUpdater for SingleThreadedNodeUpdater {
+    
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>) {
+        if let Ok(mut n) = node.try_lock() {
+            if let Err(err) = n.on_update() {
+                self.errors.push(err);
+            }
+        }
+    }
+
+    fn errors(&mut self) -> Vec<UpdateError> {
+        let drained_errors: Vec<UpdateError> = self.errors.drain(..).collect();
+        self.errors.clear();
+        drained_errors
+    }
+
+    fn sleep_mode(&self) -> SleepMode {
+        match self.fps {
+            None => SleepMode::None,
+            Some(fps) => SleepMode::FixedFrequency(fps)
+        }
+    }
+}
+
+impl Drop for SingleThreadedNodeUpdater {
+    fn drop(&mut self) {
     }
 }

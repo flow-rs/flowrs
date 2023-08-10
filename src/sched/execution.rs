@@ -2,19 +2,22 @@ use crate::{
     node::{ChangeObserver, UpdateError},
     flow::Flow,
     scheduler::{Scheduler, SchedulingInfo},
-    sched::{execution_state::ExecutionState, execution_controller::ExecutionController, node_updater::NodeUpdater}
+    sched::{execution_state::ExecutionState, execution_controller::ExecutionController, node_updater::{SleepMode,NodeUpdater}}
 };
 
 use thiserror::Error;
 use anyhow::{Context as AnyhowContext, Result};
 use std::{
-    sync::{ Arc, Mutex}
+    thread,
+    sync::{ Arc, Mutex},
+    time::Duration
 };
 
 pub trait Executor {
-    fn run<S>(&mut self, flow: Flow, scheduler: S) -> Result<()>
+    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
     where
-        S: Scheduler + std::marker::Send;
+        S: Scheduler + std::marker::Send,
+        U: NodeUpdater + Drop;
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
@@ -33,14 +36,12 @@ pub enum ExecutionError {
 
 pub struct StandardExecutor {
     controller: Arc<Mutex<ExecutionController>>,
-    observer: ChangeObserver,
-    num_workers: usize
+    observer: ChangeObserver
 }
 
 impl StandardExecutor {
-    pub fn new(num_workers: usize, observer: ChangeObserver) -> Self {
+    pub fn new(observer: ChangeObserver) -> Self {
         Self {
-            num_workers,
             controller: Arc::new(Mutex::new(ExecutionController::new(
                 observer.notifier.clone(),
             ))),
@@ -48,44 +49,34 @@ impl StandardExecutor {
         }
     }
 
-    pub fn num_workers(&self) -> usize {
-        self.num_workers
-    }
-
-    fn run_update_loop<S>(&mut self, flow: &Flow, mut scheduler: S) -> Result<(), ExecutionError>
+    fn run_update_loop<S, U>(&mut self, flow: &Flow, mut scheduler: S, mut node_updater: U) -> Result<(), ExecutionError>
     where
         S: Scheduler,
+        U: NodeUpdater
     {
         self.controller
             .lock()
             .unwrap()
             .set_state(ExecutionState::Running);
 
-        let info = SchedulingInfo {
-            num_nodes: flow.num_nodes(),
-            priorities: Vec::new(),
-        };
-
-        let mut node_updater = NodeUpdater::new(self.num_workers); 
+        let mut info = SchedulingInfo::new(flow.num_nodes());
 
         let update_controllers = flow.get_update_controllers();
 
         while !self.controller.lock().unwrap().cancellation_requested() {
 
             // Run an epoch (an update of each node).
-            scheduler.restart_epoch();
+            scheduler.restart_epoch(&mut info);
 
             //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
 
-            while !scheduler.epoch_is_over(&info) {
-                let node_idx = scheduler.get_next_node_idx(&info);
+            while !scheduler.epoch_is_over(&mut info) {
+                let node_idx = scheduler.get_next_node_idx();
                 //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
                 let node = flow.get_node(node_idx);
                 if let Some(n) = node {
-                    if let Err(err) = node_updater.update(n) {
-                        return Err( ExecutionError::UpdateErrorCollection{ errors: vec![err]});
-                    }
+                    node_updater.update(n);
                 }
             }
 
@@ -93,22 +84,36 @@ impl StandardExecutor {
             let errors = node_updater.errors();
             if !errors.is_empty() {
                 return Err( ExecutionError::UpdateErrorCollection { errors: errors });
-            }
-             
+            }             
 
-            // Sleep if necessary 
-            if self.num_workers > 0 { // Sleep check only if multi-threaded.
-                self.controller
+            // Sleep if necessary. 
+            match node_updater.sleep_mode() {
+
+                SleepMode::None => {},
+
+                SleepMode::Reactive => {
+                    self.controller
                     .lock()
                     .unwrap()
                     .set_state(ExecutionState::Sleeping);
 
-                self.observer.wait_for_changes();
+                    self.observer.wait_for_changes();
 
-                self.controller
+                    self.controller
                     .lock()
                     .unwrap()
                     .set_state(ExecutionState::Running);
+                },
+
+                SleepMode::FixedFrequency(fps) => {
+                    let actual_duration = info.epoch_duration;
+                    let target_duration = Duration::from_millis(1000 / fps);
+                    let delta = target_duration.saturating_sub(actual_duration);
+                    //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
+                    if delta > Duration::ZERO {
+                        thread::sleep(delta);
+                    }
+                }
             }
         }
 
@@ -129,9 +134,10 @@ impl StandardExecutor {
 }
 
 impl Executor for StandardExecutor {
-    fn run<S>(&mut self, flow: Flow, scheduler: S) -> Result<(), anyhow::Error>
+    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
     where
         S: Scheduler + std::marker::Send,
+        U: NodeUpdater + Drop
     {
 
         //TODO: Fix error flow. 
@@ -142,7 +148,7 @@ impl Executor for StandardExecutor {
         flow.ready_all()
             .context(format!("Unable to make all nodes ready."))?;
 
-        self.run_update_loop(&flow, scheduler)?;
+        self.run_update_loop(&flow, scheduler, node_updater)?;
        
         flow.shutdown_all()
             .context(format!("Unable to shutdown all nodes"))?;

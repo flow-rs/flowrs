@@ -135,14 +135,14 @@ impl Drop for MultiThreadedNodeUpdater {
 
 pub struct SingleThreadedNodeUpdater {
     errors: Vec<UpdateError>,
-    fps: Option<u64>
+    eps: Option<u64>
 }
 
 impl SingleThreadedNodeUpdater {
-    pub fn new(fps: Option<u64>) -> Self {
+    pub fn new(eps: Option<u64>) -> Self {
         Self {
             errors: Vec::new(),
-            fps: fps
+            eps: eps
         }
     }
 }
@@ -164,9 +164,9 @@ impl NodeUpdater for SingleThreadedNodeUpdater {
     }
 
     fn sleep_mode(&self) -> SleepMode {
-        match self.fps {
+        match self.eps {
             None => SleepMode::None,
-            Some(fps) => SleepMode::FixedFrequency(fps)
+            Some(eps) => SleepMode::FixedFrequency(eps)
         }
     }
 }

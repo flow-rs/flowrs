@@ -122,6 +122,12 @@ pub enum UpdateError {
         message: String,
     },
 
+    #[error("Update error for node {node:?}. Message: {message:?}")]
+    Default {
+        node: String,
+        message: String,
+    },
+
     #[error(transparent)]
     Other(#[from] anyhow::Error)
 } 

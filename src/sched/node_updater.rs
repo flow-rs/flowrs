@@ -2,8 +2,8 @@ use std::{
     sync::{ Arc, Mutex}, thread::{self, JoinHandle},
 };
 use crate::{
-    node::{UpdateError},
-    connection::RuntimeNode,
+    node::UpdateError,
+    connection::RuntimeNode, flow::Flow,
 };
 use crossbeam_channel::{unbounded, Sender, Receiver};
 
@@ -14,12 +14,12 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update(Arc<Mutex<dyn RuntimeNode + Send>>),
+    Update((Arc<Mutex<dyn RuntimeNode + Send>>, Flow)),
     Cancel
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>);
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow);
     fn errors(&mut self) -> Vec<UpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
@@ -87,12 +87,9 @@ impl MultiThreadedNodeUpdater {
                                 },
                             
                                 WorkerCommand::Update(node) => {
-                                    //let name = node.lock().unwrap().name().to_string();
-                                    //println!("{:?} THREAD UPDATE {}", std::thread::current().id(), name);
-                                    
-                                    if let Ok(mut n) = node.try_lock() {
+                                    if let Ok(mut n) = node.0.try_lock() {
                                         if let Err(err) = n.on_update() {
-                                            let _res = error_sender_clone.send(err);
+                                            let _res = error_sender_clone.send(UpdateError::Default { node: node.1.get_key(node.0.clone()).unwrap().to_string(), message: err.to_string() });
                                             break Ok(());
                                         }
                                     } else {
@@ -113,8 +110,8 @@ impl MultiThreadedNodeUpdater {
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
     
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>) {
-        self.command_channel.0.send(WorkerCommand::Update(node.clone())).expect("Unable to write to command channel.");
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow) {
+        self.command_channel.0.send(WorkerCommand::Update((node.clone(), (*flow).clone()))).expect("Unable to write to command channel.");
     }
 
     fn errors(&mut self) -> Vec<UpdateError> {
@@ -149,10 +146,10 @@ impl SingleThreadedNodeUpdater {
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
     
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>) {
+    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow) {
         if let Ok(mut n) = node.try_lock() {
             if let Err(err) = n.on_update() {
-                self.errors.push(err);
+                self.errors.push(UpdateError::Default { node: flow.get_key(node.clone()).unwrap().to_string(), message: err.to_string() });
             }
         }
     }

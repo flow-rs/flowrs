@@ -25,7 +25,7 @@ pub trait Executor {
 #[derive(Error, Debug)]
 pub enum ExecutionError {
 
-    #[error("Errors occured while updating nodes.")]
+    #[error("Errors occured while updating nodes: {errors:?}")]
     UpdateErrorCollection {
         errors: Vec<UpdateError>
     },
@@ -76,15 +76,9 @@ impl StandardExecutor {
 
                 let node = flow.get_node(node_idx);
                 if let Some(n) = node {
-                    node_updater.update(n);
+                    node_updater.update(n, &flow);
                 }
             }
-
-            // Check if async errors occured.
-            let errors = node_updater.errors();
-            if !errors.is_empty() {
-                return Err( ExecutionError::UpdateErrorCollection { errors: errors });
-            }             
 
             // Sleep if necessary. 
             match node_updater.sleep_mode() {
@@ -114,6 +108,12 @@ impl StandardExecutor {
                         thread::sleep(delta);
                     }
                 }
+            }
+
+            // Check if async errors occured.
+            let errors = node_updater.errors();
+            if !errors.is_empty() {
+                return Err( ExecutionError::UpdateErrorCollection { errors: errors });
             }
         }
 

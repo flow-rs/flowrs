@@ -125,17 +125,3 @@ pub enum UpdateError {
     #[error(transparent)]
     Other(#[from] anyhow::Error)
 } 
-
-pub struct State<S: Clone>(pub Arc<Mutex<S>>);
-
-impl<S: Clone> State<S> {
-    pub fn new(inner: S) -> Self {
-        State(Arc::new(Mutex::new(inner)))
-    }
-}
-
-impl<S: Clone> Clone for State<S> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}

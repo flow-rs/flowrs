@@ -4,7 +4,7 @@ use std::{
 use crate::{
     node::UpdateError,
     connection::RuntimeNode,
-    nodes::node_description::NodeDescription
+    flow::NodeId
 };
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use thiserror::Error;
@@ -13,7 +13,7 @@ use anyhow::{ Result};
 #[derive(Error, Debug)]
 pub struct NodeUpdateError {
     pub source: UpdateError,
-    pub node: NodeDescription
+    pub node_id: NodeId
 }
 
 
@@ -21,7 +21,7 @@ impl From<UpdateError> for NodeUpdateError {
     fn from(source: UpdateError) -> Self {
         Self {
             source,
-            node: NodeDescription::default()
+            node_id: 0 
         }
     }
 }
@@ -39,12 +39,12 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)),
+    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)),
     Cancel
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>));
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>));
     fn errors(&mut self) -> Vec<NodeUpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
@@ -102,7 +102,7 @@ impl MultiThreadedNodeUpdater {
                             let _res = error_sender_clone.send(
                                 NodeUpdateError{ 
                                     source: UpdateError::Other(err.into()), 
-                                    node: NodeDescription::default() /* At this point we do not have any node info since receiving it failed.*/}
+                                    node_id: 0 /* At this point we do not have any node info since receiving it failed.*/}
                                 );
                             break Ok(());
                         }
@@ -118,7 +118,7 @@ impl MultiThreadedNodeUpdater {
                                 WorkerCommand::Update(node) => {
                                     if let Ok(mut n) = node.1.try_lock() {
                                         if let Err(err) = n.on_update() {
-                                            let _res = error_sender_clone.send(NodeUpdateError{source: err, node: node.0});
+                                            let _res = error_sender_clone.send(NodeUpdateError{source: err, node_id: node.0});
                                             break Ok(());
                                         }
                                     } else {
@@ -139,7 +139,7 @@ impl MultiThreadedNodeUpdater {
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
     
-    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         //let cloned_node = node.clone();
         self.command_channel.0.send(WorkerCommand::Update(node)).expect("Unable to write to command channel.");
     }
@@ -176,11 +176,11 @@ impl SingleThreadedNodeUpdater {
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
     
-    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         
         if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {
-                self.errors.push(NodeUpdateError { source: err, node: node.0});
+                self.errors.push(NodeUpdateError { source: err, node_id: node.0});
             }
         }
     }

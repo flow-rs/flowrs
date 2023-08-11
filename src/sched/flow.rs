@@ -1,68 +1,94 @@
-use std::{sync::{Arc, Mutex}, collections::HashMap, hash::Hash};
+use std::{sync::{Arc, Mutex}, collections::HashMap};
 use anyhow::{Context, Result};
 
 
 use crate::{sched::version::Version, node::{UpdateController}, nodes::node_description::NodeDescription,  connection::RuntimeNode};
 
-pub struct Flow<T> where T : std::hash::Hash {
+pub type NodeId = u128;
+
+pub struct Flow { 
     name: String,
     version: Version,
     
-    nodes: Vec<(NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)>,
-    id_to_node_idx: HashMap<T, usize>,  
+    nodes: Vec<(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)>,
+    id_to_node_idx: HashMap<NodeId, usize>,  
+    id_to_desc: HashMap<NodeId, NodeDescription>,
+    id_counter: NodeId
 }
 
-impl<T> Flow<T> 
-    where T: Hash + Eq + PartialEq{
+impl Flow {
     
     pub fn new_empty(name: &str, v: Version) -> Self {
         Self {
             name: name.to_string(),
             version: v,
             nodes: Vec::new(),
-            id_to_node_idx : HashMap::new()
+            id_to_node_idx : HashMap::new(),
+            id_to_desc: HashMap::new(),
+            id_counter: 0
         }
     }
 
-    pub fn new(name: &str, v: Version, nodes: HashMap<T, (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)>) -> Self {
+    pub fn new(name: &str, v: Version, nodes: HashMap<NodeId, Arc<Mutex<dyn RuntimeNode + Send>>>) -> Self {
         let mut obj = Self {
             name: name.to_string(),
             version: v,
             nodes: Vec::new(),
-            id_to_node_idx : HashMap::new()
+            id_to_node_idx : HashMap::new(),
+            id_to_desc: HashMap::new(),
+            id_counter: 0
         };
 
-        for (id, (node_description, runtime_node)) in nodes {
+        for (id, runtime_node) in nodes {
             let node_idx = obj.nodes.len();
-            obj.nodes.push((node_description, runtime_node.clone()));
+            obj.nodes.push((id,runtime_node));
             obj.id_to_node_idx.insert(id, node_idx);
         }
 
         obj
     }
 
-    pub fn add_node<U>(&mut self, node: U, id: T)
-    where
-        U: RuntimeNode + 'static,
-    {
-        self.add_node_with_desc(node, id, NodeDescription::default());
+    fn generate_id(&mut self) -> NodeId  {
+        self.id_counter += 1;
+        self.id_counter
     }
 
-    pub fn add_node_with_desc<U>(&mut self, node: U, id: T, desc: NodeDescription)
-    where
-        U: RuntimeNode + 'static,
-    {
-        self.nodes.push((desc, Arc::new(Mutex::new(node))));
-        self.id_to_node_idx.insert(id, self.nodes.len()-1);
+    pub fn node_description_by_id(&self, id: NodeId) -> Option<&NodeDescription> {
+        self.id_to_desc.get(&id)
     }
 
+    pub fn add_node<T>(&mut self, node: T)-> NodeId
+    where
+        T: RuntimeNode + 'static {
+        let id = self.generate_id();
+        self.add_node_with_id_and_desc(node, id, NodeDescription::default())
+    }
 
-    pub fn node_by_index(&self, index: usize) -> Option<&(NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)>{
+    pub fn add_node_with_id<T>(&mut self, node: T, id: NodeId)-> NodeId
+    where
+        T: RuntimeNode + 'static {
+        self.add_node_with_id_and_desc(node, id, NodeDescription::default())
+    }
+    
+    pub fn add_node_with_id_and_desc<T>(&mut self, node: T, id: NodeId, desc: NodeDescription) -> NodeId
+    where
+        T: RuntimeNode + 'static {
+        if !self.id_to_node_idx.contains_key(&id) {
+                
+            self.nodes.push((id, Arc::new(Mutex::new(node))));
+            self.id_to_node_idx.insert(id, self.nodes.len()-1);
+            self.id_to_desc.insert(id, desc);
+        }
+
+        id
+    }
+
+    pub fn node_by_index(&self, index: usize) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)>{
         self.nodes.get(index)
     }
 
-    pub fn node_by_id(&self, id: &T) -> Option<&(NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)>{
-        if let Some(idx) = self.id_to_node_idx.get(id){
+    pub fn node_by_id(&self, id: NodeId) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)>{
+        if let Some(idx) = self.id_to_node_idx.get(&id){
             return self.node_by_index(*idx);
         }
         None
@@ -78,7 +104,7 @@ impl<T> Flow<T>
                 .lock()
                 .unwrap()
                 .on_init()
-                .context(format!("Unable to init node '{}'.", n.0.name))?;
+                .context(format!("Unable to init node with ID {}.", n.0))?;
         }
         Ok(())
     }
@@ -89,7 +115,7 @@ impl<T> Flow<T>
                 .lock()
                 .unwrap()
                 .on_shutdown()
-                .context(format!("Unable to shutdown node '{}'.",  n.0.name))?;
+                .context(format!("Unable to shutdown node with ID {}.", n.0))?;
         }
         Ok(())
     }
@@ -102,7 +128,7 @@ impl<T> Flow<T>
                 .lock()
                 .unwrap()
                 .on_ready()
-                .context(format!("Unable to make node '{}' ready.", n.0.name))?;
+                .context(format!("Unable to make node with ID {}.", n.0))?;
         }
         Ok(())
     }

@@ -14,11 +14,10 @@ use std::{
 };
 
 pub trait Executor {
-    fn run<S, U, F>(&mut self, flow: Flow<F>, scheduler: S, node_updater: U) -> Result<()>
+    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
     where
         S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop,
-        F: Hash + Eq + PartialEq;
+        U: NodeUpdater + Drop;
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
@@ -50,11 +49,10 @@ impl StandardExecutor {
         }
     }
 
-    fn run_update_loop<S, U, F>(&mut self, flow: &Flow<F>, mut scheduler: S, mut node_updater: U) -> Result<(), ExecutionError>
+    fn run_update_loop<S, U>(&mut self, flow: &Flow, mut scheduler: S, mut node_updater: U) -> Result<(), ExecutionError>
     where
         S: Scheduler,
-        U: NodeUpdater,
-        F: Hash + Eq + PartialEq
+        U: NodeUpdater
     {
         self.controller
             .lock()
@@ -136,11 +134,10 @@ impl StandardExecutor {
 }
 
 impl Executor for StandardExecutor {
-    fn run<S, U, F>(&mut self, flow: Flow<F>, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
+    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
     where
         S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop,
-        F: Hash + Eq + PartialEq
+        U: NodeUpdater + Drop
     {
 
         //TODO: Fix error flow. 

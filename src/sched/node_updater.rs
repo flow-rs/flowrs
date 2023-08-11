@@ -1,11 +1,36 @@
 use std::{
-    sync::{ Arc, Mutex}, thread::{self, JoinHandle},
+    sync::{ Arc, Mutex}, thread::{self, JoinHandle}
 };
 use crate::{
     node::UpdateError,
-    connection::RuntimeNode, flow::Flow,
+    connection::RuntimeNode,
+    nodes::node_description::NodeDescription
 };
 use crossbeam_channel::{unbounded, Sender, Receiver};
+use thiserror::Error;
+use anyhow::{ Result};
+
+#[derive(Error, Debug)]
+pub struct NodeUpdateError {
+    pub source: UpdateError,
+    pub node: NodeDescription
+}
+
+
+impl From<UpdateError> for NodeUpdateError {
+    fn from(source: UpdateError) -> Self {
+        Self {
+            source,
+            node: NodeDescription::default()
+        }
+    }
+}
+
+impl std::fmt::Display for NodeUpdateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NodeUpdateError {}", self.source)
+    }
+}
 
 pub enum SleepMode {
     Reactive, 
@@ -14,23 +39,23 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((Arc<Mutex<dyn RuntimeNode + Send>>, Flow)),
+    Update((NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)),
     Cancel
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow);
-    fn errors(&mut self) -> Vec<UpdateError>;
+    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>));
+    fn errors(&mut self) -> Vec<NodeUpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
 }
 
 pub struct MultiThreadedNodeUpdater {
     num_workers: usize,
-    workers: Vec<JoinHandle<Result<(), UpdateError>>>,
+    workers: Vec<JoinHandle<Result<(), NodeUpdateError>>>,
 
     command_channel: (Sender<WorkerCommand>, Receiver<WorkerCommand>),
-    error_channel: (Sender<UpdateError>, Receiver<UpdateError>)
+    error_channel: (Sender<NodeUpdateError>, Receiver<NodeUpdateError>)
 }
 
 impl MultiThreadedNodeUpdater {
@@ -65,7 +90,7 @@ impl MultiThreadedNodeUpdater {
             let update_receiver_clone = self.command_channel.1.clone();
             let error_sender_clone = self.error_channel.0.clone();
 
-            let thread_handle: thread::JoinHandle<Result<(), UpdateError>> = thread::spawn( move || -> Result<(), UpdateError>  {
+            let thread_handle: thread::JoinHandle<Result<(), NodeUpdateError>> = thread::spawn( move || -> Result<(), NodeUpdateError>  {
                 
                 loop {
 
@@ -74,7 +99,11 @@ impl MultiThreadedNodeUpdater {
                         
                         Result::Err(err) => {
                             //println!("{:?} THREAD UPDATE ERROR {:?}", std::thread::current().id(), err);
-                            let _res = error_sender_clone.send(UpdateError::Other(err.into()));
+                            let _res = error_sender_clone.send(
+                                NodeUpdateError{ 
+                                    source: UpdateError::Other(err.into()), 
+                                    node: NodeDescription::default() /* At this point we do not have any node info since receiving it failed.*/}
+                                );
                             break Ok(());
                         }
                         
@@ -87,9 +116,9 @@ impl MultiThreadedNodeUpdater {
                                 },
                             
                                 WorkerCommand::Update(node) => {
-                                    if let Ok(mut n) = node.0.try_lock() {
+                                    if let Ok(mut n) = node.1.try_lock() {
                                         if let Err(err) = n.on_update() {
-                                            let _res = error_sender_clone.send(UpdateError::Default { node: node.1.get_key(node.0.clone()).unwrap().to_string(), message: err.to_string() });
+                                            let _res = error_sender_clone.send(NodeUpdateError{source: err, node: node.0});
                                             break Ok(());
                                         }
                                     } else {
@@ -110,12 +139,13 @@ impl MultiThreadedNodeUpdater {
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
     
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow) {
-        self.command_channel.0.send(WorkerCommand::Update((node.clone(), (*flow).clone()))).expect("Unable to write to command channel.");
+    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+        //let cloned_node = node.clone();
+        self.command_channel.0.send(WorkerCommand::Update(node)).expect("Unable to write to command channel.");
     }
 
-    fn errors(&mut self) -> Vec<UpdateError> {
-       let errors: Vec<UpdateError> = self.error_channel.1.try_iter().collect();
+    fn errors(&mut self) -> Vec<NodeUpdateError> {
+       let errors: Vec<NodeUpdateError> = self.error_channel.1.try_iter().collect();
        errors
     }
 
@@ -131,7 +161,7 @@ impl Drop for MultiThreadedNodeUpdater {
 }
 
 pub struct SingleThreadedNodeUpdater {
-    errors: Vec<UpdateError>,
+    errors: Vec<NodeUpdateError>,
     eps: Option<u64>
 }
 
@@ -146,16 +176,17 @@ impl SingleThreadedNodeUpdater {
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
     
-    fn update(&mut self, node: Arc<Mutex<dyn RuntimeNode + Send>>, flow: &Flow) {
-        if let Ok(mut n) = node.try_lock() {
+    fn update(&mut self, node: (NodeDescription, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+        
+        if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {
-                self.errors.push(UpdateError::Default { node: flow.get_key(node.clone()).unwrap().to_string(), message: err.to_string() });
+                self.errors.push(NodeUpdateError { source: err, node: node.0});
             }
         }
     }
 
-    fn errors(&mut self) -> Vec<UpdateError> {
-        let drained_errors: Vec<UpdateError> = self.errors.drain(..).collect();
+    fn errors(&mut self) -> Vec<NodeUpdateError> {
+        let drained_errors: Vec<NodeUpdateError> = self.errors.drain(..).collect();
         self.errors.clear();
         drained_errors
     }

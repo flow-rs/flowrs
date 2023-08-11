@@ -1,8 +1,8 @@
 use crate::{
-    node::{ChangeObserver, UpdateError},
+    node::{ChangeObserver},
     flow::Flow,
     scheduler::{Scheduler, SchedulingInfo},
-    sched::{execution_state::ExecutionState, execution_controller::ExecutionController, node_updater::{SleepMode,NodeUpdater}}
+    sched::{execution_state::ExecutionState, execution_controller::ExecutionController, node_updater::{SleepMode,NodeUpdater, NodeUpdateError}}
 };
 
 use thiserror::Error;
@@ -10,14 +10,15 @@ use anyhow::{Context as AnyhowContext, Result};
 use std::{
     thread,
     sync::{ Arc, Mutex},
-    time::Duration
+    time::Duration, hash::Hash
 };
 
 pub trait Executor {
-    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
+    fn run<S, U, F>(&mut self, flow: Flow<F>, scheduler: S, node_updater: U) -> Result<()>
     where
         S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop;
+        U: NodeUpdater + Drop,
+        F: Hash + Eq + PartialEq;
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
@@ -27,7 +28,7 @@ pub enum ExecutionError {
 
     #[error("Errors occured while updating nodes: {errors:?}")]
     UpdateErrorCollection {
-        errors: Vec<UpdateError>
+        errors: Vec<NodeUpdateError>
     },
 
     #[error(transparent)]
@@ -49,10 +50,11 @@ impl StandardExecutor {
         }
     }
 
-    fn run_update_loop<S, U>(&mut self, flow: &Flow, mut scheduler: S, mut node_updater: U) -> Result<(), ExecutionError>
+    fn run_update_loop<S, U, F>(&mut self, flow: &Flow<F>, mut scheduler: S, mut node_updater: U) -> Result<(), ExecutionError>
     where
         S: Scheduler,
-        U: NodeUpdater
+        U: NodeUpdater,
+        F: Hash + Eq + PartialEq
     {
         self.controller
             .lock()
@@ -74,9 +76,9 @@ impl StandardExecutor {
                 let node_idx = scheduler.get_next_node_idx();
                 //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
-                let node = flow.get_node(node_idx);
+                let node = flow.node_by_index(node_idx);
                 if let Some(n) = node {
-                    node_updater.update(n, &flow);
+                    node_updater.update(n.clone());
                 }
             }
 
@@ -134,10 +136,11 @@ impl StandardExecutor {
 }
 
 impl Executor for StandardExecutor {
-    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
+    fn run<S, U, F>(&mut self, flow: Flow<F>, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
     where
         S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop
+        U: NodeUpdater + Drop,
+        F: Hash + Eq + PartialEq
     {
 
         //TODO: Fix error flow. 

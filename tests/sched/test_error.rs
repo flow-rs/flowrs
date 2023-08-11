@@ -47,7 +47,7 @@ mod test_execution {
 
     use std::collections::HashMap;
     use std::{sync::mpsc, thread, time::Duration};
-
+    use flowrs::nodes::node_description::NodeDescription;
     use crate::sched::test_error::ErrNode;
 
     #[test]
@@ -57,9 +57,9 @@ mod test_execution {
         let n1: ErrNode = ErrNode::new("node_1", Some(&change_observer), false);
         let mock_input = Input::<i32>::new();
         connect(n1.output_1.clone(), mock_input.clone());
-        let mut flow = Flow::new("flow_1", Version::new(1, 0, 0), HashMap::new());
+        let mut flow : Flow<String> = Flow::new("flow_1", Version::new(1, 0, 0), HashMap::new());
         n1.input_1.send(1)?;
-        flow.add_node(n1, "some".into());
+        flow.add_node_with_desc(n1, "some_id".into(), NodeDescription { name: "error node 1".into()});
         let thread_handle = thread::spawn(move || {
             let num_threads = 4;
             let mut executor = StandardExecutor::new(change_observer);
@@ -67,9 +67,10 @@ mod test_execution {
             let scheduler = RoundRobinScheduler::new();
             let _ = sender.send(executor.controller());
             let errs = executor.run(flow, scheduler, node_updater);
+            println!("TEST");
             match errs {
-                Ok(_) => todo!(),
-                Err(e) => assert!(e.to_string() == "Errors occured while updating nodes: [Default { node: \"some\", message: \"not feeling like being a node...\" }]"),
+                Ok(_) => {},
+                Err(e) => assert_eq!(e.to_string(), "Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node: NodeDescription { name: \"error node 1\" } }]")
             }
         });
         let controller = receiver.recv().unwrap();

@@ -52,8 +52,6 @@ pub trait UpdateController {
 }
 
 pub trait Node : Send {
-    fn name(&self) -> &str { "no_name" }
-
     fn on_init(&self) -> Result<(), InitError> { Ok(())}
     fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
     fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
@@ -110,21 +108,13 @@ pub enum ReceiveError {
 #[derive(Error, Debug)]
 pub enum UpdateError {
 
-    #[error("Sequence error for node {node:?}. Message: {message:?}")]
+    #[error("Sequence error. Message: {message:?}")]
     SequenceError {
-        node: String,
         message: String,
     },
 
-    #[error("Connect error for node {node:?}. Message: {message:?}")]
+    #[error("Connect error. Message: {message:?}")]
     ConnectError {
-        node: String,
-        message: String,
-    },
-
-    #[error("Update error for node {node:?}. Message: {message:?}")]
-    Default {
-        node: String,
         message: String,
     },
 

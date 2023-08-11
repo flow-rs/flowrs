@@ -52,7 +52,7 @@ where
         match &self.state {
             AddNodeState::I1(_) => {
                 return Err(UpdateError::SequenceError {
-                    node: self.name().into(),
+                   
                     message: "Addition should happen pairwise.".into(),
                 })
             }
@@ -70,7 +70,7 @@ where
         match &self.state {
             AddNodeState::I2(_) => {
                 return Err(UpdateError::SequenceError {
-                    node: self.name().into(),
+                   
                     message: "Addition should happen pairwise.".into(),
                 })
             }
@@ -92,11 +92,6 @@ where
     O: Clone + Send + 'static,
 {
     
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
     // To be replaced by macro
     fn on_update(&mut self) -> Result<(), UpdateError> {
         if let Ok(i1) = self.input_1.next() {

@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use flowrs::{
     connection::{Input, Output},
     node::{ChangeObserver, Node},

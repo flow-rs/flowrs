@@ -33,7 +33,9 @@ impl Node for DummyNode {
 
 #[derive(RuntimeConnectable)]
 pub struct ErrNode<T> {
+    #[input]
     pub input_1: Input<T>,
+    #[output]
     pub output_1: Output<T>,
 }
 
@@ -48,9 +50,13 @@ impl<T: Send> ErrNode<T> {
 
 impl<T: Send> Node for ErrNode<T> {
     fn on_update(&mut self) -> Result<(), UpdateError> {
-        Err(UpdateError::Other(Error::msg(
-            "not feeling like being a node...",
-        )))
+        let v = self.input_1.next();
+        if let Ok(_) = v {
+            return Err(UpdateError::Other(Error::msg(
+                "not feeling like being a node...",
+            )))
+        }
+        Ok(())
     }
 }
 
@@ -58,7 +64,7 @@ impl<T: Send> Node for ErrNode<T> {
 mod test_execution {
 
     use anyhow::Error;
-    use flowrs::connection::{connect, Input};
+    use flowrs::connection::{connect, Input, RuntimeConnectable};
     use flowrs::exec::execution::{Executor, StandardExecutor};
     use flowrs::exec::node_updater::{MultiThreadedNodeUpdater, SingleThreadedNodeUpdater};
     use flowrs::flow_impl::Flow;
@@ -220,6 +226,54 @@ mod test_execution {
         });
         let controller = receiver.recv().unwrap();
         thread::sleep(Duration::from_millis(100));
+        println!("CANCEL");
+        controller.lock().unwrap().cancel();
+        thread_handle.join().unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn test_node_indices() -> Result<(), Error> {
+        let (sender, receiver) = mpsc::channel();
+        let change_observer: ChangeObserver = ChangeObserver::new();
+        let mut flow = Flow::new("flow_1", Version::new(1, 0, 0), HashMap::new());
+        let mock_input = Input::<i32>::new();
+        // Spawning 5 dummy nodes and loading queues
+        for _ in 0..5 {
+            let n: DummyNode = DummyNode::new(Some(&change_observer), false);
+            n.input_1.send(1)?;
+            connect(n.output_1.clone(), mock_input.clone());
+            flow.add_node(n);
+        }
+        // Spawning one ErrNode and not yet filling queue
+        let n: ErrNode<i32> = ErrNode::new(Some(&change_observer));
+        connect(n.output_1.clone(), mock_input.clone());
+        let n_in = n.input_at(0);
+        let edge = (*n_in.downcast::<Input<i32>>().unwrap()).clone();
+        flow.add_node(n);
+        // Spawning 5 dummy nodes and loading queues
+        for _ in 0..5 {
+            let n: DummyNode = DummyNode::new(Some(&change_observer), false);
+            n.input_1.send(1)?;
+            connect(n.output_1.clone(), mock_input.clone());
+            flow.add_node(n);
+        }
+        let thread_handle = thread::spawn(move || {
+            let num_threads = 16;
+            let mut executor = StandardExecutor::new(change_observer);
+            let node_updater = MultiThreadedNodeUpdater::new(num_threads);
+            let scheduler = RoundRobinScheduler::new();
+            let _ = sender.send(executor.controller());
+            let _ = edge.send(0);
+            let errs = executor.run(flow, scheduler, node_updater);
+            assert!(errs.is_err());
+            if let Err(e) = errs {
+                let expected = r#"Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node_id: Some(6), node_desc: Some(NodeDescription { name: "", description: "", kind: "" }) }]"#;
+                assert_eq!(expected, e.to_string());
+            }
+        });
+        let controller = receiver.recv().unwrap();
+        thread::sleep(Duration::from_secs(3));
         println!("CANCEL");
         controller.lock().unwrap().cancel();
         thread_handle.join().unwrap();

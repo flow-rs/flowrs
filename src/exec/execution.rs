@@ -10,7 +10,11 @@ use crate::{
 };
 
 use anyhow::{Context as AnyhowContext, Result};
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 use thiserror::Error;
 
 pub trait Executor {
@@ -97,7 +101,13 @@ impl StandardExecutor {
                 }
 
                 SleepMode::FixedFrequency(fps) => {
-                    
+                    let actual_duration = info.epoch_duration;
+                    let target_duration = Duration::from_millis(1000 / fps);
+                    let delta = target_duration.saturating_sub(actual_duration);
+                    //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
+                    if delta > Duration::ZERO {
+                        thread::sleep(delta);
+                    }
                 }
             }
 

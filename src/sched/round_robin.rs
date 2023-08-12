@@ -1,15 +1,17 @@
+use std::time::Instant;
+
 use crate::scheduler::{Scheduler, SchedulingInfo};
 
 pub struct RoundRobinScheduler {
     cur_node_idx: usize,
-    last_restart: i128
+    last_restart: Instant
 }
 
 impl RoundRobinScheduler {
     pub fn new() -> Self {
         Self { 
             cur_node_idx: 0,   
-            last_restart: 0
+            last_restart: Instant::now()
         }
     }
 }
@@ -23,7 +25,7 @@ impl Scheduler for RoundRobinScheduler {
 
     fn epoch_is_over(&self, info: &mut SchedulingInfo) -> bool {
         if self.cur_node_idx >= info.num_nodes {
-            info.epoch_duration = self.last_restart;
+            info.epoch_duration = self.last_restart.elapsed();
             true
         }
         else {
@@ -33,6 +35,6 @@ impl Scheduler for RoundRobinScheduler {
 
     fn restart_epoch(&mut self, _info: &mut SchedulingInfo) {
         self.cur_node_idx = 0;
-        self.last_restart = 0;
+        self.last_restart = Instant::now();
     }
 }

@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 #[derive(Default)]
 pub struct SchedulingInfo {
     pub num_nodes: usize,
-    pub epoch_duration: i128,
+    pub epoch_duration: Duration,
     pub priorities: Vec<i8>, /* for later use */
 }
 
@@ -9,7 +11,7 @@ impl SchedulingInfo {
     pub fn new(num_nodes: usize) -> Self {
         Self {
             num_nodes: num_nodes, 
-            epoch_duration: 0,
+            epoch_duration: Duration::ZERO,
             priorities: Vec::new()
         }
     } 

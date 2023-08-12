@@ -2,7 +2,7 @@ use std::{sync::{Arc, Mutex}, collections::HashMap};
 use anyhow::{Context, Result};
 
 
-use crate::{sched::version::Version, node::{UpdateController}, nodes::node_description::NodeDescription,  connection::RuntimeNode};
+use crate::{flow::version::Version, node::UpdateController, nodes::node_description::NodeDescription,  connection::RuntimeNode};
 
 pub type NodeId = u128;
 
@@ -57,7 +57,7 @@ impl Flow {
         self.id_to_desc.get(&id)
     }
 
-    pub fn add_node<T>(&mut self, node: T)-> NodeId
+    pub fn add_node<T>(&mut self, node: T) -> NodeId
     where
         T: RuntimeNode + 'static {
         let id = self.generate_id();
@@ -142,5 +142,4 @@ impl Flow {
         }
         update_controllers
     }
-
 }

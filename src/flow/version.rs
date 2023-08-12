@@ -1,4 +1,6 @@
-#[derive(Debug, Clone)]
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Version {
     major: u32,
     minor: u32,

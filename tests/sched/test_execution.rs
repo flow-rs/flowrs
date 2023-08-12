@@ -59,15 +59,13 @@ mod test_execution {
 
     use anyhow::Error;
     use flowrs::connection::{connect, Input};
-    use flowrs::sched::node_updater::SingleThreadedNodeUpdater;
-    use flowrs::{
-        execution::{Executor, StandardExecutor},
-        flow::Flow,
-        node::ChangeObserver,
-        sched::node_updater::MultiThreadedNodeUpdater,
-        sched::scheduler::RoundRobinScheduler,
-        version::Version,
-    };
+    use flowrs::exec::execution::{Executor, StandardExecutor};
+    use flowrs::exec::node_updater::{MultiThreadedNodeUpdater, SingleThreadedNodeUpdater};
+    use flowrs::flow_impl::Flow;
+    use flowrs::node::ChangeObserver;
+    use flowrs::nodes::node_description::NodeDescription;
+    use flowrs::sched::round_robin::RoundRobinScheduler;
+    use flowrs::version::Version;
 
     use crate::sched::test_execution::{DummyNode, ErrNode};
 
@@ -135,7 +133,15 @@ mod test_execution {
         n1.input_1.send(1)?;
         n2.input_1.send(true)?;
         flow.add_node(n1);
-        flow.add_node(n2);
+        flow.add_node_with_id_and_desc(
+            n2,
+            5,
+            NodeDescription {
+                name: "Sad Node".into(),
+                description: "Not doing much".into(),
+                kind: "ErrNode".into(),
+            },
+        );
         let thread_handle = thread::spawn(move || {
             let num_threads = 2;
             let mut executor = StandardExecutor::new(change_observer);
@@ -145,13 +151,23 @@ mod test_execution {
             let errs = executor.run(flow, scheduler, node_updater);
             assert!(errs.is_err());
             if let Err(e) = errs {
-                let fst_snd = "Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node_id: 1 }, NodeUpdateError { source: Other(not feeling like being a node...), node_id: 2 }]" == e.to_string();
-                let snd_fst = "Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node_id: 2 }, NodeUpdateError { source: Other(not feeling like being a node...), node_id: 1 }]" == e.to_string();
-                assert!(fst_snd || snd_fst);
+                let fst_err = r#"NodeUpdateError { source: Other(not feeling like being a node...), node_id: Some(1), node_desc: Some(NodeDescription { name: "", description: "", kind: "" }) }"#;
+                let snd_err = r#"NodeUpdateError { source: Other(not feeling like being a node...), node_id: Some(5), node_desc: Some(NodeDescription { name: "Sad Node", description: "Not doing much", kind: "ErrNode" }) }"#;
+                let fst_cond = e.to_string()
+                    == format!(
+                        "Errors occured while updating nodes: [{}, {}]",
+                        fst_err, snd_err
+                    );
+                let snd_cond = e.to_string()
+                    == format!(
+                        "Errors occured while updating nodes: [{}, {}]",
+                        fst_err, snd_err
+                    );
+                assert!(fst_cond || snd_cond);
             }
         });
         let controller = receiver.recv().unwrap();
-        thread::sleep(Duration::from_secs(3));
+        thread::sleep(Duration::from_millis(100));
         println!("CANCEL");
         controller.lock().unwrap().cancel();
         thread_handle.join().unwrap();
@@ -170,7 +186,15 @@ mod test_execution {
         n1.input_1.send(1)?;
         n2.input_1.send(true)?;
         flow.add_node(n1);
-        flow.add_node(n2);
+        flow.add_node_with_id_and_desc(
+            n2,
+            5,
+            NodeDescription {
+                name: "Sad Node".into(),
+                description: "Not doing much".into(),
+                kind: "ErrNode".into(),
+            },
+        );
         let thread_handle = thread::spawn(move || {
             let mut executor = StandardExecutor::new(change_observer);
             let node_updater = SingleThreadedNodeUpdater::new(None);
@@ -179,13 +203,23 @@ mod test_execution {
             let errs = executor.run(flow, scheduler, node_updater);
             assert!(errs.is_err());
             if let Err(e) = errs {
-                let fst_snd = "Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node_id: 1 }, NodeUpdateError { source: Other(not feeling like being a node...), node_id: 2 }]" == e.to_string();
-                let snd_fst = "Errors occured while updating nodes: [NodeUpdateError { source: Other(not feeling like being a node...), node_id: 2 }, NodeUpdateError { source: Other(not feeling like being a node...), node_id: 1 }]" == e.to_string();
-                assert!(fst_snd || snd_fst);
+                let fst_err = r#"NodeUpdateError { source: Other(not feeling like being a node...), node_id: Some(1), node_desc: Some(NodeDescription { name: "", description: "", kind: "" }) }"#;
+                let snd_err = r#"NodeUpdateError { source: Other(not feeling like being a node...), node_id: Some(5), node_desc: Some(NodeDescription { name: "Sad Node", description: "Not doing much", kind: "ErrNode" }) }"#;
+                let fst_cond = e.to_string()
+                    == format!(
+                        "Errors occured while updating nodes: [{}, {}]",
+                        fst_err, snd_err
+                    );
+                let snd_cond = e.to_string()
+                    == format!(
+                        "Errors occured while updating nodes: [{}, {}]",
+                        fst_err, snd_err
+                    );
+                assert!(fst_cond || snd_cond);
             }
         });
         let controller = receiver.recv().unwrap();
-        thread::sleep(Duration::from_secs(3));
+        thread::sleep(Duration::from_millis(100));
         println!("CANCEL");
         controller.lock().unwrap().cancel();
         thread_handle.join().unwrap();

@@ -118,6 +118,12 @@ pub enum UpdateError {
         message: String,
     },
 
+    #[error("RecvError error. Message: {message:?}")]
+    RecvError {
+        message: String,
+    },
+
+
     #[error(transparent)]
     Other(#[from] anyhow::Error)
 } 

@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use flowrs::{
     connection::{Input, Output},
-    node::{ChangeObserver, InitError, Node, ReadyError, ShutdownError, UpdateError},
+    node::{ChangeObserver, Node, UpdateError},
 };
 
 use flowrs_derive::RuntimeConnectable;
@@ -59,7 +59,7 @@ where
             AddNodeState::I2(i) => {
                 let out = v + i.clone();
                 self.state = AddNodeState::None;
-                self.output_1.clone().send(out);
+                let _ = self.output_1.clone().send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I1(v),
         }
@@ -77,7 +77,7 @@ where
             AddNodeState::I1(i) => {
                 let out = i.clone() + v;
                 self.state = AddNodeState::None;
-                self.output_1.clone().send(out);
+                let _ = self.output_1.clone().send(out);
             }
             AddNodeState::None => self.state = AddNodeState::I2(v),
         }
@@ -114,7 +114,7 @@ mod test {
     use anyhow::Error;
     use flowrs::{
         connection::{connect, Edge, Input, Output, RuntimeConnectable},
-        node::{ChangeObserver, Node},
+        node::Node,
     };
 
     use super::AddNode;

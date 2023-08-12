@@ -1,13 +1,15 @@
 use core::panic;
 use proc_macro::TokenStream;
-use syn::{Arm, DataStruct, DeriveInput, Field, Ident, Type, WherePredicate};
+use syn::{
+    Arm, DataStruct, DeriveInput, Field, Generics, Type, WherePredicate,
+};
 
 pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let struct_ident = ast.clone().ident;
     let struct_ident_str = struct_ident.to_string();
     let inputs;
     let outputs;
-    match ast.data {
+    match ast.clone().data {
         syn::Data::Struct(s) => {
             inputs = validate_struct_field(s.clone(), "Input", "input");
             outputs = validate_struct_field(s, "Output", "output");
@@ -43,9 +45,7 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
         })
         .collect::<Vec<Arm>>();
     let (_, ty_generics, _) = ast.generics.split_for_impl();
-    let mut seen_types = vec![];
-    let mut generic_bounds = get_generic_bounds(inputs.clone(), &mut seen_types);
-    generic_bounds.append(&mut get_generic_bounds(outputs, &mut seen_types));
+    let generic_bounds = get_generic_bounds(ast.clone().generics);
     quote::quote! {
         impl #ty_generics flowrs::connection::RuntimeConnectable for #struct_ident #ty_generics
         where
@@ -69,42 +69,19 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     .into()
 }
 
-fn get_generic_bounds(fields: Vec<Field>, seen_types: &mut Vec<String>) -> Vec<WherePredicate> {
-    fields
-        .iter()
-        .filter_map(|f| match &f.ty {
-            Type::Path(path) => match &path.path.segments.first().unwrap().arguments {
-                syn::PathArguments::AngleBracketed(angle) => match angle.args.first().unwrap() {
-                    syn::GenericArgument::Type(generic) => match generic {
-                        Type::Path(t_path) => {
-                            let ident = t_path.path.segments.first().unwrap().ident.clone();
-                            if seen_types.contains(&ident.to_string()) {
-                                return None;
-                            }
-                            let cond: TokenStream = quote::quote! {
-                                #ident: Clone + 'static
-                            }
-                            .into();
-                            let cond_ast: WherePredicate = syn::parse(cond.clone()).unwrap();
-                            seen_types.push(ident.to_string());
-                            Some(cond_ast)
-                        }
-                        _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
-                    },
-                    _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
-                },
-                _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
-            },
-            _ => panic!("{}", generic_err(f.clone().ident.unwrap())),
+fn get_generic_bounds(generics: Generics) -> Vec<WherePredicate> {
+    generics
+        .type_params()
+        .into_iter()
+        .map(|ty| {
+            let cond: TokenStream = quote::quote! {
+                #ty: Clone + 'static
+            }
+            .into();
+            let cond_ast: WherePredicate = syn::parse(cond.clone()).expect("Please use the where clause (struct MyStruct<T> where T: Trait {...}) instead of direct generic bounds (struct MyStruct<T: Trait> {...}).");
+            cond_ast
         })
-        .collect::<Vec<WherePredicate>>()
-}
-
-fn generic_err(field_name: Ident) -> String {
-    format!(
-        "Field: {} is not a valid Input/Output field for the flowrs_derive macro.",
-        field_name
-    )
+        .collect()
 }
 
 fn validate_struct_field(strct: DataStruct, ty: &str, mcro: &str) -> Vec<Field> {

@@ -1,7 +1,7 @@
 use anyhow::Error;
 use flowrs::connection::{Input, Output};
 use flowrs::node::{ChangeObserver, InitError, Node, UpdateError};
-use flowrs_derive::RuntimeConnectable;
+use flowrs::RuntimeConnectable;
 
 use std::fs::File;
 

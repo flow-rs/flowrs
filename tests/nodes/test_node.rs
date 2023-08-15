@@ -5,7 +5,7 @@ use flowrs::{
     node::{ChangeObserver, Node, UpdateError},
 };
 
-use flowrs_derive::RuntimeConnectable;
+use flowrs::RuntimeConnectable;
 
 #[derive(Clone)]
 enum AddNodeState<I1, I2> {

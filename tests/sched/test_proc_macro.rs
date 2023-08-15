@@ -2,7 +2,7 @@ use flowrs::{
     connection::{Input, Output},
     node::{ChangeObserver, Node},
 };
-use flowrs_derive::RuntimeConnectable;
+use flowrs::RuntimeConnectable;
 
 #[derive(RuntimeConnectable)]
 pub struct PassthroughNode {
@@ -58,7 +58,7 @@ mod test_execution {
         connection::{Input, Output, RuntimeConnectable},
         node::{ChangeObserver, Node},
     };
-    use flowrs_derive::RuntimeConnectable;
+    use flowrs::RuntimeConnectable;
 
     use crate::sched::test_proc_macro::{MultiNode, PassthroughNode};
 

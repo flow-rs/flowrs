@@ -10,3 +10,5 @@ pub use self::flow::flow as flow_impl;
 pub use self::flow::version;
 
 pub use self::sched::scheduler;
+
+pub use flowrs_derive::RuntimeConnectable;

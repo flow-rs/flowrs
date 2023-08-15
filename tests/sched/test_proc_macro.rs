@@ -2,7 +2,7 @@ use flowrs::{
     connection::{Input, Output},
     node::{ChangeObserver, Node},
 };
-use flowrs_derive::RuntimeConnectable;
+use flowrs::RuntimeConnectable;
 
 #[derive(RuntimeConnectable)]
 pub struct PassthroughNode {
@@ -58,7 +58,7 @@ mod test_execution {
         connection::{Input, Output, RuntimeConnectable},
         node::{ChangeObserver, Node},
     };
-    use flowrs_derive::RuntimeConnectable;
+    use flowrs::RuntimeConnectable;
 
     use crate::sched::test_proc_macro::{MultiNode, PassthroughNode};
 
@@ -207,7 +207,6 @@ mod test_execution {
     #[test]
     fn should_return_multiple_input_output_at_runtime() {
         let change_observer: ChangeObserver = ChangeObserver::new();
-
         let nested_generic_node: MultiNode<[u8; 20]> = MultiNode::new(&change_observer);
         let input1: Result<_, Rc<dyn Any>> =
             nested_generic_node.input_at(0).downcast::<Input<i32>>();
@@ -231,8 +230,8 @@ mod test_execution {
     fn should_fail_on_mult_input_out_of_bounds() {
         let change_observer: ChangeObserver = ChangeObserver::new();
 
-        let passthrough_node: MultiNode<u8> = MultiNode::new(&change_observer);
-        passthrough_node.input_at(2);
+        let multi_node: MultiNode<Vec<u8>> = MultiNode::new(&change_observer);
+        multi_node.input_at(2);
     }
 
     #[test]
@@ -240,8 +239,8 @@ mod test_execution {
     fn should_fail_on_mult_output_out_of_bounds() {
         let change_observer: ChangeObserver = ChangeObserver::new();
 
-        let passthrough_node: MultiNode<u8> = MultiNode::new(&change_observer);
-        passthrough_node.output_at(4);
+        let multi_node: MultiNode<Vec<u8>> = MultiNode::new(&change_observer);
+        multi_node.output_at(4);
     }
 
     #[test]
@@ -249,7 +248,7 @@ mod test_execution {
     fn should_fail_on_mult_output_out_of_bounds_at_three() {
         let change_observer: ChangeObserver = ChangeObserver::new();
 
-        let passthrough_node: MultiNode<u8> = MultiNode::new(&change_observer);
-        passthrough_node.output_at(3);
+        let multi_node: MultiNode<Vec<u8>> = MultiNode::new(&change_observer);
+        multi_node.output_at(3);
     }
 }

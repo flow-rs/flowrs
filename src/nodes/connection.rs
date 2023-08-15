@@ -1,3 +1,5 @@
+use serde::{Serialize, Serializer, Deserialize, Deserializer, de::IgnoredAny};
+
 use crate::node::{ChangeObserver, Node, ReceiveError, SendError};
 use std::{
     any::Any,
@@ -54,10 +56,44 @@ impl<I> Edge<I> {
 
 pub type Input<I> = Edge<I>;
 
+impl<T> Serialize for Edge<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer {
+        serializer.serialize_unit()
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Edge<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> {
+        deserializer.deserialize_any(IgnoredAny).unwrap();
+        Ok(Self::new())
+    }
+}
+
 #[derive(Clone)]
 pub struct Output<T> {
     edge: Arc<Mutex<Option<Edge<T>>>>,
     change_notifier: Option<Sender<bool>>,
+}
+
+impl<T> Serialize for Output<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer {
+        serializer.serialize_unit()
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Output<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> {
+        deserializer.deserialize_any(IgnoredAny).unwrap();
+        Ok(Self::new(None))
+    }
 }
 
 impl<O> Output<O> {
@@ -67,6 +103,17 @@ impl<O> Output<O> {
             edge: Arc::new(Mutex::new(None)),
             change_notifier: change_notifier,
         }
+    }
+
+    pub fn set_sender(mut self, edge: Edge<O>) -> Self {
+        self.edge = Arc::new(Mutex::new(Some(edge)));
+        self
+    }
+
+    pub fn set_observer(mut self, change_observer: &ChangeObserver) -> Self {
+        let change_notifier = change_observer.notifier.clone();
+        self.change_notifier = Some(change_notifier);
+        self
     }
 
     pub fn send(&mut self, elem: O) -> Result<(), SendError> {

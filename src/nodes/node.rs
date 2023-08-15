@@ -118,6 +118,11 @@ pub enum UpdateError {
         message: String,
     },
 
+    #[error("SendError error. Message: {message:?}")]
+    SendError {
+        message: String,
+    },
+
     #[error("RecvError error. Message: {message:?}")]
     RecvError {
         message: String,
@@ -126,4 +131,16 @@ pub enum UpdateError {
 
     #[error(transparent)]
     Other(#[from] anyhow::Error)
-} 
+}
+
+impl From<SendError> for UpdateError {
+    fn from(value: SendError) -> Self {
+        UpdateError::SendError { message: value.to_string() }
+    }
+}
+
+impl From<ReceiveError> for UpdateError {
+    fn from(value: ReceiveError) -> Self {
+        UpdateError::SendError { message: value.to_string() }
+    }
+}

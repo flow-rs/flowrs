@@ -1,8 +1,6 @@
 use core::panic;
 use proc_macro::TokenStream;
-use syn::{
-    Arm, DataStruct, DeriveInput, Field, Generics, Type, WherePredicate,
-};
+use syn::{Arm, DataStruct, DeriveInput, Field, Generics, Type, WherePredicate};
 
 pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
     let struct_ident = ast.clone().ident;
@@ -44,8 +42,14 @@ pub fn impl_connectable_trait(ast: DeriveInput) -> TokenStream {
             arm_ast
         })
         .collect::<Vec<Arm>>();
-    let (_, ty_generics, _) = ast.generics.split_for_impl();
-    let generic_bounds = get_generic_bounds(ast.clone().generics);
+    let (_, ty_generics, where_clause) = ast.generics.split_for_impl();
+    let mut generic_bounds = get_generic_bounds(ast.clone().generics);
+    if let Some(existing_bounds) = where_clause {
+        let pairs = existing_bounds.predicates.pairs();
+        for pair in pairs {
+            generic_bounds.push(pair.into_tuple().0.clone());
+        }
+    }
     quote::quote! {
         impl #ty_generics flowrs::connection::RuntimeConnectable for #struct_ident #ty_generics
         where

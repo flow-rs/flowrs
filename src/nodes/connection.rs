@@ -37,7 +37,7 @@ impl<I> Edge<I> {
     pub fn send(&self, elem: I) -> Result<(), SendError> {
         match self.sender.send(elem) {
             Ok(_) => Ok(()),
-            Err(err) => Err(SendError::Other(anyhow::Error::msg(err.to_string()))),
+            Err(err) => Err(SendError::Other(anyhow::Error::msg(format!("{}", err)))),
         }
     }
 

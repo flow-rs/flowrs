@@ -71,7 +71,6 @@ mod test_execution {
     use flowrs::node::ChangeObserver;
     use flowrs::nodes::node_description::NodeDescription;
     use flowrs::sched::round_robin::RoundRobinScheduler;
-    use flowrs::version::Version;
 
     use crate::sched::test_execution::{DummyNode, ErrNode};
 
@@ -85,7 +84,7 @@ mod test_execution {
         let n1: DummyNode = DummyNode::new(Some(&change_observer), false);
         let mock_input = Input::<i32>::new();
         connect(n1.output_1.clone(), mock_input.clone());
-        let mut flow = Flow::new("flow_1", Version::new(1, 0, 0), HashMap::new());
+        let mut flow = Flow::new(HashMap::new());
         n1.input_1.send(1)?;
         flow.add_node(n1);
         let thread_handle = thread::spawn(move || {
@@ -110,7 +109,7 @@ mod test_execution {
 
         let n1: DummyNode = DummyNode::new(Some(&change_observer), true);
         let n2: DummyNode = DummyNode::new(Some(&change_observer), true);
-        let mut flow = Flow::new_empty("flow_1", Version::new(1, 0, 0));
+        let mut flow = Flow::new_empty();
 
         flow.add_node(n1);
         flow.add_node(n2);
@@ -135,7 +134,7 @@ mod test_execution {
         let n2 = ErrNode::new(Some(&change_observer));
         let mock_input = Input::<i32>::new();
         connect(n1.output_1.clone(), mock_input.clone());
-        let mut flow = Flow::new_empty("flow_1", Version::new(1, 0, 0));
+        let mut flow = Flow::new_empty();
         n1.input_1.send(1)?;
         n2.input_1.send(true)?;
         flow.add_node(n1);
@@ -188,7 +187,7 @@ mod test_execution {
         let n2 = ErrNode::new(Some(&change_observer));
         let mock_input = Input::<i32>::new();
         connect(n1.output_1.clone(), mock_input.clone());
-        let mut flow = Flow::new_empty("flow_1", Version::new(1, 0, 0));
+        let mut flow = Flow::new_empty();
         n1.input_1.send(1)?;
         n2.input_1.send(true)?;
         flow.add_node(n1);
@@ -236,7 +235,7 @@ mod test_execution {
     fn test_node_indices() -> Result<(), Error> {
         let (sender, receiver) = mpsc::channel();
         let change_observer: ChangeObserver = ChangeObserver::new();
-        let mut flow = Flow::new("flow_1", Version::new(1, 0, 0), HashMap::new());
+        let mut flow = Flow::new( HashMap::new());
         let mock_input = Input::<i32>::new();
         // Spawning 5 dummy nodes and loading queues
         for _ in 0..5 {

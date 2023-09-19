@@ -2,14 +2,12 @@ use std::{sync::{Arc, Mutex}, collections::HashMap};
 use anyhow::{Context, Result};
 
 
-use crate::{flow::version::Version, node::UpdateController, nodes::node_description::NodeDescription,  connection::RuntimeNode};
+use crate::{node::UpdateController, nodes::node_description::NodeDescription,  connection::RuntimeNode};
 
 pub type NodeId = u128;
 
 pub struct Flow { 
-    name: String,
-    version: Version,
-    
+     
     nodes: Vec<(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)>,
     id_to_node_idx: HashMap<NodeId, usize>,  
     id_to_desc: HashMap<NodeId, NodeDescription>,
@@ -18,10 +16,8 @@ pub struct Flow {
 
 impl Flow {
     
-    pub fn new_empty(name: &str, v: Version) -> Self {
+    pub fn new_empty() -> Self {
         Self {
-            name: name.to_string(),
-            version: v,
             nodes: Vec::new(),
             id_to_node_idx : HashMap::new(),
             id_to_desc: HashMap::new(),
@@ -29,10 +25,8 @@ impl Flow {
         }
     }
 
-    pub fn new(name: &str, v: Version, nodes: HashMap<NodeId, Arc<Mutex<dyn RuntimeNode + Send>>>) -> Self {
+    pub fn new(nodes: HashMap<NodeId, Arc<Mutex<dyn RuntimeNode + Send>>>) -> Self {
         let mut obj = Self {
-            name: name.to_string(),
-            version: v,
             nodes: Vec::new(),
             id_to_node_idx : HashMap::new(),
             id_to_desc: HashMap::new(),

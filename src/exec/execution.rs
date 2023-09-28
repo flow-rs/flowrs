@@ -17,6 +17,32 @@ use std::{
 };
 use thiserror::Error;
 
+
+pub struct ExecutionContext {
+        
+    pub executor: StandardExecutor,
+    pub flow: Flow
+}
+
+
+impl ExecutionContext
+{
+        pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
+            Self {
+                executor: executor, 
+                flow: flow
+            }
+        }
+
+}
+ 
+
+#[repr(C)]
+pub struct ExecutionContextHandle {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
 pub trait Executor {
     fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
     where

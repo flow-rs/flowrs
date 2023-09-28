@@ -116,7 +116,6 @@ impl Flow {
 
     pub fn ready_all(&self) -> Result<()> {
         for n in &self.nodes {
-            let name: String = "".into(); 
 
             n.1
                 .lock()

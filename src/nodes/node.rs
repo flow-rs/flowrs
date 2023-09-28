@@ -1,14 +1,15 @@
-use std::sync::{mpsc::{Sender, Receiver, channel}, Arc, Mutex};
+use std::{any::Any, collections::HashMap, sync::{mpsc::{Sender, Receiver, channel}, Arc, Mutex}};
 use thiserror::Error;
 use anyhow::Result;
 
-#[derive(Clone)]
 pub struct Context {
+    pub properties: HashMap<String, Box<dyn Any>>
 }
 
 impl Context {
     pub fn new() -> Self {
         Self {
+            properties: HashMap::new()
         }
     }
 }

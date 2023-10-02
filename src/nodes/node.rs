@@ -2,7 +2,11 @@ use std::{any::Any, collections::HashMap, sync::{mpsc::{Sender, Receiver, channe
 use thiserror::Error;
 use anyhow::Result;
 
+/// A node can take a shared reference to a [`Context`] instance. 
+/// There exists a single context for all nodes that can be accessed via mutex. 
+/// It can be used for sharing instances between nodes (e.g. a wgpu context.)
 pub struct Context {
+    /// A generic key-value store for instance sharing across nodes.
     pub properties: HashMap<String, Box<dyn Any>>
 }
 
@@ -14,8 +18,16 @@ impl Context {
     }
 }
 
+/// Node outputs take an object of this type in order to notify an obeserver 
+/// (usually a flow executor implementing the [`Executor`](crate::exec::execution::Executor) trait)
+/// if something happened (which means something was written to an output).
 pub struct ChangeObserver {
+    /// The notifier as a sender 
+    /// (usually the [`Output`](crate::nodes::connection::Output) implementation).
     pub notifier: Sender<bool>,
+
+    /// The observer as a receiver 
+    /// (usually a flow executor implementing the [`Executor`](crate::exec::execution::Executor) trait).
     pub observer: Receiver<bool>,  
 }
 
@@ -44,20 +56,33 @@ impl ChangeObserver {
     }
 }
 
-//pub struct UpdateController {
-//    cancellation_requested: std::sync::atomic::AtomicBool 
-//}
-
+/// Trait that defines the interface of update controller mechanisms. 
+/// Update controllers are used to cancel long-running [`Node::on_update`] methods.
 pub trait UpdateController {
+
+    /// This method is called "from outside" (potentially also different execution thread).
+    /// It should implement the logic to cancel the long-running [`Node::on_update`] execution. 
     fn cancel(&mut self);
 }
 
+/// Trait that has to be implemented by any node. 
+/// Contains methods for each state in the lifecycle of a node. 
 pub trait Node : Send {
+    /// This method is called for node initialization.
     fn on_init(&self) -> Result<(), InitError> { Ok(())}
+
+    /// This method is called when all nodes in the flow are initialized.
     fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
+
+    /// This method is called when flow execution ends.
     fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
+
+    /// This method is called by the executor dependent on its update strategy. 
     fn on_update(&mut self) -> Result<(), UpdateError> { Ok(())}
 
+    /// Some nodes might have a long-running task in their [`Node::on_update`] method. 
+    /// In this case, this method can return an [`UpdateController`] instance which can 
+    /// be used for cancelling the update.
     fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> { None}
 }
 

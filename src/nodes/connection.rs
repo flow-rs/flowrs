@@ -10,9 +10,16 @@ use std::{
     }, fmt::Debug,
 };
 
+
+/// An edge defines the connection between two nodes. 
+/// It is implemented using a [`std::sync::mpsc::channel`].
 #[derive(Debug)]
 pub struct Edge<I> {
+    /// The producer side (technically there can be multiple producers).
     sender: Sender<I>,
+
+    /// The consumer side (only a single consumer).
+    /// Consumers are optional.
     receiver: Option<Receiver<I>>,
 }
 
@@ -54,6 +61,7 @@ impl<I> Edge<I> {
     }
 }
 
+/// A node's input implemented as an [Edge] type.
 pub type Input<I> = Edge<I>;
 
 impl<T> Serialize for Edge<T> {
@@ -73,9 +81,15 @@ impl<'de, T> Deserialize<'de> for Edge<T> {
     }
 }
 
+/// A node's output.
 #[derive(Clone)]
 pub struct Output<T> {
+
+    // The (optional) connection to another node's input. 
     edge: Arc<Mutex<Option<Edge<T>>>>,
+
+    /// Whenever something is written to the output
+    /// (and a change notifier exists), a change notification is sent.
     change_notifier: Option<Sender<bool>>,
 }
 
@@ -141,9 +155,12 @@ pub fn connect<I: Clone>(mut lhs: Output<I>, rhs: Input<I>) {
     lhs.set(rhs)
 }
 
+/// This trait is used for a accessing a node's 
+/// inputs and outputs by index at runtime.
 pub trait RuntimeConnectable {
     fn input_at(&self, index: usize) -> Rc<dyn Any>;
     fn output_at(&self, index: usize) -> Rc<dyn Any>;
 }
+/// A [`Node`] that implements the [`RuntimeConnectable`] trait.
 pub trait RuntimeNode: Node + RuntimeConnectable {}
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}

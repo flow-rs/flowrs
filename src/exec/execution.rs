@@ -17,11 +17,16 @@ use std::{
 };
 use thiserror::Error;
 
-
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_sdk::trace::TracerProvider;
+use opentelemetry_stdout as stdout;
+use tracing::{error, span};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Registry;
 pub struct ExecutionContext {
         
     pub executor: StandardExecutor,
-    pub flow: Flow
+    pub flow: Flow,
 }
 
 
@@ -35,7 +40,7 @@ impl ExecutionContext
         }
 
 }
- 
+
 
 #[repr(C)]
 pub struct ExecutionContextHandle {
@@ -73,6 +78,7 @@ impl StandardExecutor {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn run_update_loop<S, U>(
         &mut self,
         flow: &Flow,
@@ -176,18 +182,41 @@ impl Executor for StandardExecutor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop,
     {
-        //TODO: Fix error flow.
+        // Create a new OpenTelemetry trace pipeline that prints to stdout
+        let provider = TracerProvider::builder()
+            .with_simple_exporter(stdout::SpanExporter::default())
+            .build();
+        let tracer = provider.tracer("readme_example");
 
-        flow.init_all()
-            .context(format!("Unable to init all nodes."))?;
+        // Create a tracing layer with the configured tracer
+        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        flow.ready_all()
-            .context(format!("Unable to make all nodes ready."))?;
+        // Use the tracing subscriber `Registry`, or any other subscriber
+        // that impls `LookupSpan`
+        let subscriber = Registry::default().with(telemetry);
 
-        self.run_update_loop(&flow, scheduler, node_updater)?;
+        // Trace executed code
+        tracing::subscriber::with_default(subscriber, || {
+            // Spans will be sent to the configured OpenTelemetry exporter
+            let root = span!(tracing::Level::TRACE, "app_start", work_units = 2);
+            let _enter = root.enter();
 
-        flow.shutdown_all()
-            .context(format!("Unable to shutdown all nodes"))?;
+            error!("This event will be logged in the root span.");
+
+            //TODO: Fix error flow.
+
+            flow.init_all()
+                .context(format!("Unable to init all nodes."));
+
+            flow.ready_all()
+                .context(format!("Unable to make all nodes ready."));
+
+            self.run_update_loop(&flow, scheduler, node_updater);
+
+            flow.shutdown_all()
+                .context(format!("Unable to shutdown all nodes"));
+
+        });
 
         Ok(())
     }

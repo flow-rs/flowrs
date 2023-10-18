@@ -17,6 +17,11 @@ categories = ["data-structures", "wasm"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+opentelemetry = "0.20"
+opentelemetry_sdk = "0.20"
+opentelemetry-stdout = { version = "0.1.0", features = ["trace"] }
+tracing-opentelemetry = "0.21"
+tracing-subscriber = { version = "0.3", features = [] }
 flowrs-derive = { version = "0.3.0", path = "flowrs_derive" }
 serde = { version = "1.0.184", features = ["derive", "rc"] }
 serde_json = "1.0.100"
@@ -24,6 +29,7 @@ thiserror = "1.0.44"
 anyhow = "1.0"
 crossbeam-channel = "0.5.8"
 web-time = "0.2.0"
+tracing = "0.1.39"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.37"

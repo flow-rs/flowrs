@@ -138,6 +138,7 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
+    #[tracing::instrument(skip_all,name = "multi_threaded_update")]
     fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         //let cloned_node = node.clone();
         self.command_channel
@@ -177,6 +178,7 @@ impl SingleThreadedNodeUpdater {
 }
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
+    #[tracing::instrument(skip_all,name = "single_threaded_update")]
     fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {

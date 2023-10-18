@@ -1,0 +1,13 @@
+{
+  "flow_project_manager_config":{
+    "project_folder":"../../flow-projects",
+    "project_json_file_name":"flow-project.json",
+    "builtin_dependencies":[
+      "wasm-bindgen = \"0.2.87\"",
+      "serde_json = \"1.0.105\""
+    ],
+    "rust_fmt_path":"rustfmt",
+    "do_formatting":true
+  },
+  "flow_packages_folder":"../../flow-packages"
+}

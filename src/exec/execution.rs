@@ -1,13 +1,8 @@
-use crate::{
-    exec::{
-        execution_controller::ExecutionController,
-        execution_state::ExecutionState,
-        node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
-    },
-    flow::flow::Flow,
-    node::ChangeObserver,
-    scheduler::{Scheduler, SchedulingInfo},
-};
+use crate::{analytics, exec::{
+    execution_controller::ExecutionController,
+    execution_state::ExecutionState,
+    node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
+}, flow::flow::Flow, node::ChangeObserver, scheduler::{Scheduler, SchedulingInfo}};
 
 use anyhow::{Context as AnyhowContext, Result};
 use std::{
@@ -23,8 +18,8 @@ use opentelemetry_stdout as stdout;
 use tracing::{error, span};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
+
 pub struct ExecutionContext {
-        
     pub executor: StandardExecutor,
     pub flow: Flow,
 }
@@ -32,13 +27,12 @@ pub struct ExecutionContext {
 
 impl ExecutionContext
 {
-        pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
-            Self {
-                executor: executor, 
-                flow: flow
-            }
+    pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
+        Self {
+            executor: executor,
+            flow: flow,
         }
-
+    }
 }
 
 
@@ -50,9 +44,9 @@ pub struct ExecutionContextHandle {
 
 pub trait Executor {
     fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
-    where
-        S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop;
+        where
+            S: Scheduler + std::marker::Send,
+            U: NodeUpdater + Drop;
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
@@ -85,9 +79,9 @@ impl StandardExecutor {
         mut scheduler: S,
         mut node_updater: U,
     ) -> Result<(), ExecutionError>
-    where
-        S: Scheduler,
-        U: NodeUpdater,
+        where
+            S: Scheduler,
+            U: NodeUpdater,
     {
         self.controller
             .lock()
@@ -178,13 +172,13 @@ impl StandardExecutor {
 
 impl Executor for StandardExecutor {
     fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
-    where
-        S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop,
+        where
+            S: Scheduler + std::marker::Send,
+            U: NodeUpdater + Drop,
     {
         // Create a new OpenTelemetry trace pipeline that prints to stdout
         let provider = TracerProvider::builder()
-            .with_simple_exporter(stdout::SpanExporter::default())
+            .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())
             .build();
         let tracer = provider.tracer("readme_example");
 
@@ -215,7 +209,6 @@ impl Executor for StandardExecutor {
 
             flow.shutdown_all()
                 .context(format!("Unable to shutdown all nodes"));
-
         });
 
         Ok(())

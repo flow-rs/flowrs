@@ -2,6 +2,7 @@ pub mod nodes;
 pub mod sched;
 pub mod flow;
 pub mod exec;
+pub mod analytics;
 
 pub use self::nodes::connection;
 pub use self::nodes::node;

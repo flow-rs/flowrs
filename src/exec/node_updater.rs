@@ -9,6 +9,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 use thiserror::Error;
+use tracing::info_span;
 
 #[derive(Error, Debug)]
 pub struct NodeUpdateError {
@@ -113,7 +114,13 @@ impl MultiThreadedNodeUpdater {
 
                                     WorkerCommand::Update(node) => {
                                         if let Ok(mut n) = node.1.try_lock() {
-                                            if let Err(err) = n.on_update() {
+                                            let result;
+                                            {
+                                                // TODO: This span is not visible in Tempo
+                                                info_span!("mt_on_update");
+                                                result = n.on_update();
+                                            }
+                                            if let Err(err) = result {
                                                 let _res =
                                                     error_sender_clone.send(NodeUpdateError {
                                                         source: err,
@@ -138,7 +145,7 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
-    #[tracing::instrument(skip_all,name = "multi_threaded_update")]
+    #[tracing::instrument(skip_all, name = "multi_threaded_update")]
     fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         //let cloned_node = node.clone();
         self.command_channel
@@ -178,7 +185,7 @@ impl SingleThreadedNodeUpdater {
 }
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
-    #[tracing::instrument(skip_all,name = "single_threaded_update")]
+    #[tracing::instrument(skip_all, name = "single_threaded_update")]
     fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {

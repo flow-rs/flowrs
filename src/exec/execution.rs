@@ -15,7 +15,7 @@ use thiserror::Error;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_sdk::trace::TracerProvider;
 use opentelemetry_stdout as stdout;
-use tracing::{error, span};
+use tracing::{error, info_span, span};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 
@@ -97,42 +97,47 @@ impl StandardExecutor {
             scheduler.restart_epoch(&mut info);
 
             //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
+            {
+                let epoch_span = info_span!("epoch");
+                while !scheduler.epoch_is_over(&mut info) {
+                    let node_idx = scheduler.get_next_node_idx();
+                    //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
-            while !scheduler.epoch_is_over(&mut info) {
-                let node_idx = scheduler.get_next_node_idx();
-                //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
-
-                let node = flow.node_by_index(node_idx);
-                if let Some(n) = node {
-                    node_updater.update(n.clone());
+                    let node = flow.node_by_index(node_idx);
+                    if let Some(n) = node {
+                        node_updater.update(n.clone());
+                    }
                 }
             }
 
             // Sleep if necessary.
-            match node_updater.sleep_mode() {
-                SleepMode::None => {}
+            {
+                let sleep_span = info_span!("sleep");
+                match node_updater.sleep_mode() {
+                    SleepMode::None => {}
 
-                SleepMode::Reactive => {
-                    self.controller
-                        .lock()
-                        .unwrap()
-                        .set_state(ExecutionState::Sleeping);
+                    SleepMode::Reactive => {
+                        self.controller
+                            .lock()
+                            .unwrap()
+                            .set_state(ExecutionState::Sleeping);
 
-                    self.observer.wait_for_changes();
+                        self.observer.wait_for_changes();
 
-                    self.controller
-                        .lock()
-                        .unwrap()
-                        .set_state(ExecutionState::Running);
-                }
+                        self.controller
+                            .lock()
+                            .unwrap()
+                            .set_state(ExecutionState::Running);
+                    }
 
-                SleepMode::FixedFrequency(fps) => {
-                    let actual_duration = info.epoch_duration;
-                    let target_duration = Duration::from_millis(1000 / fps);
-                    let delta = target_duration.saturating_sub(actual_duration);
-                    //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
-                    if delta > Duration::ZERO {
-                        thread::sleep(delta);
+                    SleepMode::FixedFrequency(fps) => {
+                        let actual_duration = info.epoch_duration;
+                        let target_duration = Duration::from_millis(1000 / fps);
+                        let delta = target_duration.saturating_sub(actual_duration);
+                        //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
+                        if delta > Duration::ZERO {
+                            thread::sleep(delta);
+                        }
                     }
                 }
             }
@@ -189,27 +194,25 @@ impl Executor for StandardExecutor {
         // that impls `LookupSpan`
         let subscriber = Registry::default().with(telemetry);
 
+        tracing::subscriber::set_global_default(subscriber);
+
         // Trace executed code
-        tracing::subscriber::with_default(subscriber, || {
-            // Spans will be sent to the configured OpenTelemetry exporter
-            let root = span!(tracing::Level::TRACE, "app_start", work_units = 2);
-            let _enter = root.enter();
+        // Spans will be sent to the configured OpenTelemetry exporter
+        let root = span!(tracing::Level::TRACE, "executor_run");
+        let _enter = root.enter();
 
-            error!("This event will be logged in the root span.");
+        //TODO: Fix error flow.
 
-            //TODO: Fix error flow.
+        flow.init_all()
+            .context(format!("Unable to init all nodes."));
 
-            flow.init_all()
-                .context(format!("Unable to init all nodes."));
+        flow.ready_all()
+            .context(format!("Unable to make all nodes ready."));
 
-            flow.ready_all()
-                .context(format!("Unable to make all nodes ready."));
+        self.run_update_loop(&flow, scheduler, node_updater);
 
-            self.run_update_loop(&flow, scheduler, node_updater);
-
-            flow.shutdown_all()
-                .context(format!("Unable to shutdown all nodes"));
-        });
+        flow.shutdown_all()
+            .context(format!("Unable to shutdown all nodes"));
 
         Ok(())
     }

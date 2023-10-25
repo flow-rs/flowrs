@@ -36,7 +36,18 @@ impl SpanExporter for TempoExporter {
         let span_data = opentelemetry_stdout::SpanData::from(filtered);
 
         let response = self.client.post("http://localhost:4318/v1/traces").json(&span_data).send();
-        println!("Response: {:?}", response);
+        match response {
+            Ok(resp) => {
+                if (resp.status() == 200) {
+                    // alright
+                } else {
+                    println!("Unsuccessful push: {:?}", resp.bytes())
+                }
+            }
+            Err(e) => {
+                println!("Fatal Error when pushing: {e:?}")
+            }
+        }
 
         Box::pin(std::future::ready(Ok(())))
     }

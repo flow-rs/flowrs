@@ -9,7 +9,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 use thiserror::Error;
-use tracing::info_span;
+use tracing::{info_span, Instrument, Span, span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Error, Debug)]
 pub struct NodeUpdateError {
@@ -41,7 +42,7 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)),
+    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), Option<tracing::Id>),
     Cancel,
 }
 
@@ -112,12 +113,11 @@ impl MultiThreadedNodeUpdater {
                                         break Ok(());
                                     }
 
-                                    WorkerCommand::Update(node) => {
+                                    WorkerCommand::Update(node, parentId) => {
                                         if let Ok(mut n) = node.1.try_lock() {
                                             let result;
                                             {
-                                                // TODO: This span is not visible in Tempo
-                                                info_span!("mt_on_update");
+                                                let _update_span = info_span!(parent: parentId, "mt_on_update").entered();
                                                 result = n.on_update();
                                             }
                                             if let Err(err) = result {
@@ -145,12 +145,13 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
-    #[tracing::instrument(skip_all, name = "multi_threaded_update")]
     fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
         //let cloned_node = node.clone();
+        let parentSpan = Span::current();
+        let id = parentSpan.id().clone();
         self.command_channel
             .0
-            .send(WorkerCommand::Update(node))
+            .send(WorkerCommand::Update(node, id))
             .expect("Unable to write to command channel.");
     }
 

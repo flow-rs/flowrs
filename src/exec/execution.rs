@@ -97,22 +97,19 @@ impl StandardExecutor {
             scheduler.restart_epoch(&mut info);
 
             //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
-            {
-                let epoch_span = info_span!("epoch");
-                while !scheduler.epoch_is_over(&mut info) {
-                    let node_idx = scheduler.get_next_node_idx();
-                    //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
+            while !scheduler.epoch_is_over(&mut info) {
+                let node_idx = scheduler.get_next_node_idx();
+                //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
-                    let node = flow.node_by_index(node_idx);
-                    if let Some(n) = node {
-                        node_updater.update(n.clone());
-                    }
+                let node = flow.node_by_index(node_idx);
+                if let Some(n) = node {
+                    node_updater.update(n.clone());
                 }
             }
 
             // Sleep if necessary.
             {
-                let sleep_span = info_span!("sleep");
+                let _sleep_span = info_span!("sleep").entered();
                 match node_updater.sleep_mode() {
                     SleepMode::None => {}
 
@@ -198,8 +195,7 @@ impl Executor for StandardExecutor {
 
         // Trace executed code
         // Spans will be sent to the configured OpenTelemetry exporter
-        let root = span!(tracing::Level::TRACE, "executor_run");
-        let _enter = root.enter();
+        let root = info_span!("executor_run").entered();
 
         //TODO: Fix error flow.
 

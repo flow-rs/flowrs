@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
+use metrics::{histogram, increment_counter};
 use thiserror::Error;
 use tracing::{info_span, Instrument, Span, span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
@@ -117,8 +118,12 @@ impl MultiThreadedNodeUpdater {
                                         if let Ok(mut n) = node.1.try_lock() {
                                             let result;
                                             {
-                                                let _update_span = info_span!(parent: parentId, "mt_on_update").entered();
+                                                let node_id = node.0.to_string();
+                                                let _update_span = info_span!(parent: parentId, "mt_on_update", node_id = node_id).entered();
+                                                let now = std::time::Instant::now();
                                                 result = n.on_update();
+                                                let elapsed = now.elapsed();
+                                                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
                                             }
                                             if let Err(err) = result {
                                                 let _res =

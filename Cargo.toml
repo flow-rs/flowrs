@@ -32,6 +32,8 @@ anyhow = "1.0"
 crossbeam-channel = "0.5.8"
 web-time = "0.2.0"
 tracing = "0.1.39"
+metrics = { version = "0.21.1" }
+metrics-exporter-prometheus = { version = "0.12.1" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.37"

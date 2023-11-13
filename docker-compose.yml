@@ -28,6 +28,15 @@ services:
     networks:
       - loki
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
+    networks:
+      - loki
+
   grafana:
     # http://localhost:3000
     image: grafana/grafana:latest
@@ -35,6 +44,7 @@ services:
       - "GF_AUTH_DISABLE_LOGIN_FORM=true"
       - "GF_AUTH_ANONYMOUS_ENABLED=true"
       - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
+      - "GF_SECURITY_ALLOW_EMBEDDING=true"
     ports:
       - "3000:3000"
     networks:

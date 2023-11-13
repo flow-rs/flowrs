@@ -38,7 +38,7 @@ impl SpanExporter for TempoExporter {
         let response = self.client.post("http://localhost:4318/v1/traces").json(&span_data).send();
         match response {
             Ok(resp) => {
-                if (resp.status() == 200) {
+                if resp.status() == 200 {
                     // alright
                 } else {
                     println!("Unsuccessful push: {:?}", resp.bytes())

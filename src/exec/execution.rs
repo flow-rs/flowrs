@@ -18,6 +18,9 @@ use opentelemetry_stdout as stdout;
 use tracing::{error, info_span, span};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use std::net::SocketAddr;
+use metrics::{gauge, increment_counter};
 
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
@@ -93,6 +96,7 @@ impl StandardExecutor {
         let update_controllers = flow.get_update_controllers();
 
         while !self.controller.lock().unwrap().cancellation_requested() {
+            increment_counter!("flowrs.executions");
             // Run an epoch (an update of each node).
             scheduler.restart_epoch(&mut info);
 
@@ -178,6 +182,10 @@ impl Executor for StandardExecutor {
             S: Scheduler + std::marker::Send,
             U: NodeUpdater + Drop,
     {
+        let builder = PrometheusBuilder::new()
+            .install()
+            .expect("failed to install recorder/exporter");
+
         // Create a new OpenTelemetry trace pipeline that prints to stdout
         let provider = TracerProvider::builder()
             .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())

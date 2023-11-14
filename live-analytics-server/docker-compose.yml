@@ -1,17 +1,6 @@
 version: "3"
 
-networks:
-  loki:
-
 services:
-#  loki:
-#    image: grafana/loki:latest
-#    ports:
-#      - "3100:3100"
-#    command: -config.file=/etc/loki/local-config.yaml
-#    networks:
-#      - loki
-
   tempo:
     image: grafana/tempo:latest
     ports:
@@ -25,8 +14,7 @@ services:
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - "./tempo/tempo.yaml:/etc/tempo.yaml"
-    networks:
-      - loki
+    network_mode: host
 
   prometheus:
     image: prom/prometheus:latest
@@ -34,8 +22,7 @@ services:
       - "9090:9090"
     volumes:
       - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
-    networks:
-      - loki
+    network_mode: host
 
   grafana:
     # http://localhost:3000
@@ -45,7 +32,11 @@ services:
       - "GF_AUTH_ANONYMOUS_ENABLED=true"
       - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
       - "GF_SECURITY_ALLOW_EMBEDDING=true"
+    volumes:
+      - "./grafana-provisioning:/etc/grafana/provisioning"
     ports:
       - "3000:3000"
-    networks:
-      - loki
+    depends_on:
+      - prometheus
+      - tempo
+    network_mode: host

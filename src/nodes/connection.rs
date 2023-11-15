@@ -1,19 +1,19 @@
-use serde::{Serialize, Serializer, Deserialize, Deserializer, de::IgnoredAny};
-
-use crate::node::{ChangeObserver, Node, ReceiveError, SendError};
 use std::{
     any::Any,
-    rc::Rc,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc, Mutex,
-    }, fmt::Debug,
+    fmt::Debug,
+    rc::Rc, sync::{
+        Arc,
+        mpsc::{channel, Receiver, Sender}, Mutex,
+    },
 };
 use std::mem::size_of;
-use metrics::histogram;
 
+use metrics::{counter, increment_counter};
+use serde::{de::IgnoredAny, Deserialize, Deserializer, Serialize, Serializer};
 
-/// An edge defines the connection between two nodes. 
+use crate::node::{ChangeObserver, Node, ReceiveError, SendError};
+
+/// An edge defines the connection between two nodes.
 /// It is implemented using a [`std::sync::mpsc::channel`].
 #[derive(Debug)]
 pub struct Edge<I> {
@@ -44,8 +44,14 @@ impl<I> Edge<I> {
     }
 
     pub fn send(&self, elem: I) -> Result<(), SendError> {
+        let payload_bytes = size_of::<I>();
+
         match self.sender.send(elem) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                counter!("flowrs.node.edge.send.bytes", payload_bytes as u64);
+                increment_counter!("flowrs.node.edge.send.count");
+                Ok(())
+            }
             Err(err) => Err(SendError::Other(anyhow::Error::msg(format!("{}", err)))),
         }
     }
@@ -57,7 +63,12 @@ impl<I> Edge<I> {
             .expect("Only the Node that created this edge can receive from it.")
             .try_recv();
         match res {
-            Ok(i) => Ok(i),
+            Ok(i) => {
+                let payload_bytes = size_of::<I>();
+                counter!("flowrs.node.edge.receive.bytes", payload_bytes as u64);
+                increment_counter!("flowrs.node.edge.receive.count");
+                Ok(i)
+            }
             Err(err) => Err(ReceiveError::Other(err.into()))
         }
     }
@@ -68,16 +79,16 @@ pub type Input<I> = Edge<I>;
 
 impl<T> Serialize for Edge<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer {
+        where
+            S: Serializer {
         serializer.serialize_unit()
     }
 }
 
 impl<'de, T> Deserialize<'de> for Edge<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de> {
+        where
+            D: Deserializer<'de> {
         deserializer.deserialize_any(IgnoredAny).unwrap();
         Ok(Self::new())
     }
@@ -86,8 +97,7 @@ impl<'de, T> Deserialize<'de> for Edge<T> {
 /// A node's output.
 #[derive(Clone)]
 pub struct Output<T> {
-
-    // The (optional) connection to another node's input. 
+    // The (optional) connection to another node's input.
     edge: Arc<Mutex<Option<Edge<T>>>>,
 
     /// Whenever something is written to the output
@@ -97,16 +107,16 @@ pub struct Output<T> {
 
 impl<T> Serialize for Output<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer {
+        where
+            S: Serializer {
         serializer.serialize_unit()
     }
 }
 
 impl<'de, T> Deserialize<'de> for Output<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de> {
+        where
+            D: Deserializer<'de> {
         deserializer.deserialize_any(IgnoredAny).unwrap();
         Ok(Self::new(None))
     }
@@ -133,9 +143,6 @@ impl<O> Output<O> {
     }
 
     pub fn send(&mut self, elem: O) -> Result<(), SendError> {
-        let payload_bytes = size_of::<O>();
-        histogram!("flowrs.node.output.send", payload_bytes as f64);
-
         let _res = self
             .edge
             .lock()
@@ -144,7 +151,7 @@ impl<O> Output<O> {
             .ok_or(SendError::Other(anyhow::Error::msg("Failed to send item to output")))?
             .send(elem);
 
-        if let Some(cn) = &self.change_notifier { 
+        if let Some(cn) = &self.change_notifier {
             let _ = cn.send(true);
         }
 
@@ -166,6 +173,8 @@ pub trait RuntimeConnectable {
     fn input_at(&self, index: usize) -> Rc<dyn Any>;
     fn output_at(&self, index: usize) -> Rc<dyn Any>;
 }
+
 /// A [`Node`] that implements the [`RuntimeConnectable`] trait.
 pub trait RuntimeNode: Node + RuntimeConnectable {}
+
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}

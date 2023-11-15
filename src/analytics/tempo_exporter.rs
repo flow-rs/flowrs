@@ -22,14 +22,18 @@ impl Debug for TempoExporter {
 
 impl SpanExporter for TempoExporter {
     fn export(&mut self, batch: Vec<SpanData>) -> futures_core::future::BoxFuture<'static, ExportResult> {
-        // filter out traces from the hyper namespace, to avoid infinite recursion when pushing traces
+        // we are only interested in flowrs code namespace traces for now
         let filtered: Vec<_> = batch.into_iter().filter(|span| {
-            let code = span.attributes.get(&Key::from_static_str("code.namespace"));
-            match code {
+            let code_namespace = span.attributes.iter().find(|attr| {
+                attr.key == Key::new("code.namespace")
+            }).map(|attr| {
+                attr.value.as_str()
+            });
+            match code_namespace {
                 Some(code) => {
-                    !code.as_str().starts_with("hyper")
+                    code.starts_with("flowrs")
                 }
-                None => true
+                None => false
             }
         }).collect();
 
@@ -41,11 +45,12 @@ impl SpanExporter for TempoExporter {
                 if resp.status() == 200 {
                     // alright
                 } else {
-                    println!("Unsuccessful push: {:?}", resp.bytes())
+                    println!("Unsuccessful push: {:?}", resp.text());
+                    println!("Span data: {:?}", span_data);
                 }
             }
             Err(e) => {
-                println!("Fatal Error when pushing: {e:?}")
+                println!("Fatal Error when pushing: {e:?}");
             }
         }
 

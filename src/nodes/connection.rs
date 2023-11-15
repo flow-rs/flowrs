@@ -9,6 +9,8 @@ use std::{
         Arc, Mutex,
     }, fmt::Debug,
 };
+use std::mem::size_of;
+use metrics::histogram;
 
 
 /// An edge defines the connection between two nodes. 
@@ -131,6 +133,9 @@ impl<O> Output<O> {
     }
 
     pub fn send(&mut self, elem: O) -> Result<(), SendError> {
+        let payload_bytes = size_of::<O>();
+        histogram!("flowrs.node.output.send", payload_bytes as f64);
+
         let _res = self
             .edge
             .lock()

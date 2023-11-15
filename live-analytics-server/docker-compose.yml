@@ -32,6 +32,7 @@ services:
       - "GF_AUTH_ANONYMOUS_ENABLED=true"
       - "GF_AUTH_ANONYMOUS_ORG_ROLE=Admin"
       - "GF_SECURITY_ALLOW_EMBEDDING=true"
+      - "GF_DASHBOARDS_MIN_REFRESH_INTERVAL=1s"
     volumes:
       - "./grafana-provisioning:/etc/grafana/provisioning"
     ports:

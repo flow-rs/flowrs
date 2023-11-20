@@ -14,6 +14,7 @@ use thiserror::Error;
 
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_sdk::trace::TracerProvider;
+use opentelemetry_sdk::Resource;
 use opentelemetry_stdout as stdout;
 use tracing::{error, info_span, span};
 use tracing_subscriber::layer::SubscriberExt;
@@ -186,11 +187,17 @@ impl Executor for StandardExecutor {
             .install()
             .expect("failed to install recorder/exporter");
 
+        // Create a resource configuration
+        let resource = Resource::new(vec![
+            opentelemetry::KeyValue::new("service.name", "flowrs"),
+        ]);
+
         // Create a new OpenTelemetry trace pipeline that prints to stdout
         let provider = TracerProvider::builder()
+            .with_config(opentelemetry_sdk::trace::Config::default().with_resource(resource))
             .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())
             .build();
-        let tracer = provider.tracer("readme_example");
+        let tracer = provider.tracer("flowrs");
 
         // Create a tracing layer with the configured tracer
         let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);

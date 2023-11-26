@@ -187,7 +187,7 @@ impl Executor for StandardExecutor {
 
         let builder = PrometheusBuilder::new()
             .add_global_label("pid", &pid)
-            .with_push_gateway(format!("http://127.0.0.1:9091/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
+            .with_push_gateway(format!("http://localhost:9091/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
             .expect("Invalid push gateway configuration")
             .install()
             .expect("failed to install recorder/exporter");

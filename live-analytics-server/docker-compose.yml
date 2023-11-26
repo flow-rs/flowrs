@@ -14,13 +14,11 @@ services:
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - "./tempo/tempo.yaml:/etc/tempo.yaml"
-    network_mode: host
 
   pushgateway:
     image: prom/pushgateway:latest
     ports:
       - "9091:9091"
-    network_mode: host
 
   prometheus:
     image: prom/prometheus:latest
@@ -28,7 +26,6 @@ services:
       - "9090:9090"
     volumes:
       - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
-    network_mode: host
 
   grafana:
     # http://localhost:3000
@@ -46,4 +43,3 @@ services:
     depends_on:
       - prometheus
       - tempo
-    network_mode: host

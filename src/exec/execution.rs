@@ -184,6 +184,10 @@ impl Executor for StandardExecutor {
             U: NodeUpdater + Drop,
     {
         let builder = PrometheusBuilder::new()
+            // Process id
+            .add_global_label("pid", std::process::id().to_string())
+            .with_push_gateway("http://127.0.0.1:9091/metrics/job/example", Duration::from_secs(1), None, None)
+            .expect("Invalid push gateway configuration")
             .install()
             .expect("failed to install recorder/exporter");
 

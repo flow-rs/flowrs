@@ -16,6 +16,12 @@ services:
       - "./tempo/tempo.yaml:/etc/tempo.yaml"
     network_mode: host
 
+  pushgateway:
+    image: prom/pushgateway:latest
+    ports:
+      - "9091:9091"
+    network_mode: host
+
   prometheus:
     image: prom/prometheus:latest
     ports:

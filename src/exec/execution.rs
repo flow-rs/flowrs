@@ -1,8 +1,15 @@
-use crate::{analytics, exec::{
-    execution_controller::ExecutionController,
-    execution_state::ExecutionState,
-    node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
-}, flow::flow::Flow, node::ChangeObserver, scheduler::{Scheduler, SchedulingInfo}};
+#[cfg(feature = "tracing")]
+use crate::analytics;
+use crate::{
+    exec::{
+        execution_controller::ExecutionController,
+        execution_state::ExecutionState,
+        node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
+    },
+    flow::flow::Flow,
+    node::ChangeObserver,
+    scheduler::{Scheduler, SchedulingInfo},
+};
 
 use anyhow::{Context as AnyhowContext, Result};
 use std::{
@@ -12,16 +19,23 @@ use std::{
 };
 use thiserror::Error;
 
-use opentelemetry::trace::TracerProvider as _;
-use opentelemetry_sdk::trace::TracerProvider;
-use opentelemetry_sdk::Resource;
-use opentelemetry_stdout as stdout;
-use tracing::{error, info_span, span};
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::Registry;
+
+#[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
-use std::net::SocketAddr;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "tracing")] {
+        use opentelemetry::trace::TracerProvider as _;
+        use opentelemetry_sdk::trace::TracerProvider;
+        use opentelemetry_sdk::Resource;
+        use opentelemetry_stdout as stdout;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::Registry;
+    }
+}
 use metrics::{gauge, increment_counter};
+use tracing::{error, info_span, span};
+use std::net::SocketAddr;
 
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
@@ -97,7 +111,9 @@ impl StandardExecutor {
         let update_controllers = flow.get_update_controllers();
 
         while !self.controller.lock().unwrap().cancellation_requested() {
-            increment_counter!("flowrs.executions");
+            #[cfg(feature = "metrics")]{
+                increment_counter!("flowrs.executions");
+            }
             // Run an epoch (an update of each node).
             scheduler.restart_epoch(&mut info);
 
@@ -114,7 +130,9 @@ impl StandardExecutor {
 
             // Sleep if necessary.
             {
-                let _sleep_span = info_span!("sleep").entered();
+                #[cfg(feature = "tracing")]{
+                    let _sleep_span = info_span!("sleep").entered();
+                }
                 match node_updater.sleep_mode() {
                     SleepMode::None => {}
 
@@ -183,35 +201,39 @@ impl Executor for StandardExecutor {
             S: Scheduler + std::marker::Send,
             U: NodeUpdater + Drop,
     {
-        let pid = std::process::id().to_string();
+        #[cfg(feature = "metrics")]{
+            let pid = std::process::id().to_string();
 
-        let builder = PrometheusBuilder::new()
-            .add_global_label("pid", &pid)
-            .with_push_gateway(format!("http://localhost:9091/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
-            .expect("Invalid push gateway configuration")
-            .install()
-            .expect("failed to install recorder/exporter");
+            let builder = PrometheusBuilder::new()
+                .add_global_label("pid", &pid)
+                .with_push_gateway(format!("http://localhost:9091/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
+                .expect("Invalid push gateway configuration")
+                .install()
+                .expect("failed to install recorder/exporter");
+        }
 
-        // Create a resource configuration
-        let resource = Resource::new(vec![
-            opentelemetry::KeyValue::new("service.name", "flowrs"),
-        ]);
+        #[cfg(feature = "tracing")]{
+            // Create a resource configuration
+            let resource = Resource::new(vec![
+                opentelemetry::KeyValue::new("service.name", "flowrs"),
+            ]);
 
-        // Create a new OpenTelemetry trace pipeline that prints to stdout
-        let provider = TracerProvider::builder()
-            .with_config(opentelemetry_sdk::trace::Config::default().with_resource(resource))
-            .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())
-            .build();
-        let tracer = provider.tracer("flowrs");
+            // Create a new OpenTelemetry trace pipeline that prints to stdout
+            let provider = TracerProvider::builder()
+                .with_config(opentelemetry_sdk::trace::Config::default().with_resource(resource))
+                .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())
+                .build();
+            let tracer = provider.tracer("flowrs");
 
-        // Create a tracing layer with the configured tracer
-        let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+            // Create a tracing layer with the configured tracer
+            let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
-        // Use the tracing subscriber `Registry`, or any other subscriber
-        // that impls `LookupSpan`
-        let subscriber = Registry::default().with(telemetry);
+            // Use the tracing subscriber `Registry`, or any other subscriber
+            // that impls `LookupSpan`
+            let subscriber = Registry::default().with(telemetry);
 
-        tracing::subscriber::set_global_default(subscriber);
+            tracing::subscriber::set_global_default(subscriber);
+        }
 
         // Trace executed code
         // Spans will be sent to the configured OpenTelemetry exporter

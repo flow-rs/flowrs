@@ -2,6 +2,7 @@ pub mod nodes;
 pub mod sched;
 pub mod flow;
 pub mod exec;
+#[cfg(feature = "tracing")]
 pub mod analytics;
 
 pub use self::nodes::connection;

@@ -11,6 +11,7 @@ use std::{
 use metrics::{histogram, increment_counter};
 use thiserror::Error;
 use tracing::{info_span, Instrument, Span, span};
+#[cfg(feature = "tracing")]
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Error, Debug)]

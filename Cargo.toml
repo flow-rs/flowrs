@@ -17,13 +17,6 @@ categories = ["data-structures", "wasm"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-opentelemetry = "0.21"
-opentelemetry_sdk = "0.21"
-opentelemetry-stdout = { version = "0.2.0", features = ["trace"] }
-tracing-opentelemetry = "0.22"
-tracing-subscriber = { version = "0.3.18", features = [] }
-reqwest = { version = "0.11.22", features = ["blocking", "json"] }
-futures-core = "0.3.29"
 flowrs-derive = { version = "0.3.0", path = "flowrs_derive" }
 serde = { version = "1.0.184", features = ["derive", "rc"] }
 serde_json = "1.0.100"
@@ -31,9 +24,25 @@ thiserror = "1.0.44"
 anyhow = "1.0"
 crossbeam-channel = "0.5.8"
 web-time = "0.2.0"
-tracing = "0.1.40"
+cfg-if = "1.0.0"
+
+reqwest = { version = "0.11.22", features = ["blocking", "json"], optional = true }
+futures-core = { version = "0.3.29", optional = true }
+
+opentelemetry = { version = "0.21", optional = true }
+opentelemetry_sdk = { version = "0.21", optional = true }
+opentelemetry-stdout = { version = "0.2.0", features = ["trace"], optional = true }
+tracing-opentelemetry = { version = "0.22", optional = true }
+tracing-subscriber = { version = "0.3.18", features = [], optional = true }
+
+tracing = { version = "0.1.40" }
 metrics = { version = "0.21.1" }
-metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = ["push-gateway"] }
+metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = ["push-gateway"], optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.37"
+
+[features]
+default = ["tracing", "metrics"]
+tracing = ["dep:reqwest", "dep:futures-core", "dep:tracing-subscriber", "dep:tracing-opentelemetry", "dep:opentelemetry-stdout", "dep:opentelemetry", "dep:opentelemetry_sdk"]
+metrics = ["dep:metrics-exporter-prometheus"]

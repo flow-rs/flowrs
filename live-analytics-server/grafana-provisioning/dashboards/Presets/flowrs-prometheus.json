@@ -463,7 +463,7 @@
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
-        "regex": "",
+        "regex": "flowrs-.*",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"

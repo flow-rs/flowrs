@@ -110,7 +110,7 @@
           "expr": "rate(flowrs_node_update_time_count{job=~\"$job\"}[$__rate_interval]) ",
           "hide": false,
           "instant": false,
-          "legendFormat": "{{node_id}}",
+          "legendFormat": "{{job}}-{{node_id}}",
           "range": true,
           "refId": "A"
         }
@@ -207,7 +207,7 @@
           "editorMode": "code",
           "expr": "rate(flowrs_node_update_time_sum{job=~\"$job\"}[$__rate_interval]) / rate(flowrs_node_update_time_count{job=~\"$job\"}[$__rate_interval])",
           "instant": false,
-          "legendFormat": "{{node_id}}",
+          "legendFormat": "{{job}}-{{node_id}}",
           "range": true,
           "refId": "A"
         }
@@ -301,7 +301,7 @@
           "exemplar": false,
           "expr": "rate(flowrs_node_edge_send_bytes{job=~\"$job\"}[$__rate_interval])",
           "instant": false,
-          "legendFormat": "Total Send",
+          "legendFormat": "{{job}}-Total Send",
           "range": true,
           "refId": "A"
         },
@@ -315,7 +315,7 @@
           "expr": "rate(flowrs_node_edge_receive_bytes{job=~\"$job\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
-          "legendFormat": "Total Receive",
+          "legendFormat": "{{job}}-Total Receive",
           "range": true,
           "refId": "B"
         }
@@ -409,7 +409,7 @@
           "exemplar": false,
           "expr": "rate(flowrs_node_edge_send_count{job=~\"$job\"}[$__rate_interval])",
           "instant": false,
-          "legendFormat": "Total Send",
+          "legendFormat": "{{job}}-Total Send",
           "range": true,
           "refId": "A"
         },
@@ -423,7 +423,7 @@
           "expr": "rate(flowrs_node_edge_receive_count{job=~\"$job\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
-          "legendFormat": "Total Receive",
+          "legendFormat": "{{job}}-Total Receive",
           "range": true,
           "refId": "B"
         }

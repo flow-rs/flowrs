@@ -462,7 +462,7 @@
           "query": "label_values(job)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "flowrs-.*",
         "skipUrlSync": false,
         "sort": 0,

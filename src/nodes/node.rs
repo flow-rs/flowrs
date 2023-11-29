@@ -69,13 +69,13 @@ pub trait UpdateController {
 /// Contains methods for each state in the lifecycle of a node. 
 pub trait Node : Send {
     /// This method is called for node initialization.
-    fn on_init(&self) -> Result<(), InitError> { Ok(())}
+    fn on_init(&mut self) -> Result<(), InitError> { Ok(())}
 
     /// This method is called when all nodes in the flow are initialized.
-    fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
+    fn on_ready(&mut self) -> Result<(), ReadyError> { Ok(())}
 
     /// This method is called when flow execution ends.
-    fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
+    fn on_shutdown(&mut self) -> Result<(), ShutdownError> { Ok(())}
 
     /// This method is called by the executor dependent on its update strategy. 
     fn on_update(&mut self) -> Result<(), UpdateError> { Ok(())}

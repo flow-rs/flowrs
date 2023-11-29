@@ -92,7 +92,7 @@ impl Flow {
         self.nodes.len()
     }
 
-    pub fn init_all(&self) -> Result<()> {
+    pub fn init_all(&mut self) -> Result<()> {
         for n in &self.nodes {
             n.1
                 .lock()
@@ -103,7 +103,7 @@ impl Flow {
         Ok(())
     }
 
-    pub fn shutdown_all(&self) -> Result<()> {
+    pub fn shutdown_all(&mut self) -> Result<()> {
         for n in &self.nodes {
             n.1
                 .lock()
@@ -114,7 +114,7 @@ impl Flow {
         Ok(())
     }
 
-    pub fn ready_all(&self) -> Result<()> {
+    pub fn ready_all(&mut self) -> Result<()> {
         for n in &self.nodes {
 
             n.1

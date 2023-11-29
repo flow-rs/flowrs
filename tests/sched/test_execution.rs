@@ -23,7 +23,7 @@ impl DummyNode {
 }
 
 impl Node for DummyNode {
-    fn on_init(&self) -> Result<(), InitError> {
+    fn on_init(&mut self) -> Result<(), InitError> {
         if self.err_on_init {
             let _file = File::open("").map_err(|err| InitError::Other(err.into()))?;
         }

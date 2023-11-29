@@ -176,6 +176,7 @@ impl Executor for StandardExecutor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop,
     {
+        let mut flow = flow;
         //TODO: Fix error flow.
 
         flow.init_all()

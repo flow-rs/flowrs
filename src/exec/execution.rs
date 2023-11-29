@@ -130,9 +130,7 @@ impl StandardExecutor {
 
             // Sleep if necessary.
             {
-                #[cfg(feature = "tracing")]{
-                    let _sleep_span = info_span!("sleep").entered();
-                }
+                let _sleep_span = info_span!("sleep").entered();
                 match node_updater.sleep_mode() {
                     SleepMode::None => {}
 
@@ -201,6 +199,27 @@ impl Executor for StandardExecutor {
             S: Scheduler + std::marker::Send,
             U: NodeUpdater + Drop,
     {
+        let runner = || {
+            // Trace executed code
+            // Spans will be sent to the configured OpenTelemetry exporter
+            let root = info_span!("executor_run").entered();
+
+            //TODO: Fix error flow.
+
+            flow.init_all()
+                .context(format!("Unable to init all nodes."));
+
+            flow.ready_all()
+                .context(format!("Unable to make all nodes ready."));
+
+            self.run_update_loop(&flow, scheduler, node_updater);
+
+            flow.shutdown_all()
+                .context(format!("Unable to shutdown all nodes"));
+
+            Ok(())
+        };
+
         #[cfg(feature = "metrics")]{
             let pid = std::process::id().to_string();
 
@@ -233,26 +252,13 @@ impl Executor for StandardExecutor {
             let subscriber = Registry::default().with(telemetry).with(LevelFilter::INFO);
 
             tracing::subscriber::set_global_default(subscriber).expect("Failed to set the global default tracing subscriber");
+
+            return runner();
         }
 
-        // Trace executed code
-        // Spans will be sent to the configured OpenTelemetry exporter
-        let root = info_span!("executor_run").entered();
-
-        //TODO: Fix error flow.
-
-        flow.init_all()
-            .context(format!("Unable to init all nodes."));
-
-        flow.ready_all()
-            .context(format!("Unable to make all nodes ready."));
-
-        self.run_update_loop(&flow, scheduler, node_updater);
-
-        flow.shutdown_all()
-            .context(format!("Unable to shutdown all nodes"));
-
-        Ok(())
+        #[cfg(not(feature = "tracing"))]{
+            return runner();
+        }
     }
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>> {

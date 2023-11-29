@@ -22,6 +22,7 @@ impl Debug for TempoExporter {
 
 impl SpanExporter for TempoExporter {
     fn export(&mut self, batch: Vec<SpanData>) -> futures_core::future::BoxFuture<'static, ExportResult> {
+        println!("pushing to tempo");
         // we are only interested in flowrs code namespace traces for now
         let filtered: Vec<_> = batch.into_iter().filter(|span| {
             let code_namespace = span.attributes.iter().find(|attr| {
@@ -31,7 +32,11 @@ impl SpanExporter for TempoExporter {
             });
             match code_namespace {
                 Some(code) => {
-                    code.starts_with("flowrs")
+                    let valid = code.starts_with("flowrs");
+                    if !valid {
+                        println!("filtered out {code}");
+                    }
+                    valid
                 }
                 None => false
             }
@@ -66,3 +71,4 @@ impl SpanExporter for TempoExporter {
         Box::pin(std::future::ready(Ok(())))
     }
 }
+

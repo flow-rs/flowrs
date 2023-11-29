@@ -1,5 +1,17 @@
-#[cfg(feature = "tracing")]
-use crate::analytics;
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+
+use anyhow::{Context as AnyhowContext, Result};
+use metrics::increment_counter;
+#[cfg(feature = "metrics")]
+use metrics_exporter_prometheus::PrometheusBuilder;
+use thiserror::Error;
+use tracing::{error, info_span};
+use tracing::metadata::LevelFilter;
+
 use crate::{
     exec::{
         execution_controller::ExecutionController,
@@ -10,18 +22,8 @@ use crate::{
     node::ChangeObserver,
     scheduler::{Scheduler, SchedulingInfo},
 };
-
-use anyhow::{Context as AnyhowContext, Result};
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
-use thiserror::Error;
-
-
-#[cfg(feature = "metrics")]
-use metrics_exporter_prometheus::PrometheusBuilder;
+#[cfg(feature = "tracing")]
+use crate::analytics;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracing")] {
@@ -31,12 +33,10 @@ cfg_if::cfg_if! {
         use opentelemetry_stdout as stdout;
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::Registry;
+        use tracing_subscriber::filter::filter_fn;
+        use tracing_subscriber::registry::LookupSpan;
     }
 }
-use metrics::{gauge, increment_counter};
-use tracing::{error, info_span, span};
-use std::net::SocketAddr;
-
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
     pub flow: Flow,
@@ -230,9 +230,9 @@ impl Executor for StandardExecutor {
 
             // Use the tracing subscriber `Registry`, or any other subscriber
             // that impls `LookupSpan`
-            let subscriber = Registry::default().with(telemetry);
+            let subscriber = Registry::default().with(telemetry).with(LevelFilter::INFO);
 
-            tracing::subscriber::set_global_default(subscriber);
+            tracing::subscriber::set_global_default(subscriber).expect("Failed to set the global default tracing subscriber");
         }
 
         // Trace executed code

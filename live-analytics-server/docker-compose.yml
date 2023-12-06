@@ -39,7 +39,7 @@ services:
     volumes:
       - "./grafana-provisioning:/etc/grafana/provisioning"
     ports:
-      - "3000:3000" # this needs to be changed for merge with flow-builder
+      - "3000:3000" # TODO: this needs to be changed for merge with flow-builder, also the references in the flow-builders iFrames
     depends_on:
       - prometheus
       - tempo

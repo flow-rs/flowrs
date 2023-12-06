@@ -4,12 +4,23 @@ use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 
 pub struct TempoExporter {
     client: reqwest::blocking::Client,
+    tempo_host: String,
 }
 
 impl Default for TempoExporter {
     fn default() -> Self {
         TempoExporter {
             client: reqwest::blocking::Client::new(),
+            tempo_host: "http://localhost:4318/v1/traces".to_string(),
+        }
+    }
+}
+
+impl TempoExporter {
+    pub fn new(tempo_host: String) -> Self {
+        TempoExporter {
+            client: reqwest::blocking::Client::new(),
+            tempo_host,
         }
     }
 }
@@ -44,7 +55,7 @@ impl SpanExporter for TempoExporter {
 
         let span_data = opentelemetry_stdout::SpanData::from(filtered);
 
-        let response = self.client.post("http://localhost:4318/v1/traces").json(&span_data).send();
+        let response = self.client.post(&self.tempo_host).json(&span_data).send();
         match response {
             Ok(resp) => {
                 if resp.status() == 200 {

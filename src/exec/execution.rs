@@ -1,8 +1,4 @@
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::{env, sync::{Arc, Mutex}, thread, time::Duration};
 
 use anyhow::{Context as AnyhowContext, Result};
 use metrics::increment_counter;
@@ -23,7 +19,7 @@ use crate::{
     scheduler::{Scheduler, SchedulingInfo},
 };
 #[cfg(feature = "tracing")]
-use crate::analytics;
+use crate::analytics::tempo_exporter::TempoExporter;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracing")] {
@@ -223,9 +219,11 @@ impl Executor for StandardExecutor {
         #[cfg(feature = "metrics")]{
             let pid = std::process::id().to_string();
 
+            let pushgateway_host = env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
+
             let builder = PrometheusBuilder::new()
                 .add_global_label("pid", &pid)
-                .with_push_gateway(format!("http://localhost:9091/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
+                .with_push_gateway(format!("{pushgateway_host}/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
                 .expect("Invalid push gateway configuration")
                 .install()
                 .expect("failed to install recorder/exporter");
@@ -237,10 +235,12 @@ impl Executor for StandardExecutor {
                 opentelemetry::KeyValue::new("service.name", "flowrs"),
             ]);
 
+            let tempo_host = env::var("TEMPO_HOST").unwrap_or("http://localhost:4318/v1/traces".to_string());
+
             // Create a new OpenTelemetry trace pipeline that prints to stdout
             let provider = TracerProvider::builder()
                 .with_config(opentelemetry_sdk::trace::Config::default().with_resource(resource))
-                .with_simple_exporter(analytics::tempo_exporter::TempoExporter::default())
+                .with_simple_exporter(TempoExporter::new(tempo_host))
                 .build();
             let tracer = provider.tracer("flowrs");
 

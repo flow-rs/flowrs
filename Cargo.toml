@@ -45,4 +45,4 @@ wasm-bindgen-test = "0.3.37"
 [features]
 default = ["tracing", "metrics"]
 tracing = ["dep:reqwest", "dep:futures-core", "dep:tracing-subscriber", "dep:tracing-opentelemetry", "dep:opentelemetry-stdout", "dep:opentelemetry", "dep:opentelemetry_sdk"]
-metrics = ["dep:metrics-exporter-prometheus"]
+metrics = ["dep:metrics-exporter-prometheus", "dep:reqwest"]

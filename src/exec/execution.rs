@@ -213,6 +213,14 @@ impl Executor for StandardExecutor {
             flow.shutdown_all()
                 .context(format!("Unable to shutdown all nodes"));
 
+            #[cfg(feature = "metrics")]{
+                let pid = std::process::id().to_string();
+                let client = reqwest::blocking::Client::new();
+                let pushgateway_host = env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
+                let url = format!("{pushgateway_host}/metrics/job/flowrs-{pid}");
+                let _ = client.delete(&url).send();
+            }
+
             Ok(())
         };
 

@@ -44,12 +44,12 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), Option<tracing::Id>),
+    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), Option<NodeDescription>, Option<tracing::Id>),
     Cancel,
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>));
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>);
     fn errors(&mut self) -> Vec<NodeUpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
@@ -115,12 +115,28 @@ impl MultiThreadedNodeUpdater {
                                         break Ok(());
                                     }
 
-                                    WorkerCommand::Update(node, parentId) => {
+                                    WorkerCommand::Update(node, description, parentId) => {
                                         if let Ok(mut n) = node.1.try_lock() {
                                             let result;
                                             {
                                                 let node_id = node.0.to_string();
-                                                let _update_span = info_span!(parent: parentId, "mt_on_update", node_id = node_id).entered();
+                                                let update_span = if let Some(desc) = description {
+                                                    info_span!(
+                                                        parent: parentId,
+                                                        "mt_on_update",
+                                                        node.id = node_id.as_str(),
+                                                        node.name = desc.name.as_str(),
+                                                        "otel.name" = desc.name.as_str(),
+                                                        node.kind = desc.kind.as_str(),
+                                                        node.description = desc.description.as_str()
+                                                    )
+                                                } else {
+                                                    info_span!(
+                                                        parent: parentId,
+                                                        "mt_on_update",
+                                                        node.id = node_id.as_str()
+                                                    )
+                                                };
                                                 let now = std::time::Instant::now();
                                                 result = n.on_update();
                                                 let elapsed = now.elapsed();
@@ -151,13 +167,13 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>) {
         //let cloned_node = node.clone();
         let parentSpan = Span::current();
         let id = parentSpan.id().clone();
         self.command_channel
             .0
-            .send(WorkerCommand::Update(node, id))
+            .send(WorkerCommand::Update(node, node_description, id))
             .expect("Unable to write to command channel.");
     }
 
@@ -193,7 +209,8 @@ impl SingleThreadedNodeUpdater {
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
     #[tracing::instrument(skip_all, name = "single_threaded_update")]
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>) {
+        // TODO: Update instrumentation here
         if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {
                 self.errors.push(NodeUpdateError {

@@ -120,7 +120,8 @@ impl StandardExecutor {
 
                 let node = flow.node_by_index(node_idx);
                 if let Some(n) = node {
-                    node_updater.update(n.clone());
+                    let description = flow.node_description_by_id(n.0);
+                    node_updater.update(n.clone(), description.cloned());
                 }
             }
 

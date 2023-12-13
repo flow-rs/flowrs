@@ -1,8 +1,0 @@
-apiVersion: 1
-
-providers:
-  - name: flowrs
-    type: file
-    options:
-      foldersFromFilesStructure: true
-      path: /etc/grafana/provisioning/dashboards

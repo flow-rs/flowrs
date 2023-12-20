@@ -33,7 +33,6 @@ impl Debug for TempoExporter {
 
 impl SpanExporter for TempoExporter {
     fn export(&mut self, batch: Vec<SpanData>) -> futures_core::future::BoxFuture<'static, ExportResult> {
-        println!("pushing to tempo");
         // we are only interested in flowrs code namespace traces for now
         let filtered: Vec<_> = batch.into_iter().filter(|span| {
             let code_namespace = span.attributes.iter().find(|attr| {
@@ -62,7 +61,6 @@ impl SpanExporter for TempoExporter {
                     // alright
                 } else {
                     println!("Unsuccessful push: {:?}", resp.text());
-                    println!("Span data: {:?}", span_data);
                 }
             }
             Err(e) => {

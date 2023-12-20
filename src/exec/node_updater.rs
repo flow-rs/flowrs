@@ -120,7 +120,7 @@ impl MultiThreadedNodeUpdater {
                                             let result;
                                             {
                                                 let node_id = node.0.to_string();
-                                                let update_span = if let Some(desc) = description {
+                                                let update_span = if let Some(ref desc) = description {
                                                     info_span!(
                                                         parent: parentId,
                                                         "mt_on_update",
@@ -140,7 +140,15 @@ impl MultiThreadedNodeUpdater {
                                                 let now = std::time::Instant::now();
                                                 result = n.on_update();
                                                 let elapsed = now.elapsed();
-                                                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
+                                                // publish histogram
+                                                if let Some(desc) = description {
+                                                    let name = desc.name.clone();
+                                                    let kind = desc.kind.clone();
+                                                    let description = desc.description.clone();
+                                                    histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string(), "node.name" => name, "node.kind" => kind, "node.description" => description);
+                                                } else {
+                                                    histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
+                                                }
                                             }
                                             if let Err(err) = result {
                                                 let _res =

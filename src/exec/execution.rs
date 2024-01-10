@@ -106,10 +106,7 @@ impl StandardExecutor {
         let update_controllers = flow.get_update_controllers();
 
         while !self.controller.lock().unwrap().cancellation_requested() {
-            #[cfg(feature = "metrics")]
-            {
-                increment_counter!("flowrs.executions");
-            }
+            increment_counter!("flowrs.executions");
             // Run an epoch (an update of each node).
             scheduler.restart_epoch(&mut info);
 

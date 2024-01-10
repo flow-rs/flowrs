@@ -1,13 +1,20 @@
-use std::{env, sync::{Arc, Mutex}, thread, time::Duration};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use anyhow::{Context as AnyhowContext, Result};
 use metrics::increment_counter;
 #[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
 use thiserror::Error;
-use tracing::{error, info_span};
 use tracing::metadata::LevelFilter;
+use tracing::{error, info_span};
 
+#[cfg(feature = "tracing")]
+use crate::analytics::otlp_exporter::OtlpExporter;
 use crate::{
     exec::{
         execution_controller::ExecutionController,
@@ -18,19 +25,14 @@ use crate::{
     node::ChangeObserver,
     scheduler::{Scheduler, SchedulingInfo},
 };
-#[cfg(feature = "tracing")]
-use crate::analytics::otlp_exporter::OtlpExporter;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracing")] {
         use opentelemetry::trace::TracerProvider as _;
         use opentelemetry_sdk::trace::TracerProvider;
         use opentelemetry_sdk::Resource;
-        use opentelemetry_stdout as stdout;
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::Registry;
-        use tracing_subscriber::filter::filter_fn;
-        use tracing_subscriber::registry::LookupSpan;
     }
 }
 pub struct ExecutionContext {
@@ -38,9 +40,7 @@ pub struct ExecutionContext {
     pub flow: Flow,
 }
 
-
-impl ExecutionContext
-{
+impl ExecutionContext {
     pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
         Self {
             executor: executor,
@@ -48,7 +48,6 @@ impl ExecutionContext
         }
     }
 }
-
 
 #[repr(C)]
 pub struct ExecutionContextHandle {
@@ -58,9 +57,9 @@ pub struct ExecutionContextHandle {
 
 pub trait Executor {
     fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
-        where
-            S: Scheduler + std::marker::Send,
-            U: NodeUpdater + Drop;
+    where
+        S: Scheduler + std::marker::Send,
+        U: NodeUpdater + Drop;
 
     fn controller(&self) -> Arc<Mutex<ExecutionController>>;
 }
@@ -93,9 +92,9 @@ impl StandardExecutor {
         mut scheduler: S,
         mut node_updater: U,
     ) -> Result<(), ExecutionError>
-        where
-            S: Scheduler,
-            U: NodeUpdater,
+    where
+        S: Scheduler,
+        U: NodeUpdater,
     {
         self.controller
             .lock()
@@ -107,7 +106,8 @@ impl StandardExecutor {
         let update_controllers = flow.get_update_controllers();
 
         while !self.controller.lock().unwrap().cancellation_requested() {
-            #[cfg(feature = "metrics")]{
+            #[cfg(feature = "metrics")]
+            {
                 increment_counter!("flowrs.executions");
             }
             // Run an epoch (an update of each node).
@@ -158,15 +158,19 @@ impl StandardExecutor {
             }
 
             // Check if async errors occured.
-            let errors: Vec<NodeUpdateError> = node_updater.errors().into_iter().map(|mut err| {
-                if let Some(id) = err.node_id {
-                    err.node_id = Some(id);
-                    if let Some(desc) = flow.node_description_by_id(id) {
-                        err.node_desc = Some(desc.clone());
+            let errors: Vec<NodeUpdateError> = node_updater
+                .errors()
+                .into_iter()
+                .map(|mut err| {
+                    if let Some(id) = err.node_id {
+                        err.node_id = Some(id);
+                        if let Some(desc) = flow.node_description_by_id(id) {
+                            err.node_desc = Some(desc.clone());
+                        }
                     }
-                }
-                err
-            }).collect();
+                    err
+                })
+                .collect();
             if !errors.is_empty() {
                 return Err(ExecutionError::UpdateErrorCollection { errors });
             }
@@ -192,14 +196,14 @@ impl StandardExecutor {
 
 impl Executor for StandardExecutor {
     fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
-        where
-            S: Scheduler + std::marker::Send,
-            U: NodeUpdater + Drop,
+    where
+        S: Scheduler + std::marker::Send,
+        U: NodeUpdater + Drop,
     {
         let runner = || {
             // Trace executed code
             // Spans will be sent to the configured OpenTelemetry exporter
-            let root = info_span!("executor_run").entered();
+            let _root = info_span!("executor_run").entered();
 
             //TODO: Fix error flow.
 
@@ -214,10 +218,12 @@ impl Executor for StandardExecutor {
             flow.shutdown_all()
                 .context(format!("Unable to shutdown all nodes"));
 
-            #[cfg(feature = "metrics")]{
+            #[cfg(feature = "metrics")]
+            {
                 let pid = std::process::id().to_string();
                 let client = reqwest::blocking::Client::new();
-                let pushgateway_host = env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
+                let pushgateway_host =
+                    env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
                 let url = format!("{pushgateway_host}/metrics/job/flowrs-{pid}");
                 let _ = client.delete(&url).send();
             }
@@ -225,26 +231,34 @@ impl Executor for StandardExecutor {
             Ok(())
         };
 
-        #[cfg(feature = "metrics")]{
+        #[cfg(feature = "metrics")]
+        {
             let pid = std::process::id().to_string();
 
-            let pushgateway_host = env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
+            let pushgateway_host =
+                env::var("PUSHGATEWAY_HOST").unwrap_or("http://localhost:9091".to_string());
 
-            let builder = PrometheusBuilder::new()
+            PrometheusBuilder::new()
                 .add_global_label("pid", &pid)
-                .with_push_gateway(format!("{pushgateway_host}/metrics/job/flowrs-{pid}"), Duration::from_secs(1), None, None)
+                .with_push_gateway(
+                    format!("{pushgateway_host}/metrics/job/flowrs-{pid}"),
+                    Duration::from_secs(1),
+                    None,
+                    None,
+                )
                 .expect("Invalid push gateway configuration")
                 .install()
                 .expect("failed to install recorder/exporter");
         }
 
-        #[cfg(feature = "tracing")]{
+        #[cfg(feature = "tracing")]
+        {
             // Create a resource configuration
-            let resource = Resource::new(vec![
-                opentelemetry::KeyValue::new("service.name", "flowrs"),
-            ]);
+            let resource =
+                Resource::new(vec![opentelemetry::KeyValue::new("service.name", "flowrs")]);
 
-            let tempo_host = env::var("TEMPO_HOST").unwrap_or("http://localhost:4318/v1/traces".to_string());
+            let tempo_host =
+                env::var("TEMPO_HOST").unwrap_or("http://localhost:4318/v1/traces".to_string());
 
             // Create a new OpenTelemetry trace pipeline that prints to stdout
             let provider = TracerProvider::builder()
@@ -260,12 +274,14 @@ impl Executor for StandardExecutor {
             // that impls `LookupSpan`
             let subscriber = Registry::default().with(telemetry).with(LevelFilter::INFO);
 
-            tracing::subscriber::set_global_default(subscriber).expect("Failed to set the global default tracing subscriber");
+            tracing::subscriber::set_global_default(subscriber)
+                .expect("Failed to set the global default tracing subscriber");
 
             return runner();
         }
 
-        #[cfg(not(feature = "tracing"))]{
+        #[cfg(not(feature = "tracing"))]
+        {
             return runner();
         }
     }

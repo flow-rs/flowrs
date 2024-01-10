@@ -19,7 +19,7 @@ use crate::{
     scheduler::{Scheduler, SchedulingInfo},
 };
 #[cfg(feature = "tracing")]
-use crate::analytics::tempo_exporter::TempoExporter;
+use crate::analytics::otlp_exporter::OtlpExporter;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracing")] {
@@ -249,7 +249,7 @@ impl Executor for StandardExecutor {
             // Create a new OpenTelemetry trace pipeline that prints to stdout
             let provider = TracerProvider::builder()
                 .with_config(opentelemetry_sdk::trace::Config::default().with_resource(resource))
-                .with_simple_exporter(TempoExporter::new(tempo_host))
+                .with_simple_exporter(OtlpExporter::new(tempo_host))
                 .build();
             let tracer = provider.tracer("flowrs");
 

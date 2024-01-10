@@ -2,36 +2,36 @@ use std::fmt::{Debug, Formatter};
 use opentelemetry::Key;
 use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 
-pub struct TempoExporter {
+pub struct OtlpExporter {
     client: reqwest::blocking::Client,
-    tempo_host: String,
+    otlp_host: String,
 }
 
-impl Default for TempoExporter {
+impl Default for OtlpExporter {
     fn default() -> Self {
-        TempoExporter {
+        OtlpExporter {
             client: reqwest::blocking::Client::new(),
-            tempo_host: "http://localhost:4318/v1/traces".to_string(),
+            otlp_host: "http://localhost:4318/v1/traces".to_string(),
         }
     }
 }
 
-impl TempoExporter {
+impl OtlpExporter {
     pub fn new(tempo_host: String) -> Self {
-        TempoExporter {
+        OtlpExporter {
             client: reqwest::blocking::Client::new(),
-            tempo_host,
+            otlp_host: tempo_host,
         }
     }
 }
 
-impl Debug for TempoExporter {
+impl Debug for OtlpExporter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("TempoExporter")
     }
 }
 
-impl SpanExporter for TempoExporter {
+impl SpanExporter for OtlpExporter {
     fn export(&mut self, batch: Vec<SpanData>) -> futures_core::future::BoxFuture<'static, ExportResult> {
         // we are only interested in flowrs code namespace traces for now
         let filtered: Vec<_> = batch.into_iter().filter(|span| {
@@ -54,7 +54,7 @@ impl SpanExporter for TempoExporter {
 
         let span_data = opentelemetry_stdout::SpanData::from(filtered);
 
-        let response = self.client.post(&self.tempo_host).json(&span_data).send();
+        let response = self.client.post(&self.otlp_host).json(&span_data).send();
         match response {
             Ok(resp) => {
                 if resp.status() == 200 {

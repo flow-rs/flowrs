@@ -1,1 +1,1 @@
-pub mod tempo_exporter;
+pub mod otlp_exporter;

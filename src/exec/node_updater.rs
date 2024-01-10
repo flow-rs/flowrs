@@ -4,15 +4,13 @@ use crate::{
 };
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use metrics::histogram;
 use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
-use metrics::{histogram, increment_counter};
 use thiserror::Error;
-use tracing::{info_span, Instrument, Span, span};
-#[cfg(feature = "tracing")]
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing::{info_span, Span};
 
 #[derive(Error, Debug)]
 pub struct NodeUpdateError {
@@ -44,12 +42,20 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), Option<NodeDescription>, Option<tracing::Id>),
+    Update(
+        (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        Option<NodeDescription>,
+        Option<tracing::Id>,
+    ),
     Cancel,
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>);
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    );
     fn errors(&mut self) -> Vec<NodeUpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
@@ -92,8 +98,8 @@ impl MultiThreadedNodeUpdater {
             let update_receiver_clone = self.command_channel.1.clone();
             let error_sender_clone = self.error_channel.0.clone();
 
-            let thread_handle: thread::JoinHandle<Result<(), NodeUpdateError>> =
-                thread::spawn(move || -> Result<(), NodeUpdateError> {
+            let thread_handle: thread::JoinHandle<Result<(), NodeUpdateError>> = thread::spawn(
+                move || -> Result<(), NodeUpdateError> {
                     loop {
                         let update_receiver_res = update_receiver_clone.recv();
                         match update_receiver_res {
@@ -115,14 +121,16 @@ impl MultiThreadedNodeUpdater {
                                         break Ok(());
                                     }
 
-                                    WorkerCommand::Update(node, description, parentId) => {
+                                    WorkerCommand::Update(node, description, parent_id) => {
                                         if let Ok(mut n) = node.1.try_lock() {
                                             let result;
                                             {
                                                 let node_id = node.0.to_string();
-                                                let update_span = if let Some(ref desc) = description {
+                                                let _update_span = if let Some(ref desc) =
+                                                    description
+                                                {
                                                     info_span!(
-                                                        parent: parentId,
+                                                        parent: parent_id,
                                                         "mt_on_update",
                                                         node.id = node_id.as_str(),
                                                         node.name = desc.name.as_str(),
@@ -132,7 +140,7 @@ impl MultiThreadedNodeUpdater {
                                                     )
                                                 } else {
                                                     info_span!(
-                                                        parent: parentId,
+                                                        parent: parent_id,
                                                         "mt_on_update",
                                                         node.id = node_id.as_str()
                                                     )
@@ -167,7 +175,8 @@ impl MultiThreadedNodeUpdater {
                             }
                         }
                     }
-                });
+                },
+            );
 
             self.workers.push(thread_handle);
         }
@@ -175,10 +184,14 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>) {
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    ) {
         //let cloned_node = node.clone();
-        let parentSpan = Span::current();
-        let id = parentSpan.id().clone();
+        let parent_span = Span::current();
+        let id = parent_span.id().clone();
         self.command_channel
             .0
             .send(WorkerCommand::Update(node, node_description, id))
@@ -217,7 +230,11 @@ impl SingleThreadedNodeUpdater {
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
     #[tracing::instrument(skip_all, name = "single_threaded_update")]
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>), node_description: Option<NodeDescription>) {
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    ) {
         // TODO: Update instrumentation here
         if let Ok(mut n) = node.1.try_lock() {
             if let Err(err) = n.on_update() {

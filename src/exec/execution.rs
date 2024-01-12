@@ -16,6 +16,7 @@ use tracing::{error, info_span};
 #[cfg(feature = "tracing")]
 use crate::analytics::otlp_exporter::OtlpExporter;
 use crate::{
+    analytics,
     exec::{
         execution_controller::ExecutionController,
         execution_state::ExecutionState,
@@ -274,11 +275,23 @@ impl Executor for StandardExecutor {
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Failed to set the global default tracing subscriber");
 
+            // Setup LogTracer and env_logger at the same time
+            let combined_logger = analytics::combined_logger::CombinedLogger::new();
+
+            // combine both loggers together
+            log::set_boxed_logger(Box::new(combined_logger))
+                .map(|()| log::set_max_level(log::LevelFilter::Info))
+                .expect("Failed to set logger");
+
+            log::info!("Starting flowrs");
+
             return runner();
         }
 
         #[cfg(not(feature = "tracing"))]
         {
+            env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+
             return runner();
         }
     }

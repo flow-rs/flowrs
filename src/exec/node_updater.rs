@@ -144,7 +144,7 @@ impl MultiThreadedNodeUpdater {
                                                         "mt_on_update",
                                                         node.id = node_id.as_str()
                                                     )
-                                                };
+                                                }.entered();
                                                 let now = std::time::Instant::now();
                                                 result = n.on_update();
                                                 let elapsed = now.elapsed();

@@ -229,15 +229,43 @@ impl SingleThreadedNodeUpdater {
 }
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
-    #[tracing::instrument(skip_all, name = "single_threaded_update")]
     fn update(
         &mut self,
         node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
         node_description: Option<NodeDescription>,
     ) {
-        // TODO: Update instrumentation here
         if let Ok(mut n) = node.1.try_lock() {
-            if let Err(err) = n.on_update() {
+
+            let _update_span = if let Some(ref desc) = node_description {
+                info_span!(
+                    "st_on_update",
+                    node.id = node.0.to_string().as_str(),
+                    node.name = desc.name.as_str(),
+                    "otel.name" = desc.name.as_str(),
+                    node.kind = desc.kind.as_str(),
+                    node.description = desc.description.as_str()
+                )
+            } else {
+                info_span!(
+                    "st_on_update",
+                    node.id = node.0.to_string().as_str()
+                )
+            }.entered();
+            let started = std::time::Instant::now();
+            let result = n.on_update();
+            let elapsed = started.elapsed();
+
+            // publish histogram
+            if let Some(desc) = node_description {
+                let name = desc.name.clone();
+                let kind = desc.kind.clone();
+                let description = desc.description.clone();
+                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string(), "node.name" => name, "node.kind" => kind, "node.description" => description);
+            } else {
+                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
+            }
+
+            if let Err(err) = result {
                 self.errors.push(NodeUpdateError {
                     source: err,
                     node_id: Some(node.0),

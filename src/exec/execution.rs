@@ -283,13 +283,12 @@ impl Executor for StandardExecutor {
                 .expect("Failed to set logger");
 
             log::info!("Starting flowrs");
-
             return runner();
         }
 
         #[cfg(not(feature = "tracing"))]
         {
-            env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+            env_logger::init_from_env(env_logger::Env::default().default_filter_or("info")).target(env_logger::Target::Stdout).init();
 
             return runner();
         }

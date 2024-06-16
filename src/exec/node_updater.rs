@@ -4,11 +4,13 @@ use crate::{
 };
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use metrics::histogram;
 use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 use thiserror::Error;
+use tracing::{info_span, Span};
 
 #[derive(Error, Debug)]
 pub struct NodeUpdateError {
@@ -40,12 +42,20 @@ pub enum SleepMode {
 }
 
 enum WorkerCommand {
-    Update((NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)),
+    Update(
+        (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        Option<NodeDescription>,
+        Option<tracing::Id>,
+    ),
     Cancel,
 }
 
 pub trait NodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>));
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    );
     fn errors(&mut self) -> Vec<NodeUpdateError>;
 
     fn sleep_mode(&self) -> SleepMode;
@@ -88,8 +98,8 @@ impl MultiThreadedNodeUpdater {
             let update_receiver_clone = self.command_channel.1.clone();
             let error_sender_clone = self.error_channel.0.clone();
 
-            let thread_handle: thread::JoinHandle<Result<(), NodeUpdateError>> =
-                thread::spawn(move || -> Result<(), NodeUpdateError> {
+            let thread_handle: thread::JoinHandle<Result<(), NodeUpdateError>> = thread::spawn(
+                move || -> Result<(), NodeUpdateError> {
                     loop {
                         let update_receiver_res = update_receiver_clone.recv();
                         match update_receiver_res {
@@ -111,9 +121,44 @@ impl MultiThreadedNodeUpdater {
                                         break Ok(());
                                     }
 
-                                    WorkerCommand::Update(node) => {
+                                    WorkerCommand::Update(node, description, parent_id) => {
                                         if let Ok(mut n) = node.1.try_lock() {
-                                            if let Err(err) = n.on_update() {
+                                            let result;
+                                            {
+                                                let node_id = node.0.to_string();
+                                                let _update_span = if let Some(ref desc) =
+                                                    description
+                                                {
+                                                    info_span!(
+                                                        parent: parent_id,
+                                                        "mt_on_update",
+                                                        node.id = node_id.as_str(),
+                                                        node.name = desc.name.as_str(),
+                                                        "otel.name" = desc.name.as_str(),
+                                                        node.kind = desc.kind.as_str(),
+                                                        node.description = desc.description.as_str()
+                                                    )
+                                                } else {
+                                                    info_span!(
+                                                        parent: parent_id,
+                                                        "mt_on_update",
+                                                        node.id = node_id.as_str()
+                                                    )
+                                                }.entered();
+                                                let now = std::time::Instant::now();
+                                                result = n.on_update();
+                                                let elapsed = now.elapsed();
+                                                // publish histogram
+                                                if let Some(desc) = description {
+                                                    let name = desc.name.clone();
+                                                    let kind = desc.kind.clone();
+                                                    let description = desc.description.clone();
+                                                    histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string(), "node.name" => name, "node.kind" => kind, "node.description" => description);
+                                                } else {
+                                                    histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
+                                                }
+                                            }
+                                            if let Err(err) = result {
                                                 let _res =
                                                     error_sender_clone.send(NodeUpdateError {
                                                         source: err,
@@ -130,7 +175,8 @@ impl MultiThreadedNodeUpdater {
                             }
                         }
                     }
-                });
+                },
+            );
 
             self.workers.push(thread_handle);
         }
@@ -138,11 +184,17 @@ impl MultiThreadedNodeUpdater {
 }
 
 impl NodeUpdater for MultiThreadedNodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    ) {
         //let cloned_node = node.clone();
+        let parent_span = Span::current();
+        let id = parent_span.id().clone();
         self.command_channel
             .0
-            .send(WorkerCommand::Update(node))
+            .send(WorkerCommand::Update(node, node_description, id))
             .expect("Unable to write to command channel.");
     }
 
@@ -177,9 +229,43 @@ impl SingleThreadedNodeUpdater {
 }
 
 impl NodeUpdater for SingleThreadedNodeUpdater {
-    fn update(&mut self, node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)) {
+    fn update(
+        &mut self,
+        node: (NodeId, Arc<Mutex<dyn RuntimeNode + Send>>),
+        node_description: Option<NodeDescription>,
+    ) {
         if let Ok(mut n) = node.1.try_lock() {
-            if let Err(err) = n.on_update() {
+
+            let _update_span = if let Some(ref desc) = node_description {
+                info_span!(
+                    "st_on_update",
+                    node.id = node.0.to_string().as_str(),
+                    node.name = desc.name.as_str(),
+                    "otel.name" = desc.name.as_str(),
+                    node.kind = desc.kind.as_str(),
+                    node.description = desc.description.as_str()
+                )
+            } else {
+                info_span!(
+                    "st_on_update",
+                    node.id = node.0.to_string().as_str()
+                )
+            }.entered();
+            let started = std::time::Instant::now();
+            let result = n.on_update();
+            let elapsed = started.elapsed();
+
+            // publish histogram
+            if let Some(desc) = node_description {
+                let name = desc.name.clone();
+                let kind = desc.kind.clone();
+                let description = desc.description.clone();
+                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string(), "node.name" => name, "node.kind" => kind, "node.description" => description);
+            } else {
+                histogram!("flowrs.node.update_time", elapsed.as_millis() as f64, "node.id" => node.0.to_string());
+            }
+
+            if let Err(err) = result {
                 self.errors.push(NodeUpdateError {
                     source: err,
                     node_id: Some(node.0),

@@ -205,15 +205,15 @@ impl Executor for StandardExecutor {
             //TODO: Fix error flow.
 
             flow.init_all()
-                .context(format!("Unable to init all nodes."));
+                .context(format!("Unable to init all nodes."))?;
 
             flow.ready_all()
-                .context(format!("Unable to make all nodes ready."));
+                .context(format!("Unable to make all nodes ready."))?;
 
-            self.run_update_loop(&flow, scheduler, node_updater);
+            self.run_update_loop(&flow, scheduler, node_updater)?;
 
             flow.shutdown_all()
-                .context(format!("Unable to shutdown all nodes"));
+                .context(format!("Unable to shutdown all nodes"))?;
 
             #[cfg(feature = "metrics")]
             {
@@ -288,7 +288,9 @@ impl Executor for StandardExecutor {
 
         #[cfg(not(feature = "tracing"))]
         {
-            env_logger::init_from_env(env_logger::Env::default().default_filter_or("info")).target(env_logger::Target::Stdout).init();
+            env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"))
+                .target(env_logger::Target::Stdout)
+                .init();
 
             return runner();
         }

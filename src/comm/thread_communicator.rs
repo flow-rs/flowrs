@@ -40,6 +40,8 @@ impl Communicator for ThreadCommunicator {
 #[cfg(test)]
 mod tests {
 
+    use std::thread::Thread;
+
     use super::*;
     //use std::assert_matches::assert_matches;
 
@@ -56,5 +58,16 @@ mod tests {
             "receive() should return TryRecvError::Empty when the achannel is empty."
         );
         //assert_matches!(*res.unwrap_err(), TryRecvError::Empty)
+    }
+
+    #[tokio::test]
+    async fn test_send() {
+        let mut communicator = ThreadCommunicator::new();
+        let send_res = communicator.send(Message::StartExecution).await;
+        assert!(send_res.is_ok(), "Send should be successfull");
+        let recv_res = communicator.receive();
+        assert!(recv_res.is_ok(), "Receive should be successful");
+        let recv_msg = recv_res.unwrap();
+        assert!(matches!(recv_msg, Message::StartExecution));
     }
 }

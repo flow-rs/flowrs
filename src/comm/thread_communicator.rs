@@ -1,9 +1,14 @@
 use crate::comm::messages::Message;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use async_trait::async_trait;
+use tokio::sync::mpsc::{
+    channel,
+    error::{SendError, TryRecvError},
+    Receiver, Sender,
+};
 
 use super::communication::Communicator;
 
-const BUFFER_SIZE: u8 = 10;
+const BUFFER_SIZE: usize = 10;
 
 pub struct ThreadCommunicator {
     sender: Sender<Message>,
@@ -12,7 +17,7 @@ pub struct ThreadCommunicator {
 
 impl ThreadCommunicator {
     pub fn new() -> Self {
-        let (tx, rs) = channel(BUFFER_SIZE);
+        let (tx, rx) = channel(BUFFER_SIZE);
 
         ThreadCommunicator {
             sender: tx,
@@ -21,12 +26,13 @@ impl ThreadCommunicator {
     }
 }
 
+#[async_trait]
 impl Communicator for ThreadCommunicator {
-    async fn send(&self, message: Message) -> Result<Message, Box<dyn std::error::Error>> {
-        todo!()
+    async fn send(&self, message: Message) -> Result<(), Box<SendError<Message>>> {
+        self.sender.send(message).await.map_err(|e| e.into())
     }
 
-    async fn receive(&self) -> Result<Message, Box<dyn std::error::Error>> {
-        todo!()
+    fn receive(&mut self) -> Result<Message, Box<TryRecvError>> {
+        self.receiver.try_recv().map_err(|e| e.into())
     }
 }

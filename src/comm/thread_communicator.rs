@@ -1,10 +1,8 @@
+use std::error::Error;
+
 use crate::comm::messages::Message;
 use async_trait::async_trait;
-use tokio::sync::mpsc::{
-    channel,
-    error::{SendError, TryRecvError},
-    Receiver, Sender,
-};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use super::communication::Communicator;
 
@@ -28,12 +26,15 @@ impl ThreadCommunicator {
 
 #[async_trait]
 impl Communicator for ThreadCommunicator {
-    async fn send(&self, message: Message) -> Result<(), Box<SendError<Message>>> {
-        self.sender.send(message).await.map_err(|e| e.into())
+    async fn send(&self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(self.sender.send(message).await.map_err(|e| Box::new(e))?)
     }
 
-    fn receive(&mut self) -> Result<Message, Box<TryRecvError>> {
-        self.receiver.try_recv().map_err(|e| e.into())
+    fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>> {
+        Ok(self
+            .receiver
+            .try_recv()
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?)
     }
 }
 
@@ -46,9 +47,11 @@ mod tests {
     use std::time::Instant;
 
     use tokio::runtime::Runtime;
+    use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
     //use std::assert_matches::assert_matches;
+
 
     #[tokio::test]
     async fn test_empty_receive() {
@@ -58,11 +61,12 @@ mod tests {
             res.is_err(),
             "receive() should return an error when the channel is empty."
         );
-        assert!(
-            matches!(*res.unwrap_err(), TryRecvError::Empty),
-            "receive() should return TryRecvError::Empty when the achannel is empty."
-        );
-        //assert_matches!(*res.unwrap_err(), TryRecvError::Empty)
+
+        let err = res.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<TryRecvError>(),
+            Some(TryRecvError::Empty)
+        ));
     }
 
     #[tokio::test]

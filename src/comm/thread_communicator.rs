@@ -26,11 +26,11 @@ impl ThreadCommunicator {
 
 #[async_trait]
 impl Communicator for ThreadCommunicator {
-    async fn send(&self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+    async fn send(&mut self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
         Ok(self.sender.send(message).await.map_err(|e| Box::new(e))?)
     }
 
-    fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>> {
         Ok(self
             .receiver
             .try_recv()
@@ -52,11 +52,10 @@ mod tests {
     use super::*;
     //use std::assert_matches::assert_matches;
 
-
     #[tokio::test]
     async fn test_empty_receive() {
         let mut communicator = ThreadCommunicator::new();
-        let res = communicator.receive();
+        let res = communicator.receive().await;
         assert!(
             res.is_err(),
             "receive() should return an error when the channel is empty."
@@ -74,7 +73,7 @@ mod tests {
         let mut communicator = ThreadCommunicator::new();
         let send_res = communicator.send(Message::StartExecution).await;
         assert!(send_res.is_ok(), "Send should be successfull");
-        let recv_res = communicator.receive();
+        let recv_res = communicator.receive().await;
         assert!(recv_res.is_ok(), "Receive should be successful");
         let recv_msg = recv_res.unwrap();
         assert!(matches!(recv_msg, Message::StartExecution));
@@ -92,21 +91,21 @@ mod tests {
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
                 {
-                    let com = communicator_clone_1.lock().unwrap();
+                    let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
                     println!("sending msg1 for the first time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
-                    let com = communicator_clone_1.lock().unwrap();
+                    let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
                     println!("sending msg1 for the second time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
-                    let com = communicator_clone_1.lock().unwrap();
+                    let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
                     println!("sending msg1 for the third time");
                 }
@@ -117,21 +116,21 @@ mod tests {
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
                 {
-                    let com = communicator_clone_2.lock().unwrap();
+                    let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
                     println!("sending msg2 for the first time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
-                    let com = communicator_clone_2.lock().unwrap();
+                    let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
                     println!("sending msg2 for the second time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
-                    let com = communicator_clone_2.lock().unwrap();
+                    let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
                     println!("sending msg2 for the third time");
                 }
@@ -148,7 +147,7 @@ mod tests {
                 while start_time.elapsed() < timeout {
                     let res = {
                         let mut com = communicator_clone_3.lock().unwrap();
-                        com.receive()
+                        com.receive().await
                     };
 
                     if let Ok(message) = res {

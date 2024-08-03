@@ -1,4 +1,5 @@
 pub mod communication;
+pub mod data;
 pub mod messages;
 pub mod network_communicator;
 pub mod process_communicator;

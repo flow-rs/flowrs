@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt};
 
 use crate::comm::messages::Message;
 use async_trait::async_trait;
@@ -8,19 +8,34 @@ use super::communication::Communicator;
 
 const BUFFER_SIZE: usize = 10;
 
+#[derive(Debug)]
 pub struct ThreadCommunicator {
     sender: Sender<Message>,
     receiver: Receiver<Message>,
 }
 
 impl ThreadCommunicator {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let (tx, rx) = channel(BUFFER_SIZE);
 
-        ThreadCommunicator {
+        Ok(ThreadCommunicator {
             sender: tx,
             receiver: rx,
-        }
+        })
+    }
+}
+
+impl fmt::Display for ThreadCommunicator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl PartialEq for ThreadCommunicator {
+    // two ThreadCommunicators are equal when the sender and receiver objects are identical
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(&(self.receiver), &(other.receiver))
+            && std::ptr::eq(&(self.sender), &(other.sender))
     }
 }
 
@@ -54,7 +69,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_receive() {
-        let mut communicator = ThreadCommunicator::new();
+        let mut communicator = ThreadCommunicator::new().unwrap();
         let res = communicator.receive().await;
         assert!(
             res.is_err(),
@@ -70,9 +85,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_send() {
-        let mut communicator = ThreadCommunicator::new();
+        let mut communicator = ThreadCommunicator::new().unwrap();
         let send_res = communicator.send(Message::StartExecution).await;
-        assert!(send_res.is_ok(), "Send should be successfull");
+        assert!(send_res.is_ok(), "Send should be successful");
         let recv_res = communicator.receive().await;
         assert!(recv_res.is_ok(), "Receive should be successful");
         let recv_msg = recv_res.unwrap();
@@ -81,7 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_threaded_comm() {
-        let communicator = Arc::new(Mutex::new(ThreadCommunicator::new()));
+        let communicator = Arc::new(Mutex::new(ThreadCommunicator::new().unwrap()));
 
         let communicator_clone_1 = Arc::clone(&communicator);
         let communicator_clone_2 = Arc::clone(&communicator);
@@ -165,6 +180,9 @@ mod tests {
                                 if msg_1_counter + msg_2_counter == 6 {
                                     break;
                                 }
+                            }
+                            _ => {
+                                assert!(false)
                             }
                         }
                     }

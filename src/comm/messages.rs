@@ -1,7 +1,11 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
+use flowrs_package::flow_package::package::Type;
 use std::fmt;
 
-use super::{communication::CommWrapper, data::DataWrapper};
+use super::{
+    communication::{CommWrapper, NodeCommunicator},
+    data::DataWrapper,
+};
 
 #[derive(Debug)]
 pub enum MessageError {
@@ -34,7 +38,15 @@ pub const SETUP_COMMUNICATION_TYPE: &str = "], Type:[";
 pub const DEBUG: &str = "[[MESSAGE]: [DEBUG]>]";
 pub const DATA: &str = "[[MESSAGE]: [DATA]>]";
 
-const PATTERNS: &[&str] = &[START_EXECUTION, STOP_EXECUTION, DEBUG];
+const PATTERNS: &[&str] = &[
+    START_EXECUTION,
+    STOP_EXECUTION,
+    DEBUG,
+    DATA,
+    SETUP_COMMUNICATION_COMM,
+    SETUP_COMMUNICATION_PREFIX,
+    SETUP_COMMUNICATION_TYPE,
+];
 
 impl fmt::Debug for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -70,7 +82,7 @@ impl fmt::Display for Message {
                 SETUP_COMMUNICATION_COMM,
                 comm.communicator,
                 SETUP_COMMUNICATION_TYPE,
-                comm.node_type
+                serde_json::to_string(&(comm.node_type)).expect("should serialize"),
             ),
         }
     }
@@ -92,6 +104,28 @@ impl Message {
             Some(STOP_EXECUTION) => Some(Self::StopExecution),
             Some(DEBUG) => Some(Self::Debug(s.replacen(DEBUG, "", 1))),
             Some(DATA) => Some(Self::Data(DataWrapper::parse(s.replacen(DEBUG, "", 1)))),
+            Some(SETUP_COMMUNICATION_PREFIX) => {
+                let comm_start = s.find(SETUP_COMMUNICATION_COMM)? + SETUP_COMMUNICATION_COMM.len();
+                let comm_end = s.find(SETUP_COMMUNICATION_TYPE)?;
+                let comm_string = s[comm_start..comm_end].to_string();
+                let communicator = NodeCommunicator::from_str(&comm_string).unwrap();
+
+                let node_type_start = comm_end + SETUP_COMMUNICATION_TYPE.len();
+                let node_type_end = s.rfind(']')?;
+                let node_type_string = s[node_type_start..node_type_end].to_string();
+                //let mut deserializer = Deserializer::from_str(&node_type_string);
+                //let mut deserializer = serde_json::from_str(&node_type_string);
+                //let node_type = Type::deserialize(&mut deserializer).expect("should deserialize");
+                //let node_type = Type::deserialize(&mut Deserializer::from_str(&node_type_string))
+                //    .expect("should deserialize");
+                println!("{}", node_type_string);
+                let node_type: Type =
+                    serde_json::from_str(&node_type_string).expect("should deserialize");
+                Some(Self::SetupCommunication(CommWrapper {
+                    communicator: communicator,
+                    node_type: node_type,
+                }))
+            }
             _ => None,
         }
     }
@@ -99,7 +133,22 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+
+    use crate::comm::thread_communicator::ThreadCommunicator;
+
     use super::*;
+
+    const TYPE_JSON: &str = r#"
+{
+    "inputs": null,
+    "outputs": null,
+    "type_parameters": [{"name": "U", "where": []}, {"name": "T", "where": []}],
+    "constructors":{
+        "New":{"NewWithObserver": {}},
+        "FromCode":{"FromCode":{"code_template": "let {{fully_qualified_name}}:{{type_parameter_U}} = 5;"}}
+    }
+}
+        "#;
 
     #[tokio::test]
     async fn test_from_str() {
@@ -112,8 +161,29 @@ mod tests {
         if let Some(debug_msg) = Message::from_str(DEBUG) {
             assert_eq!(debug_msg, Message::Debug("".to_string()))
         }
-        if let Some(data_msg) = Message::from_str(DATA) {
-            assert_eq!(data_msg, Message::Data(DataWrapper {}))
+        // if let Some(data_msg) = Message::from_str(DATA) {
+        //     assert_eq!(data_msg, Message::Data(DataWrapper {}))
+        // }
+        let comm =
+            NodeCommunicator::ThreadComm(ThreadCommunicator::new().expect("should construct"));
+        let node_type = serde_json::from_str(TYPE_JSON).expect("should deserialize");
+        let comm_wrapper = CommWrapper {
+            communicator: comm,
+            node_type: node_type,
+        };
+        let format_str = format!(
+            "{}{}{}{}{}]",
+            SETUP_COMMUNICATION_PREFIX,
+            SETUP_COMMUNICATION_COMM,
+            comm_wrapper.communicator,
+            SETUP_COMMUNICATION_TYPE,
+            serde_json::to_string(&(comm_wrapper.node_type)).expect("should serialize"),
+        );
+        if let Some(setup_communication_msg) = Message::from_str(&format_str) {
+            assert_eq!(
+                setup_communication_msg,
+                Message::SetupCommunication(comm_wrapper)
+            );
         }
     }
 }

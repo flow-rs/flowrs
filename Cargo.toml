@@ -1,6 +1,6 @@
 [package]
 name = "flowrs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["wuermseer.florian@gmail.com", "markus.friedrich@hm.edu"]
 description = "A generic and Type-Safe WASM library for Flow-Based Programming."

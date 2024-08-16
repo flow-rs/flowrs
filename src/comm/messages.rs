@@ -108,8 +108,11 @@ impl Message {
                 let comm_start = s.find(SETUP_COMMUNICATION_COMM)? + SETUP_COMMUNICATION_COMM.len();
                 let comm_end = s.find(SETUP_COMMUNICATION_TYPE)?;
                 let comm_string = s[comm_start..comm_end].to_string();
-                let communicator = NodeCommunicator::from_str(&comm_string).unwrap();
-
+                let communicator_option = NodeCommunicator::from_str(&comm_string);
+                if communicator_option.is_none() {
+                    return None;
+                }
+                let communicator = communicator_option.unwrap();
                 let node_type_start = comm_end + SETUP_COMMUNICATION_TYPE.len();
                 let node_type_end = s.rfind(']')?;
                 let node_type_string = s[node_type_start..node_type_end].to_string();

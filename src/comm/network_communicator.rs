@@ -97,7 +97,20 @@ mod tests {
         let comm = NetworkCommunicator::new("127.0.0.1:8080")
             .await
             .expect("should construct");
+        //tests Display trait
         assert_eq!(comm.to_string(), format!("{}", comm));
+        shutdown_tx.send(()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_send_receive() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        run_test_server(shutdown_rx).await;
+
+        let comm = NetworkCommunicator::new("127.0.0.1:8080")
+            .await
+            .expect("should construct");
+
         shutdown_tx.send(()).unwrap();
     }
 }

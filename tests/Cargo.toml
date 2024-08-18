@@ -1,0 +1,11 @@
+[package]
+name = "flowrs-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+flowrs-std = { git = "https://github.com/flow-rs/flowrs-std", branch = "mtMophima-dev" }
+flowrs-derive = { version = "0.3.0", path = "../flowrs_derive" }
+flowrs = {git = "https://github.com/flow-rs/flowrs", branch = "mtMophima-exec"}
+#flowrs = {path = "../"}
+anyhow = "1.0.72"

@@ -49,7 +49,6 @@ aho-corasick = "1.1.3"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.37"
-flowrs-std = {git = "https://github.com/flow-rs/flowrs-std", branch = "mtMophima-dev"}
 
 [features]
 default = ["tracing", "metrics", "testing"]

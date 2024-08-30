@@ -17,6 +17,10 @@ where
     D: fmt::Debug,
     D: FromStr,
 {
+    pub fn new(data: D) -> Self {
+        Self { data }
+    }
+
     pub fn parse(str: String) -> Result<Self, D::Err> {
         let res = str.parse::<D>()?;
         Ok(DataWrapper::<D> { data: res })

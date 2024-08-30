@@ -1,8 +1,12 @@
-use std::{sync::{Arc, Mutex}, collections::HashMap};
 use anyhow::{Context, Result};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
-
-use crate::{node::UpdateController, nodes::node_description::NodeDescription, connection::RuntimeNode};
+use crate::{
+    connection::RuntimeNode, node::UpdateController, nodes::node_description::NodeDescription,
+};
 
 pub type NodeId = u128;
 
@@ -50,21 +54,29 @@ impl Flow {
     }
 
     pub fn add_node<T>(&mut self, node: T) -> NodeId
-        where
-            T: RuntimeNode + 'static {
+    where
+        T: RuntimeNode + 'static,
+    {
         let id = self.generate_id();
         self.add_node_with_id_and_desc(node, id, NodeDescription::default())
     }
 
     pub fn add_node_with_id<T>(&mut self, node: T, id: NodeId) -> NodeId
-        where
-            T: RuntimeNode + 'static {
+    where
+        T: RuntimeNode + 'static,
+    {
         self.add_node_with_id_and_desc(node, id, NodeDescription::default())
     }
 
-    pub fn add_node_with_id_and_desc<T>(&mut self, node: T, id: NodeId, desc: NodeDescription) -> NodeId
-        where
-            T: RuntimeNode + 'static {
+    pub fn add_node_with_id_and_desc<T>(
+        &mut self,
+        node: T,
+        id: NodeId,
+        desc: NodeDescription,
+    ) -> NodeId
+    where
+        T: RuntimeNode + 'static,
+    {
         if !self.id_to_node_idx.contains_key(&id) {
             self.nodes.push((id, Arc::new(Mutex::new(node))));
             self.id_to_node_idx.insert(id, self.nodes.len() - 1);
@@ -74,7 +86,10 @@ impl Flow {
         id
     }
 
-    pub fn node_by_index(&self, index: usize) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)> {
+    pub fn node_by_index(
+        &self,
+        index: usize,
+    ) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)> {
         self.nodes.get(index)
     }
 
@@ -92,8 +107,7 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn init_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1
-                .lock()
+            n.1.lock()
                 .unwrap()
                 .on_init()
                 .context(format!("Unable to init node with ID {}.", n.0))?;
@@ -104,8 +118,7 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn shutdown_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1
-                .lock()
+            n.1.lock()
                 .unwrap()
                 .on_shutdown()
                 .context(format!("Unable to shutdown node with ID {}.", n.0))?;
@@ -116,8 +129,7 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn ready_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1
-                .lock()
+            n.1.lock()
                 .unwrap()
                 .on_ready()
                 .context(format!("Unable to make node with ID {}.", n.0))?;

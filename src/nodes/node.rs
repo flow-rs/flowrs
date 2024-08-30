@@ -1,39 +1,49 @@
-use std::{any::Any, collections::HashMap, sync::{mpsc::{Sender, Receiver, channel}, Arc, Mutex}};
+//use anyhow::Result;
+use std::{
+    any::Any,
+    collections::HashMap,
+    fmt,
+    str::FromStr,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+};
 use thiserror::Error;
-use anyhow::Result;
 
-/// A node can take a shared reference to a [`Context`] instance. 
-/// There exists a single context for all nodes that can be accessed via mutex. 
+use crate::comm::messages::Message;
+
+/// A node can take a shared reference to a [`Context`] instance.
+/// There exists a single context for all nodes that can be accessed via mutex.
 /// It can be used for sharing instances between nodes (e.g. a wgpu context.)
 pub struct Context {
     /// A generic key-value store for instance sharing across nodes.
-    pub properties: HashMap<String, Box<dyn Any>>
+    pub properties: HashMap<String, Box<dyn Any>>,
 }
 
 impl Context {
     pub fn new() -> Self {
         Self {
-            properties: HashMap::new()
+            properties: HashMap::new(),
         }
     }
 }
 
-/// Node outputs take an object of this type in order to notify an obeserver 
+/// Node outputs take an object of this type in order to notify an obeserver
 /// (usually a flow executor implementing the [`Executor`](crate::exec::execution::Executor) trait)
 /// if something happened (which means something was written to an output).
 pub struct ChangeObserver {
-    /// The notifier as a sender 
+    /// The notifier as a sender
     /// (usually the [`Output`](crate::nodes::connection::Output) implementation).
     pub notifier: Sender<bool>,
 
-    /// The observer as a receiver 
+    /// The observer as a receiver
     /// (usually a flow executor implementing the [`Executor`](crate::exec::execution::Executor) trait).
-    pub observer: Receiver<bool>,  
+    pub observer: Receiver<bool>,
 }
 
 impl ChangeObserver {
     pub fn new() -> Self {
-        
         let (sender, receiver) = channel();
 
         Self {
@@ -42,11 +52,10 @@ impl ChangeObserver {
         }
     }
 
-    pub fn wait_for_changes(&self){
-        
+    pub fn wait_for_changes(&self) {
         // Wait for a change message.
-        // If first message received, get all others.  
-        let _  = self.observer.recv();
+        // If first message received, get all others.
+        let _ = self.observer.recv();
         loop {
             match self.observer.try_recv() {
                 Ok(_) => (),
@@ -56,62 +65,65 @@ impl ChangeObserver {
     }
 }
 
-/// Trait that defines the interface of update controller mechanisms. 
+/// Trait that defines the interface of update controller mechanisms.
 /// Update controllers are used to cancel long-running [`Node::on_update`] methods.
 pub trait UpdateController {
-
     /// This method is called "from outside" (potentially also different execution thread).
-    /// It should implement the logic to cancel the long-running [`Node::on_update`] execution. 
+    /// It should implement the logic to cancel the long-running [`Node::on_update`] execution.
     fn cancel(&mut self);
 }
 
-/// Trait that has to be implemented by any node. 
-/// Contains methods for each state in the lifecycle of a node. 
-pub trait Node : Send {
+/// Trait that has to be implemented by any node.
+/// Contains methods for each state in the lifecycle of a node.
+pub trait Node: Send {
     /// This method is called for node initialization.
-    fn on_init(&self) -> Result<(), InitError> { Ok(())}
+    fn on_init(&self) -> Result<(), InitError> {
+        Ok(())
+    }
 
     /// This method is called when all nodes in the flow are initialized.
-    fn on_ready(&self) -> Result<(), ReadyError> { Ok(())}
+    fn on_ready(&self) -> Result<(), ReadyError> {
+        Ok(())
+    }
 
     /// This method is called when flow execution ends.
-    fn on_shutdown(&self) -> Result<(), ShutdownError> { Ok(())}
+    fn on_shutdown(&self) -> Result<(), ShutdownError> {
+        Ok(())
+    }
 
-    /// This method is called by the executor dependent on its update strategy. 
-    fn on_update(&mut self) -> Result<(), UpdateError> { Ok(())}
+    /// This method is called by the executor dependent on its update strategy.
+    fn on_update(&mut self) -> Result<(), UpdateError> {
+        Ok(())
+    }
 
-    /// Some nodes might have a long-running task in their [`Node::on_update`] method. 
-    /// In this case, this method can return an [`UpdateController`] instance which can 
+    /// Some nodes might have a long-running task in their [`Node::on_update`] method.
+    /// In this case, this method can return an [`UpdateController`] instance which can
     /// be used for cancelling the update.
-    fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> { None}
+    fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> {
+        None
+    }
 }
 
 #[derive(Error, Debug)]
 pub enum InitError {
-    
     //TODO: Add init specific errors.
-
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
-} 
+    Other(#[from] anyhow::Error),
+}
 
 #[derive(Error, Debug)]
 pub enum ReadyError {
-    
     //TODO: Add ready specific errors.
-
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
-} 
+    Other(#[from] anyhow::Error),
+}
 
 #[derive(Error, Debug)]
 pub enum ShutdownError {
-    
     //TODO: Add shutdown specific errors.
-
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
-} 
+    Other(#[from] anyhow::Error),
+}
 
 #[derive(Debug)]
 pub struct SequenceError {
@@ -122,51 +134,70 @@ pub struct SequenceError {
 #[derive(Error, Debug)]
 pub enum SendError {
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
+    Other(#[from] anyhow::Error),
 }
 
 #[derive(Error, Debug)]
-pub enum ReceiveError {
+pub enum ReceiveError<D>
+where
+    D: Clone + fmt::Debug + FromStr,
+{
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
+    Other(#[from] anyhow::Error),
+    ControlMessage(Message<D>),
+}
+
+// impl<D> fmt::Display for ReceiveError<D>
+// where
+//     D: Clone + fmt::Debug + FromStr,
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "{:?}", self)
+//     }
+// }
+
+impl<D> ToString for ReceiveError<D>
+where
+    D: Clone + fmt::Debug + FromStr,
+{
+    fn to_string(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 #[derive(Error, Debug)]
 pub enum UpdateError {
-
     #[error("Sequence error. Message: {message:?}")]
-    SequenceError {
-        message: String,
-    },
+    SequenceError { message: String },
 
     #[error("Connect error. Message: {message:?}")]
-    ConnectError {
-        message: String,
-    },
+    ConnectError { message: String },
 
     #[error("SendError error. Message: {message:?}")]
-    SendError {
-        message: String,
-    },
+    SendError { message: String },
 
     #[error("RecvError error. Message: {message:?}")]
-    RecvError {
-        message: String,
-    },
-
+    RecvError { message: String },
 
     #[error(transparent)]
-    Other(#[from] anyhow::Error)
+    Other(#[from] anyhow::Error),
 }
 
 impl From<SendError> for UpdateError {
     fn from(value: SendError) -> Self {
-        UpdateError::SendError { message: value.to_string() }
+        UpdateError::SendError {
+            message: value.to_string(),
+        }
     }
 }
 
-impl From<ReceiveError> for UpdateError {
-    fn from(value: ReceiveError) -> Self {
-        UpdateError::SendError { message: value.to_string() }
+impl<D> From<ReceiveError<D>> for UpdateError
+where
+    D: Clone + fmt::Debug + FromStr,
+{
+    fn from(value: ReceiveError<D>) -> Self {
+        UpdateError::SendError {
+            message: value.to_string(),
+        }
     }
 }

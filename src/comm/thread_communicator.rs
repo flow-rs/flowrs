@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 use async_trait::async_trait;
@@ -9,12 +9,22 @@ use super::communication::Communicator;
 const BUFFER_SIZE: usize = 10;
 
 #[derive(Debug)]
-pub struct ThreadCommunicator {
-    sender: Sender<Message>,
-    receiver: Receiver<Message>,
+pub struct ThreadCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
+    sender: Sender<Message<D>>,
+    receiver: Receiver<Message<D>>,
 }
 
-impl ThreadCommunicator {
+impl<D> ThreadCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let (tx, rx) = channel(BUFFER_SIZE);
 
@@ -25,13 +35,23 @@ impl ThreadCommunicator {
     }
 }
 
-impl fmt::Display for ThreadCommunicator {
+impl<D> fmt::Display for ThreadCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl PartialEq for ThreadCommunicator {
+impl<D> PartialEq for ThreadCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     // two ThreadCommunicators are equal when the sender and receiver objects are identical
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(&(self.receiver), &(other.receiver))
@@ -40,12 +60,19 @@ impl PartialEq for ThreadCommunicator {
 }
 
 #[async_trait]
-impl Communicator for ThreadCommunicator {
-    async fn send(&mut self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+impl<D> Communicator<D> for ThreadCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+    D: Send,
+    D: 'static,
+{
+    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
         Ok(self.sender.send(message).await.map_err(|e| Box::new(e))?)
     }
 
-    async fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
         Ok(self
             .receiver
             .try_recv()
@@ -69,7 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_receive() {
-        let mut communicator = ThreadCommunicator::new().unwrap();
+        let mut communicator = ThreadCommunicator::<u32>::new().unwrap();
         let res = communicator.receive().await;
         assert!(
             res.is_err(),
@@ -85,7 +112,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send() {
-        let mut communicator = ThreadCommunicator::new().unwrap();
+        let mut communicator = ThreadCommunicator::<u32>::new().unwrap();
         let send_res = communicator.send(Message::StartExecution).await;
         assert!(send_res.is_ok(), "Send should be successful");
         let recv_res = communicator.receive().await;
@@ -96,7 +123,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_threaded_comm() {
-        let communicator = Arc::new(Mutex::new(ThreadCommunicator::new().unwrap()));
+        let communicator = Arc::new(Mutex::new(ThreadCommunicator::<String>::new().unwrap()));
 
         let communicator_clone_1 = Arc::clone(&communicator);
         let communicator_clone_2 = Arc::clone(&communicator);

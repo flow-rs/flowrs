@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 
@@ -14,16 +14,26 @@ use super::{
 
 /// Communicator ==================================================================================
 #[async_trait]
-pub trait Communicator {
-    async fn send(&mut self, message: Message) -> Result<(), Box<dyn std::error::Error>>;
-    async fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>>;
+pub trait Communicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
+    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>>;
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>>;
 }
 
 /// NodeCommunicator ==============================================================================
 
 #[derive(PartialEq)]
-pub enum NodeCommunicator {
-    ThreadComm(ThreadCommunicator),
+pub enum NodeCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
+    ThreadComm(ThreadCommunicator<D>),
     //ProcessComm(ProcessCommunicator),
     NetworkComm(NetworkCommunicator),
 }
@@ -46,7 +56,12 @@ const PATTERNS: &[&str] = &[
     SETUP_COMMUNICATION_TYPE,
 ];
 
-impl NodeCommunicator {
+impl<D> NodeCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     //use aho_corasick crate to match string prefix, see https://stackoverflow.com/a/64322185
     fn aho_corasick_match<T: AsRef<[u8]>>(ac: &AhoCorasick, v: T) -> Option<&'static str> {
         ac.find(&v).map(|m| PATTERNS[m.pattern()])
@@ -64,7 +79,12 @@ impl NodeCommunicator {
     }
 }
 
-impl fmt::Debug for NodeCommunicator {
+impl<D> fmt::Debug for NodeCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NodeCommunicator::ThreadComm(comm) => write!(f, "{:?}", comm),
@@ -74,7 +94,12 @@ impl fmt::Debug for NodeCommunicator {
     }
 }
 
-impl fmt::Display for NodeCommunicator {
+impl<D> fmt::Display for NodeCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NodeCommunicator::ThreadComm(comm) => write!(f, "{}", comm),
@@ -86,7 +111,12 @@ impl fmt::Display for NodeCommunicator {
 
 /// CommWrapper ===================================================================================
 #[derive(PartialEq, Debug)]
-pub struct CommWrapper {
-    pub communicator: NodeCommunicator,
+pub struct CommWrapper<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
+    pub communicator: NodeCommunicator<D>,
     pub node_type: Type,
 }

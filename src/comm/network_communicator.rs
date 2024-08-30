@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::fmt;
+use std::{fmt, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
@@ -23,8 +23,15 @@ impl NetworkCommunicator {
 }
 
 #[async_trait]
-impl Communicator for NetworkCommunicator {
-    async fn send(&mut self, message: Message) -> Result<(), Box<dyn std::error::Error>> {
+impl<D> Communicator<D> for NetworkCommunicator
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+    D: Send,
+    D: 'static,
+{
+    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
         self.stream
             .get_mut()
             .write_all(message.to_string().as_bytes())
@@ -33,7 +40,7 @@ impl Communicator for NetworkCommunicator {
         Ok(())
     }
 
-    async fn receive(&mut self) -> Result<Message, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
         let mut line = String::new();
         self.stream.read_line(&mut line).await?;
         match Message::from_str(&line) {
@@ -63,12 +70,15 @@ impl PartialEq for NetworkCommunicator {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+
     use tokio::{net::TcpListener, spawn, sync::oneshot};
 
     use super::*;
 
-    async fn run_test_server(shutdown_rx: oneshot::Receiver<()>) {
-        let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+    async fn run_test_server(shutdown_rx: oneshot::Receiver<()>) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
         let _ = spawn(async move {
             tokio::select! {
                 _ = async {
@@ -87,14 +97,16 @@ mod tests {
                 }
             }
         });
+
+        addr
     }
 
     #[tokio::test]
     async fn test_display_trait() {
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        run_test_server(shutdown_rx).await;
+        let addr = run_test_server(shutdown_rx).await;
 
-        let comm = NetworkCommunicator::new("127.0.0.1:8080")
+        let comm = NetworkCommunicator::new(&addr.to_string())
             .await
             .expect("should construct");
         //tests Display trait
@@ -105,9 +117,9 @@ mod tests {
     #[tokio::test]
     async fn test_send_receive() {
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        run_test_server(shutdown_rx).await;
+        let addr = run_test_server(shutdown_rx).await;
 
-        let comm = NetworkCommunicator::new("127.0.0.1:8080")
+        let comm = NetworkCommunicator::new(&addr.to_string())
             .await
             .expect("should construct");
 

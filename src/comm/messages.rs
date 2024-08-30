@@ -1,6 +1,6 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use flowrs_package::flow_package::package::Type;
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 use super::{
     communication::{CommWrapper, NodeCommunicator},
@@ -22,12 +22,17 @@ impl fmt::Display for MessageError {
 }
 
 #[derive(PartialEq)]
-pub enum Message {
+pub enum Message<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     StartExecution,
     StopExecution,
-    SetupCommunication(CommWrapper),
+    SetupCommunication(CommWrapper<D>),
     Debug(String),
-    Data(DataWrapper),
+    Data(DataWrapper<D>),
 }
 
 pub const START_EXECUTION: &str = "[[MESSAGE]: StartExecution]";
@@ -48,7 +53,12 @@ const PATTERNS: &[&str] = &[
     SETUP_COMMUNICATION_TYPE,
 ];
 
-impl fmt::Debug for Message {
+impl<D> fmt::Debug for Message<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Message::StartExecution => write!(f, "{}", START_EXECUTION),
@@ -68,7 +78,12 @@ impl fmt::Debug for Message {
     }
 }
 
-impl fmt::Display for Message {
+impl<D> fmt::Display for Message<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Message::StartExecution => write!(f, "{}", START_EXECUTION),
@@ -88,7 +103,12 @@ impl fmt::Display for Message {
     }
 }
 
-impl Message {
+impl<D> Message<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+{
     // use aho_corasick crate to match string prefix, see https://stackoverflow.com/a/64322185
     fn aho_corasick_match<T: AsRef<[u8]>>(ac: &AhoCorasick, v: T) -> Option<&'static str> {
         ac.find(&v).map(|m| PATTERNS[m.pattern()])
@@ -103,7 +123,9 @@ impl Message {
             Some(START_EXECUTION) => Some(Self::StartExecution),
             Some(STOP_EXECUTION) => Some(Self::StopExecution),
             Some(DEBUG) => Some(Self::Debug(s.replacen(DEBUG, "", 1))),
-            Some(DATA) => Some(Self::Data(DataWrapper::parse(s.replacen(DEBUG, "", 1)))),
+            Some(DATA) => DataWrapper::parse(s.replacen(DATA, "", 1))
+                .ok()
+                .map(Self::Data),
             Some(SETUP_COMMUNICATION_PREFIX) => {
                 let comm_start = s.find(SETUP_COMMUNICATION_COMM)? + SETUP_COMMUNICATION_COMM.len();
                 let comm_end = s.find(SETUP_COMMUNICATION_TYPE)?;
@@ -155,20 +177,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_str() {
-        if let Some(start_msg) = Message::from_str(START_EXECUTION) {
+        if let Some(start_msg) = Message::<u32>::from_str(START_EXECUTION) {
             assert_eq!(start_msg, Message::StartExecution)
         }
-        if let Some(stop_msg) = Message::from_str(STOP_EXECUTION) {
+        if let Some(stop_msg) = Message::<u32>::from_str(STOP_EXECUTION) {
             assert_eq!(stop_msg, Message::StopExecution)
         }
-        if let Some(debug_msg) = Message::from_str(DEBUG) {
+        if let Some(debug_msg) = Message::<u32>::from_str(DEBUG) {
             assert_eq!(debug_msg, Message::Debug("".to_string()))
         }
         // if let Some(data_msg) = Message::from_str(DATA) {
         //     assert_eq!(data_msg, Message::Data(DataWrapper {}))
         // }
-        let comm =
-            NodeCommunicator::ThreadComm(ThreadCommunicator::new().expect("should construct"));
+        let comm = NodeCommunicator::ThreadComm(
+            ThreadCommunicator::<u32>::new().expect("should construct"),
+        );
         let node_type = serde_json::from_str(TYPE_JSON).expect("should deserialize");
         let comm_wrapper = CommWrapper {
             communicator: comm,
@@ -182,7 +205,7 @@ mod tests {
             SETUP_COMMUNICATION_TYPE,
             serde_json::to_string(&(comm_wrapper.node_type)).expect("should serialize"),
         );
-        if let Some(setup_communication_msg) = Message::from_str(&format_str) {
+        if let Some(setup_communication_msg) = Message::<u32>::from_str(&format_str) {
             assert_eq!(
                 setup_communication_msg,
                 Message::SetupCommunication(comm_wrapper)

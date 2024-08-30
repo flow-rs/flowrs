@@ -5,7 +5,7 @@ fn main() {
     'outer: loop {
         let mut input = String::new();
         match stdin().read_line(&mut input) {
-            Ok(_n) => match comm::messages::Message::from_str(&input) {
+            Ok(_n) => match comm::messages::Message::<String>::from_str(&input) {
                 Some(msg) => {
                     let output = format!("{:?}\n", msg);
                     match msg {

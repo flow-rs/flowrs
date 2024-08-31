@@ -11,7 +11,7 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::comm::messages::Message;
+use crate::{comm::messages::Message, exec::execution_mode::ExecutionMode};
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -76,6 +76,12 @@ pub trait UpdateController {
 /// Trait that has to be implemented by any node.
 /// Contains methods for each state in the lifecycle of a node.
 pub trait Node: Send {
+    /// This method changed the current execution mode of the node
+    fn set_execution_mode(&mut self, mode: ExecutionMode);
+
+    /// This method retrieves the current execution mode of the node
+    fn get_execution_mode(&self) -> ExecutionMode;
+
     /// This method is called for node initialization.
     fn on_init(&self) -> Result<(), InitError> {
         Ok(())

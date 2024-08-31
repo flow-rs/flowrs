@@ -68,7 +68,47 @@ pub trait RuntimeNode: Node + RuntimeConnectable {}
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    use crate::comm::{
+        network_communicator::NetworkCommunicator, thread_communicator::ThreadCommunicator,
+    };
+
+    #[tokio::test]
+    async fn test_send() {
+        // Create an edge
+        let communicator =
+            ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
+        let mut edge = Edge::new(Box::new(communicator));
+
+        // Send something
+        let test_data = "Hello World!".to_string();
+        let res = edge.send(test_data).await;
+
+        // Assert Result
+        assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_next() {
+        // Create an edge
+        let communicator =
+            ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
+        let mut edge = Edge::new(Box::new(communicator));
+
+        // Send something
+        let test_data = "Hello World!".to_string();
+        let _ = edge.send(test_data.clone()).await;
+
+        // Try to receive the message
+        let res = edge.next().await;
+
+        // Assert result
+        assert!(res.is_ok());
+        let msg = res.unwrap();
+        assert_eq!(msg, test_data);
+    }
+}
 
 // /// An edge defines the connection between two nodes.
 // /// It is implemented using a [`std::sync::mpsc::channel`].

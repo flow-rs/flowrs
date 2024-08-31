@@ -70,15 +70,32 @@ impl PartialEq for NetworkCommunicator {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
+    use std::{error::Error, net::SocketAddr};
 
     use tokio::{net::TcpListener, spawn, sync::oneshot};
 
     use super::*;
 
-    async fn run_test_server(shutdown_rx: oneshot::Receiver<()>) -> SocketAddr {
+    struct TestServerShutdownGuard {
+        shutdown_tx: Option<oneshot::Sender<()>>,
+    }
+
+    impl Drop for TestServerShutdownGuard {
+        fn drop(&mut self) {
+            if let Some(shutdown_tx) = self.shutdown_tx.take() {
+                let _ = shutdown_tx.send(());
+            }
+        }
+    }
+
+    async fn run_test_server() -> (SocketAddr, TestServerShutdownGuard) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let guard = TestServerShutdownGuard {
+            shutdown_tx: Some(shutdown_tx),
+        };
+
         let _ = spawn(async move {
             tokio::select! {
                 _ = async {
@@ -98,31 +115,42 @@ mod tests {
             }
         });
 
-        addr
+        (addr, guard)
     }
 
     #[tokio::test]
     async fn test_display_trait() {
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        let addr = run_test_server(shutdown_rx).await;
+        let (addr, _guard) = run_test_server().await;
 
         let comm = NetworkCommunicator::new(&addr.to_string())
             .await
             .expect("should construct");
         //tests Display trait
         assert_eq!(comm.to_string(), format!("{}", comm));
-        shutdown_tx.send(()).unwrap();
     }
 
     #[tokio::test]
     async fn test_send_receive() {
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        let addr = run_test_server(shutdown_rx).await;
+        let (addr, _guard) = run_test_server().await;
 
-        let comm = NetworkCommunicator::new(&addr.to_string())
+        let mut comm = NetworkCommunicator::new(&addr.to_string())
             .await
             .expect("should construct");
 
-        shutdown_tx.send(()).unwrap();
+        //Send something
+        let test_data: String = "Test Data\n".to_string();
+        let msg = Message::<String>::Debug(test_data.clone());
+        let send_res = comm.send(msg).await;
+
+        assert!(send_res.is_ok());
+
+        //Try to receive
+        let recv_res: Result<Message<String>, Box<dyn Error>> = comm.receive().await;
+        assert!(recv_res.is_ok());
+        let received_msg: Message<String> = recv_res.unwrap();
+        match received_msg {
+            Message::Debug(data) => assert_eq!(data, test_data),
+            _ => panic!("Received message is not of type Debug"),
+        }
     }
 }

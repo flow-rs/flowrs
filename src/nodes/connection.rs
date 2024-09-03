@@ -2,6 +2,8 @@ use std::fmt;
 use std::str::FromStr;
 use std::{any::Any, rc::Rc};
 
+use futures::executor::block_on;
+
 use crate::comm::communication::Communicator;
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
@@ -27,18 +29,16 @@ where
     }
 
     // Send a single data point over the edge
-    pub async fn send(&mut self, data: D) -> Result<(), SendError> {
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
         let data_wrapper = DataWrapper::<D>::new(data);
         let msg = Message::<D>::Data(data_wrapper);
-        self.communicator
-            .send(msg)
-            .await
+        block_on(self.communicator.send(msg))
             .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e))))
     }
 
     // Receive a single data point over the edge
-    pub async fn next(&mut self) -> Result<D, ReceiveError<D>> {
-        let res = self.communicator.receive().await;
+    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
+        let res = block_on(self.communicator.receive());
         match res {
             Ok(msg) => match msg {
                 Message::Data(data_wrapper) => Ok(data_wrapper.get_data()),
@@ -95,7 +95,7 @@ mod test {
 
         // Send something
         let test_data = "Hello World!".to_string();
-        let res = edge.send(test_data).await;
+        let res = edge.send(test_data);
 
         // Assert Result
         assert!(res.is_ok());
@@ -110,10 +110,10 @@ mod test {
 
         // Send something
         let test_data = "Hello World!".to_string();
-        let _ = edge.send(test_data.clone()).await;
+        let _ = edge.send(test_data.clone());
 
         // Try to receive the message
-        let res = edge.next().await;
+        let res = edge.next();
 
         // Assert result
         assert!(res.is_ok());

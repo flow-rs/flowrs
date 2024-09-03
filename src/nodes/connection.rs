@@ -85,7 +85,8 @@ pub trait RuntimeConnectable {
 }
 
 /// A [Node] that implements the [RuntimeConnectable] trait.
-pub trait RuntimeNode: Node + RuntimeConnectable {}
+//pub trait RuntimeNode: Node + RuntimeConnectable {}
+pub trait RuntimeNode: Node {}
 
 impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
 

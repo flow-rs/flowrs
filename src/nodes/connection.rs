@@ -2,12 +2,11 @@ use std::fmt;
 use std::str::FromStr;
 use std::{any::Any, rc::Rc};
 
-use futures::executor::block_on;
-
-use crate::comm::communication::Communicator;
+use crate::comm::communication::{Communicator, NodeCommunicator};
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
 use crate::node::{Node, ReceiveError, SendError};
+use futures::executor::block_on;
 
 pub struct Edge<D>
 where
@@ -15,7 +14,7 @@ where
     D: fmt::Debug,
     D: FromStr,
 {
-    communicator: Box<dyn Communicator<D>>,
+    communicator: NodeCommunicator<D>,
 }
 
 impl<D> Edge<D>
@@ -23,8 +22,9 @@ where
     D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
-    pub fn new(communicator: Box<dyn Communicator<D>>) -> Self {
+    pub fn new(communicator: NodeCommunicator<D>) -> Self {
         Self { communicator }
     }
 
@@ -32,13 +32,20 @@ where
     pub fn send(&mut self, data: D) -> Result<(), SendError> {
         let data_wrapper = DataWrapper::<D>::new(data);
         let msg = Message::<D>::Data(data_wrapper);
-        block_on(self.communicator.send(msg))
-            .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e))))
+        match &mut self.communicator {
+            NodeCommunicator::ThreadComm(communicator) => block_on(communicator.send(msg))
+                .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+            NodeCommunicator::NetworkComm(communicator) => block_on(communicator.send(msg))
+                .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+        }
     }
 
     // Receive a single data point over the edge
     pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
-        let res = block_on(self.communicator.receive());
+        let res = match &mut self.communicator {
+            NodeCommunicator::ThreadComm(communicator) => block_on(communicator.receive()),
+            NodeCommunicator::NetworkComm(communicator) => block_on(communicator.receive()),
+        };
         match res {
             Ok(msg) => match msg {
                 Message::Data(data_wrapper) => Ok(data_wrapper.get_data()),
@@ -50,7 +57,10 @@ where
 
     // Try to receive any message over the Edge. Use this function to retrieve control messages
     pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
-        let res = self.communicator.try_receive().await;
+        let res = match &mut self.communicator {
+            NodeCommunicator::ThreadComm(communicator) => communicator.try_receive().await,
+            NodeCommunicator::NetworkComm(communicator) => communicator.try_receive().await,
+        };
         match res {
             Ok(msg_option) => match msg_option {
                 Some(msg) => Ok(Some(msg)),
@@ -82,16 +92,14 @@ impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::comm::{
-        network_communicator::NetworkCommunicator, thread_communicator::ThreadCommunicator,
-    };
+    use crate::comm::thread_communicator::ThreadCommunicator;
 
     #[tokio::test]
     async fn test_send() {
         // Create an edge
         let communicator =
             ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
-        let mut edge = Edge::new(Box::new(communicator));
+        let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
 
         // Send something
         let test_data = "Hello World!".to_string();
@@ -106,7 +114,7 @@ mod test {
         // Create an edge
         let communicator =
             ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
-        let mut edge = Edge::new(Box::new(communicator));
+        let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
 
         // Send something
         let test_data = "Hello World!".to_string();

@@ -2,7 +2,10 @@ use std::{error::Error, fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 use async_trait::async_trait;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::{
+    broadcast::error::RecvError,
+    mpsc::{channel, Receiver, Sender},
+};
 
 use super::communication::Communicator;
 
@@ -69,14 +72,24 @@ where
     D: 'static,
 {
     async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self.sender.send(message).await.map_err(|e| Box::new(e))?)
+        self.sender
+            .send(message)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
-        Ok(self
-            .receiver
+        self.receiver
+            .recv()
+            .await
+            .ok_or_else(|| Box::new(RecvError::Closed) as Box<dyn Error>)
+    }
+
+    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+        self.receiver
             .try_recv()
-            .map_err(|e| Box::new(e) as Box<dyn Error>)?)
+            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map(|res| Some(res))
     }
 }
 
@@ -97,7 +110,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_receive() {
         let mut communicator = ThreadCommunicator::<u32>::new().unwrap();
-        let res = communicator.receive().await;
+        let res = communicator.try_receive().await;
         assert!(
             res.is_err(),
             "receive() should return an error when the channel is empty."
@@ -189,19 +202,19 @@ mod tests {
                 while start_time.elapsed() < timeout {
                     let res = {
                         let mut com = communicator_clone_3.lock().unwrap();
-                        com.receive().await
+                        com.try_receive().await
                     };
 
                     if let Ok(message) = res {
                         match message {
-                            Message::StartExecution => {
+                            Some(Message::StartExecution) => {
                                 msg_1_counter += 1;
                                 println!("received msg1");
                                 if msg_1_counter + msg_2_counter == 6 {
                                     break;
                                 }
                             }
-                            Message::StopExecution => {
+                            Some(Message::StopExecution) => {
                                 msg_2_counter += 1;
                                 println!("received msg2");
                                 if msg_1_counter + msg_2_counter == 6 {

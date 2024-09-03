@@ -22,6 +22,7 @@ where
 {
     async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>>;
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>>;
+    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>>;
 }
 
 /// NodeCommunicator ==============================================================================

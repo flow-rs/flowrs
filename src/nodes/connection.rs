@@ -47,6 +47,18 @@ where
             Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(format!("{}", err)))),
         }
     }
+
+    // Try to receive any message over the Edge. Use this function to retrieve control messages
+    pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
+        let res = self.communicator.try_receive().await;
+        match res {
+            Ok(msg_option) => match msg_option {
+                Some(msg) => Ok(Some(msg)),
+                None => Ok(None),
+            },
+            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(format!("{}", err)))),
+        }
+    }
 }
 
 /// A node's input implemented as an [Edge] type.

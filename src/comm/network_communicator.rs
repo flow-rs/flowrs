@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{fmt, str::FromStr};
+use std::{fmt, pin::Pin, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
@@ -47,6 +47,22 @@ where
             Some(message) => Ok(message),
             None => Err(Box::new(MessageError::CouldNotParse(line))),
         }
+    }
+
+    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+        let mut line = String::new();
+        let reader = Pin::new(&mut self.stream);
+        //buffer of size = 1 is enough to peak if a new message is available
+        let mut buffer = [0, 1];
+        // Using peek() to find available data. This is blocking but does not consume data
+        // and has little overhead
+        if let Ok(available) = reader.get_ref().peek(&mut buffer).await {
+            if available > 0 {
+                self.stream.read_line(&mut line).await?;
+                return Ok(Message::from_str(&line));
+            }
+        }
+        Ok(None)
     }
 }
 

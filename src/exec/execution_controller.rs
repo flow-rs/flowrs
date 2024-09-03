@@ -1,11 +1,11 @@
 use crate::exec::execution_state::ExecutionState;
 
+#[derive(Clone)]
 pub struct ExecutionController {
     state: ExecutionState,
     cancellation_requested: bool,
     change_notifier: std::sync::mpsc::Sender<bool>,
 }
-
 
 impl ExecutionController {
     pub fn new(change_notifier: std::sync::mpsc::Sender<bool>) -> Self {

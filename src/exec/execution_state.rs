@@ -1,4 +1,3 @@
-
 use std::fmt;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -6,8 +5,9 @@ pub enum ExecutionState {
     Ready,
     Sleeping,
     Running,
+    Initialized,
+    Shutdown,
 }
-
 
 impl fmt::Display for ExecutionState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -15,6 +15,8 @@ impl fmt::Display for ExecutionState {
             ExecutionState::Ready => write!(f, "Ready"),
             ExecutionState::Sleeping => write!(f, "Sleeping"),
             ExecutionState::Running => write!(f, "Running"),
+            ExecutionState::Initialized => write!(f, "Initialized"),
+            ExecutionState::Shutdown => write!(f, "Shutdown"),
         }
     }
 }

@@ -1,8 +1,5 @@
 use anyhow::{Context, Result};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
 
 use crate::{
     connection::RuntimeNode, node::UpdateController, nodes::node_description::NodeDescription,
@@ -11,7 +8,7 @@ use crate::{
 pub type NodeId = u128;
 
 pub struct Flow {
-    nodes: Vec<(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)>,
+    nodes: Vec<(NodeId, Box<dyn RuntimeNode>)>,
     id_to_node_idx: HashMap<NodeId, usize>,
     id_to_desc: HashMap<NodeId, NodeDescription>,
     id_counter: NodeId,
@@ -27,7 +24,7 @@ impl Flow {
         }
     }
 
-    pub fn new(nodes: HashMap<NodeId, Arc<Mutex<dyn RuntimeNode + Send>>>) -> Self {
+    pub fn new(nodes: HashMap<NodeId, Box<dyn RuntimeNode>>) -> Self {
         let mut obj = Self {
             nodes: Vec::new(),
             id_to_node_idx: HashMap::new(),
@@ -78,7 +75,7 @@ impl Flow {
         T: RuntimeNode + 'static,
     {
         if !self.id_to_node_idx.contains_key(&id) {
-            self.nodes.push((id, Arc::new(Mutex::new(node))));
+            self.nodes.push((id, Box::new(node)));
             self.id_to_node_idx.insert(id, self.nodes.len() - 1);
             self.id_to_desc.insert(id, desc);
         }
@@ -86,16 +83,13 @@ impl Flow {
         id
     }
 
-    pub fn node_by_index(
-        &self,
-        index: usize,
-    ) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)> {
-        self.nodes.get(index)
+    pub fn node_by_index(&mut self, index: usize) -> Option<&mut (NodeId, Box<dyn RuntimeNode>)> {
+        self.nodes.get_mut(index)
     }
 
-    pub fn node_by_id(&self, id: NodeId) -> Option<&(NodeId, Arc<Mutex<dyn RuntimeNode + Send>>)> {
+    pub fn node_by_id(&mut self, id: NodeId) -> Option<&(NodeId, Box<dyn RuntimeNode>)> {
         if let Some(idx) = self.id_to_node_idx.get(&id) {
-            return self.node_by_index(*idx);
+            return self.node_by_index(*idx).map(|x| &*x);
         }
         None
     }
@@ -107,9 +101,7 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn init_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1.lock()
-                .unwrap()
-                .on_init()
+            n.1.on_init()
                 .context(format!("Unable to init node with ID {}.", n.0))?;
         }
         Ok(())
@@ -118,9 +110,7 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn shutdown_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1.lock()
-                .unwrap()
-                .on_shutdown()
+            n.1.on_shutdown()
                 .context(format!("Unable to shutdown node with ID {}.", n.0))?;
         }
         Ok(())
@@ -129,19 +119,17 @@ impl Flow {
     #[tracing::instrument(skip_all)]
     pub fn ready_all(&self) -> Result<()> {
         for n in &self.nodes {
-            n.1.lock()
-                .unwrap()
-                .on_ready()
+            n.1.on_ready()
                 .context(format!("Unable to make node with ID {}.", n.0))?;
         }
         Ok(())
     }
 
-    pub fn get_update_controllers(&self) -> Vec<Arc<Mutex<dyn UpdateController>>> {
-        let mut update_controllers = Vec::new();
+    pub fn get_update_controllers(&self) -> Vec<Box<dyn UpdateController>> {
+        let mut update_controllers: Vec<Box<dyn UpdateController>> = Vec::new();
         for n in &self.nodes {
-            if let Some(us) = n.1.lock().unwrap().update_controller() {
-                update_controllers.push(us.clone());
+            if let Some(us) = n.1.update_controller() {
+                update_controllers.push(us);
             }
         }
         update_controllers

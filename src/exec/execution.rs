@@ -1,9 +1,4 @@
-use std::{
-    env,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::{env, thread, time::Duration};
 
 use anyhow::{Context as AnyhowContext, Result};
 use metrics::increment_counter;
@@ -62,7 +57,7 @@ pub trait Executor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop;
 
-    fn controller(&self) -> Arc<Mutex<ExecutionController>>;
+    fn controller(&self) -> ExecutionController;
 }
 
 #[derive(Error, Debug)]
@@ -72,16 +67,14 @@ pub enum ExecutionError {
 }
 
 pub struct StandardExecutor {
-    controller: Arc<Mutex<ExecutionController>>,
+    controller: ExecutionController,
     observer: ChangeObserver,
 }
 
 impl StandardExecutor {
     pub fn new(observer: ChangeObserver) -> Self {
         Self {
-            controller: Arc::new(Mutex::new(ExecutionController::new(
-                observer.notifier.clone(),
-            ))),
+            controller: ExecutionController::new(observer.notifier.clone()),
             observer,
         }
     }
@@ -89,7 +82,7 @@ impl StandardExecutor {
     #[tracing::instrument(skip_all)]
     fn run_update_loop<S, U>(
         &mut self,
-        flow: &Flow,
+        flow: &mut Flow,
         mut scheduler: S,
         mut node_updater: U,
     ) -> Result<(), ExecutionError>
@@ -97,16 +90,13 @@ impl StandardExecutor {
         S: Scheduler,
         U: NodeUpdater,
     {
-        self.controller
-            .lock()
-            .unwrap()
-            .set_state(ExecutionState::Running);
+        self.controller.set_state(ExecutionState::Running);
 
         let mut info = SchedulingInfo::new(flow.num_nodes());
 
-        let update_controllers = flow.get_update_controllers();
+        let mut update_controllers = flow.get_update_controllers();
 
-        while !self.controller.lock().unwrap().cancellation_requested() {
+        while !self.controller.cancellation_requested() {
             increment_counter!("flowrs.executions");
             // Run an epoch (an update of each node).
             scheduler.restart_epoch(&mut info);
@@ -116,11 +106,33 @@ impl StandardExecutor {
                 let node_idx = scheduler.get_next_node_idx();
                 //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
-                let node = flow.node_by_index(node_idx);
-                if let Some(n) = node {
-                    let description = flow.node_description_by_id(n.0);
-                    node_updater.update(n.clone(), description.cloned());
+                let (node_description, node_id);
+                {
+                    // Borrow `flow` immutably to get the description.
+                    if let Some(n) = flow.node_by_index(node_idx) {
+                        node_id = n.0;
+                        node_description = flow.node_description_by_id(node_id).cloned();
+                    } else {
+                        continue;
+                    }
                 }
+
+                // Now, borrow `flow` mutably to update the node.
+                if let Some(n) = flow.node_by_index(node_idx) {
+                    if let Some(description) = node_description {
+                        node_updater.update((n.0, &mut n.1), Some(description));
+                    } else {
+                        node_updater.update((n.0, &mut n.1), None);
+                    }
+                }
+
+                // let node = flow.node_by_index(node_idx);
+
+                // if let Some(n) = node {
+                //     let description = flow.node_description_by_id(n.0);
+                //     let mut n1 = &mut *n.1;
+                //     node_updater.update((n.0, &n.1), description.cloned());
+                // }
             }
 
             // Sleep if necessary.
@@ -130,17 +142,11 @@ impl StandardExecutor {
                     SleepMode::None => {}
 
                     SleepMode::Reactive => {
-                        self.controller
-                            .lock()
-                            .unwrap()
-                            .set_state(ExecutionState::Sleeping);
+                        self.controller.set_state(ExecutionState::Sleeping);
 
                         self.observer.wait_for_changes();
 
-                        self.controller
-                            .lock()
-                            .unwrap()
-                            .set_state(ExecutionState::Running);
+                        self.controller.set_state(ExecutionState::Running);
                     }
 
                     SleepMode::FixedFrequency(fps) => {
@@ -175,25 +181,25 @@ impl StandardExecutor {
         }
 
         // Cancel long-running node updates.
-        update_controllers
-            .iter()
-            .for_each(|uc| uc.lock().unwrap().cancel());
+        update_controllers.iter_mut().for_each(|uc| uc.cancel());
 
         // Drop node updater which destroys all workers.
         drop(node_updater);
 
         // All done.
-        self.controller
-            .lock()
-            .unwrap()
-            .set_state(ExecutionState::Ready);
+        self.controller.set_state(ExecutionState::Ready);
 
         Ok(())
     }
 }
 
 impl Executor for StandardExecutor {
-    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<(), anyhow::Error>
+    fn run<S, U>(
+        &mut self,
+        mut flow: Flow,
+        scheduler: S,
+        node_updater: U,
+    ) -> Result<(), anyhow::Error>
     where
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop,
@@ -211,7 +217,7 @@ impl Executor for StandardExecutor {
             flow.ready_all()
                 .context(format!("Unable to make all nodes ready."))?;
 
-            self.run_update_loop(&flow, scheduler, node_updater)?;
+            self.run_update_loop(&mut flow, scheduler, node_updater)?;
 
             flow.shutdown_all()
                 .context(format!("Unable to shutdown all nodes"))?;
@@ -297,7 +303,7 @@ impl Executor for StandardExecutor {
         }
     }
 
-    fn controller(&self) -> Arc<Mutex<ExecutionController>> {
+    fn controller(&self) -> ExecutionController {
         self.controller.clone()
     }
 }

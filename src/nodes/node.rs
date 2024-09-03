@@ -4,14 +4,17 @@ use std::{
     collections::HashMap,
     fmt,
     str::FromStr,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc, Mutex,
-    },
+    sync::mpsc::{channel, Receiver, Sender},
 };
 use thiserror::Error;
+use tokio::runtime::Handle;
 
-use crate::{comm::messages::Message, exec::execution_mode::ExecutionMode};
+use crate::{
+    comm::messages::Message,
+    exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
+};
+
+use super::connection::Edge;
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -75,12 +78,16 @@ pub trait UpdateController {
 
 /// Trait that has to be implemented by any node.
 /// Contains methods for each state in the lifecycle of a node.
-pub trait Node: Send {
-    /// This method changed the current execution mode of the node
-    fn set_execution_mode(&mut self, mode: ExecutionMode);
+pub trait Node {
+    /// This method changes the current execution mode of the node
+    fn set_execution_mode(&mut self, _mode: ExecutionMode) -> ExecutionMode {
+        ExecutionMode::Continuous
+    }
 
     /// This method retrieves the current execution mode of the node
-    fn get_execution_mode(&self) -> ExecutionMode;
+    fn get_execution_mode(&self) -> ExecutionMode {
+        ExecutionMode::Continuous
+    }
 
     /// This method is called for node initialization.
     fn on_init(&self) -> Result<(), InitError> {
@@ -105,7 +112,115 @@ pub trait Node: Send {
     /// Some nodes might have a long-running task in their [`Node::on_update`] method.
     /// In this case, this method can return an [`UpdateController`] instance which can
     /// be used for cancelling the update.
-    fn update_controller(&self) -> Option<Arc<Mutex<dyn UpdateController>>> {
+    fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
+        None
+    }
+}
+
+pub struct ExecutionNode<N: Node> {
+    execution_mode: ExecutionMode,
+    execution_state: ExecutionState,
+    node: N,
+    control_edge: Edge<String>,
+}
+
+impl<N: Node> ExecutionNode<N> {
+    pub fn new(node: N, execution_mode: ExecutionMode, control_edge: Edge<String>) -> Self {
+        ExecutionNode {
+            node: node,
+            execution_mode: execution_mode,
+            execution_state: ExecutionState::Initialized,
+            control_edge: control_edge,
+        }
+    }
+
+    pub fn on_message(&mut self, msg: Message<String>) {
+        match msg {
+            Message::SetupCommunication(_comm_wrapper) => todo!(),
+            Message::StartExecution => todo!(),
+            Message::StopExecution => self.execution_state = ExecutionState::Shutdown,
+            Message::Debug(_debug_string) => todo!(),
+            Message::Data(_) => (), //ignore data messages
+        }
+    }
+}
+
+impl<N: Node> Node for ExecutionNode<N> {
+    fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
+        self.execution_mode = mode.clone();
+        mode
+    }
+
+    fn on_update(&mut self) -> Result<(), UpdateError> {
+        match self.execution_state {
+            ExecutionState::Ready => {
+                self.execution_state = ExecutionState::Running;
+                let mut res = Ok(());
+                loop {
+                    // Check for incoming control messages
+                    match Handle::current().block_on(self.control_edge.try_message()) {
+                        Ok(Some(message)) => self.on_message(message),
+                        Ok(None) => (), // No control messages, do nothing
+                        Err(err) => {
+                            return Err(UpdateError::RecvError {
+                                message: err.to_string(),
+                            })
+                        }
+                    }
+
+                    // Shut down Execution if Stop-Message was received
+                    if self.execution_state == ExecutionState::Shutdown {
+                        self.on_shutdown();
+                        break;
+                    }
+
+                    // Execute Step
+                    let execution_res = self.node.on_update();
+
+                    match self.execution_mode {
+                        ExecutionMode::Synchronized => {
+                            self.execution_state = ExecutionState::Ready;
+                            res = execution_res;
+                            break;
+                        }
+                        ExecutionMode::Continuous => {
+                            res = execution_res;
+                            continue;
+                        }
+                    }
+                }
+                res
+            }
+            ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
+                message: "The node is Sleeping".to_string(),
+            }),
+            ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
+                message: "The node is Running".to_string(),
+            }),
+            ExecutionState::Initialized => Err(UpdateError::NotReadyError {
+                message: "The node is not ready".to_string(),
+            }),
+            ExecutionState::Shutdown => Ok(()),
+        }
+    }
+
+    fn get_execution_mode(&self) -> ExecutionMode {
+        ExecutionMode::Continuous
+    }
+
+    fn on_init(&self) -> Result<(), InitError> {
+        Ok(())
+    }
+
+    fn on_ready(&self) -> Result<(), ReadyError> {
+        Ok(())
+    }
+
+    fn on_shutdown(&self) -> Result<(), ShutdownError> {
+        Ok(())
+    }
+
+    fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
         None
     }
 }
@@ -184,6 +299,12 @@ pub enum UpdateError {
 
     #[error("RecvError error. Message: {message:?}")]
     RecvError { message: String },
+
+    #[error("NotReadyError error. Message: {message:?}")]
+    NotReadyError { message: String },
+
+    #[error("AlreadyRunningError error. Message: {message:?}")]
+    AlreadyRunningError { message: String },
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),

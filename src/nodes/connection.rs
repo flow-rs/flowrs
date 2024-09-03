@@ -88,7 +88,8 @@ pub trait RuntimeConnectable {
 //pub trait RuntimeNode: Node + RuntimeConnectable {}
 pub trait RuntimeNode: Node {}
 
-impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
+//impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
+impl<T> RuntimeNode for T where T: Node {}
 
 #[cfg(test)]
 mod test {

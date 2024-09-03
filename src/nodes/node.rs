@@ -90,17 +90,17 @@ pub trait Node {
     }
 
     /// This method is called for node initialization.
-    fn on_init(&self) -> Result<(), InitError> {
+    fn on_init(&mut self) -> Result<(), InitError> {
         Ok(())
     }
 
     /// This method is called when all nodes in the flow are initialized.
-    fn on_ready(&self) -> Result<(), ReadyError> {
+    fn on_ready(&mut self) -> Result<(), ReadyError> {
         Ok(())
     }
 
     /// This method is called when flow execution ends.
-    fn on_shutdown(&self) -> Result<(), ShutdownError> {
+    fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
         Ok(())
     }
 
@@ -208,15 +208,15 @@ impl<N: Node> Node for ExecutionNode<N> {
         ExecutionMode::Continuous
     }
 
-    fn on_init(&self) -> Result<(), InitError> {
+    fn on_init(&mut self) -> Result<(), InitError> {
         Ok(())
     }
 
-    fn on_ready(&self) -> Result<(), ReadyError> {
+    fn on_ready(&mut self) -> Result<(), ReadyError> {
         Ok(())
     }
 
-    fn on_shutdown(&self) -> Result<(), ShutdownError> {
+    fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
         Ok(())
     }
 

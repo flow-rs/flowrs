@@ -99,8 +99,8 @@ impl Flow {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn init_all(&self) -> Result<()> {
-        for n in &self.nodes {
+    pub fn init_all(&mut self) -> Result<()> {
+        for n in &mut self.nodes {
             n.1.on_init()
                 .context(format!("Unable to init node with ID {}.", n.0))?;
         }
@@ -108,8 +108,8 @@ impl Flow {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn shutdown_all(&self) -> Result<()> {
-        for n in &self.nodes {
+    pub fn shutdown_all(&mut self) -> Result<()> {
+        for n in &mut self.nodes {
             n.1.on_shutdown()
                 .context(format!("Unable to shutdown node with ID {}.", n.0))?;
         }
@@ -117,8 +117,8 @@ impl Flow {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn ready_all(&self) -> Result<()> {
-        for n in &self.nodes {
+    pub fn ready_all(&mut self) -> Result<()> {
+        for n in &mut self.nodes {
             n.1.on_ready()
                 .context(format!("Unable to make node with ID {}.", n.0))?;
         }

@@ -130,6 +130,93 @@ where
     }
 }
 
+#[async_trait]
+impl<D> Communicator<D> for NodeCommunicator<D>
+where
+    D: Clone,
+    D: fmt::Debug,
+    D: FromStr,
+    D: Send,
+    D: 'static,
+{
+    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => comm.send(message).await,
+            NodeCommunicator::NetworkComm(comm) => comm.send(message).await,
+        }
+    }
+
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => comm.receive().await,
+            NodeCommunicator::NetworkComm(comm) => comm.receive().await,
+        }
+    }
+
+    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => comm.try_receive().await,
+            NodeCommunicator::NetworkComm(comm) => comm.try_receive().await,
+        }
+    }
+
+    fn clone_send(&self) -> Self
+    where
+        Self: Sized,
+    {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => NodeCommunicator::ThreadComm(comm.clone_send()),
+            NodeCommunicator::NetworkComm(comm) => NodeCommunicator::NetworkComm(
+                <NetworkCommunicator as Communicator<D>>::clone_send(comm),
+            ),
+        }
+    }
+
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized,
+    {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => {
+                let new_comm = comm.move_recv()?;
+                Ok(NodeCommunicator::ThreadComm(new_comm))
+            }
+            NodeCommunicator::NetworkComm(comm) => {
+                let new_comm = <NetworkCommunicator as Communicator<D>>::move_recv(comm)?;
+                Ok(NodeCommunicator::NetworkComm(new_comm))
+            }
+        }
+    }
+
+    async fn connect_send(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => comm.connect_send(addr, port).await,
+            NodeCommunicator::NetworkComm(comm) => {
+                <NetworkCommunicator as Communicator<D>>::connect_send::<'_, '_>(comm, addr, port)
+                    .await
+            }
+        }
+    }
+
+    async fn connect_recv(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            NodeCommunicator::ThreadComm(comm) => comm.connect_recv(addr, port).await,
+            NodeCommunicator::NetworkComm(comm) => {
+                <NetworkCommunicator as Communicator<D>>::connect_recv::<'_, '_>(comm, addr, port)
+                    .await
+            }
+        }
+    }
+}
+
 /// CommWrapper ===================================================================================
 #[derive(PartialEq, Debug)]
 pub struct CommWrapper<D>

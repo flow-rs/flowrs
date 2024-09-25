@@ -68,14 +68,19 @@ pub enum ExecutionError {
 
 pub struct StandardExecutor {
     controller: ExecutionController,
-    observer: ChangeObserver,
+    //observer: ChangeObserver,
 }
 
 impl StandardExecutor {
-    pub fn new(observer: ChangeObserver) -> Self {
+    // pub fn new(observer: ChangeObserver) -> Self {
+    //     Self {
+    //         controller: ExecutionController::new(observer.notifier.clone()),
+    //         observer,
+    //     }
+    // }
+    pub fn new() -> Self {
         Self {
-            controller: ExecutionController::new(observer.notifier.clone()),
-            observer,
+            controller: ExecutionController::new(),
         }
     }
 
@@ -144,7 +149,7 @@ impl StandardExecutor {
                     SleepMode::Reactive => {
                         self.controller.set_state(ExecutionState::Sleeping);
 
-                        self.observer.wait_for_changes();
+                        //self.observer.wait_for_changes();
 
                         self.controller.set_state(ExecutionState::Running);
                     }

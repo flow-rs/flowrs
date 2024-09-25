@@ -23,6 +23,26 @@ where
     async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>>;
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>>;
     async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>>;
+
+    // Functions needed to seperate sending and receiving
+    fn clone_send(&self) -> Self
+    where
+        Self: Sized;
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized;
+
+    // Functions needed to connect sending and receiving parts
+    async fn connect_send(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>>;
+    async fn connect_recv(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 /// NodeCommunicator ==============================================================================

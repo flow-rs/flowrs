@@ -19,7 +19,7 @@ where
     D: FromStr,
 {
     sender: Sender<Message<D>>,
-    receiver: Receiver<Message<D>>,
+    receiver: Option<Receiver<Message<D>>>,
 }
 
 impl<D> ThreadCommunicator<D>
@@ -33,10 +33,24 @@ where
 
         Ok(ThreadCommunicator {
             sender: tx,
-            receiver: rx,
+            receiver: Some(rx),
         })
     }
 }
+
+// impl<D> Clone for ThreadCommunicator<D>
+// where
+//     D: Clone,
+//     D: fmt::Debug,
+//     D: FromStr,
+// {
+//     fn clone(&self) -> Self {
+//         Self {
+//             sender: self.sender.clone(),
+//             receiver: self.receiver.clone(),
+//         }
+//     }
+// }
 
 impl<D> fmt::Display for ThreadCommunicator<D>
 where
@@ -79,17 +93,73 @@ where
     }
 
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
-        self.receiver
+        // temporarily take the receiver from self
+        let mut receiver = self
+            .receiver
+            .take()
+            .expect("This communicator can only send but not receive");
+        // use the receiver
+        let result = receiver
             .recv()
             .await
-            .ok_or_else(|| Box::new(RecvError::Closed) as Box<dyn Error>)
+            .ok_or_else(|| Box::new(RecvError::Closed) as Box<dyn Error>);
+        //put back the receiver into self
+        self.receiver = Some(receiver);
+        result
     }
 
     async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
-        self.receiver
+        // temporarily take the receiver from self
+        let mut receiver = self
+            .receiver
+            .take()
+            .expect("This communicator can only send but not receive");
+        // use the receiver
+        let result = receiver
             .try_recv()
             .map_err(|e| Box::new(e) as Box<dyn Error>)
-            .map(|res| Some(res))
+            .map(|res| Some(res));
+        // put back the reveicer into self
+        self.receiver = Some(receiver);
+        result
+    }
+
+    fn clone_send(&self) -> Self
+    where
+        Self: Sized,
+    {
+        ThreadCommunicator {
+            sender: self.sender.clone(),
+            receiver: None,
+        }
+    }
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized,
+    {
+        if let Some(receiver) = self.receiver.take() {
+            Ok(ThreadCommunicator {
+                sender: self.sender.clone(),
+                receiver: Some(receiver),
+            })
+        } else {
+            Err("Receiver has already been moved".into())
+        }
+    }
+
+    async fn connect_send(
+        &mut self,
+        _addr: Option<String>,
+        _port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+    async fn connect_recv(
+        &mut self,
+        _addr: Option<String>,
+        _port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
     }
 }
 
@@ -105,7 +175,6 @@ mod tests {
     use tokio::sync::mpsc::error::TryRecvError;
 
     use super::*;
-    //use std::assert_matches::assert_matches;
 
     #[tokio::test]
     async fn test_empty_receive() {

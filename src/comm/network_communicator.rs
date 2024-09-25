@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use std::{fmt, pin::Pin, str::FromStr};
+use std::{fmt, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
 };
 
 use super::{communication::Communicator, messages::MessageError};
@@ -10,14 +10,17 @@ use crate::comm::messages::Message;
 
 #[derive(Debug)]
 pub struct NetworkCommunicator {
-    stream: BufReader<TcpStream>,
+    stream: Option<BufReader<TcpStream>>,
+    addr: Option<String>,
+    port: Option<u16>,
 }
 
 impl NetworkCommunicator {
-    pub async fn new(addr: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let stream = TcpStream::connect(addr).await?;
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(NetworkCommunicator {
-            stream: BufReader::new(stream),
+            stream: None,
+            addr: None,
+            port: None,
         })
     }
 }
@@ -32,17 +35,26 @@ where
     D: 'static,
 {
     async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
-        self.stream
-            .get_mut()
-            .write_all(message.to_string().as_bytes())
-            .await?;
-        self.stream.get_mut().flush().await?;
-        Ok(())
+        if let Some(ref mut stream) = self.stream {
+            // if the stream exists, write to it
+            stream
+                .get_mut()
+                .write_all(message.to_string().as_bytes())
+                .await?;
+            stream.get_mut().flush().await?;
+            Ok(())
+        } else {
+            Err("Can not send, as the receiving stream was moved".into())
+        }
     }
 
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
+        if self.stream.is_none() {
+            return Err("Can not receive, as the receiving stream was moved".into());
+        }
+        let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
-        self.stream.read_line(&mut line).await?;
+        stream.read_line(&mut line).await?;
         match Message::from_str(&line) {
             Some(message) => Ok(message),
             None => Err(Box::new(MessageError::CouldNotParse(line))),
@@ -50,19 +62,81 @@ where
     }
 
     async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+        if self.stream.is_none() {
+            return Err("Can not receive, as the receiving stream was moved".into());
+        }
+        let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
-        let reader = Pin::new(&mut self.stream);
         //buffer of size = 1 is enough to peak if a new message is available
         let mut buffer = [0, 1];
         // Using peek() to find available data. This is blocking but does not consume data
         // and has little overhead
-        if let Ok(available) = reader.get_ref().peek(&mut buffer).await {
+        if let Ok(available) = stream.get_ref().peek(&mut buffer).await {
             if available > 0 {
-                self.stream.read_line(&mut line).await?;
+                stream.read_line(&mut line).await?;
                 return Ok(Message::from_str(&line));
             }
         }
         Ok(None)
+    }
+
+    fn clone_send(&self) -> Self
+    where
+        Self: Sized,
+    {
+        NetworkCommunicator {
+            stream: None,
+            addr: self.addr.clone(),
+            port: self.port.clone(),
+        }
+    }
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized,
+    {
+        if let Some(stream) = self.stream.take() {
+            Ok(NetworkCommunicator {
+                stream: Some(stream),
+                addr: self.addr.clone(),
+                port: self.port.clone(),
+            })
+        } else {
+            Err("Can not move stream as it is None".into())
+        }
+    }
+    async fn connect_send(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if addr.is_none() || port.is_none() {
+            return Err("IP Address and port must be given".into());
+        }
+        let net_addr = format!("{}:{}", addr.as_ref().unwrap(), port.unwrap());
+
+        let stream = TcpStream::connect(net_addr).await?;
+        self.stream = Some(BufReader::new(stream));
+        self.addr = Some(addr.unwrap());
+        self.port = Some(port.unwrap());
+        Ok(())
+    }
+    async fn connect_recv(
+        &mut self,
+        addr: Option<String>,
+        port: Option<u16>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if addr.is_none() || port.is_none() {
+            return Err("IP Address and port must be given".into());
+        }
+        let listener = TcpListener::bind(("127.0.0.1", port.unwrap())).await?;
+        let (stream, remote_addr) = listener.accept().await?;
+        self.stream = Some(BufReader::new(stream));
+        self.addr = Some(addr.clone().unwrap());
+        self.port = Some(port.unwrap());
+        if !(remote_addr.to_string() == addr.unwrap()) {
+            return Err("Received connection from wrong IP".into());
+        }
+        Ok(())
     }
 }
 
@@ -74,13 +148,7 @@ impl fmt::Display for NetworkCommunicator {
 
 impl PartialEq for NetworkCommunicator {
     fn eq(&self, other: &Self) -> bool {
-        match (
-            self.stream.get_ref().peer_addr(),
-            other.stream.get_ref().peer_addr(),
-        ) {
-            (Ok(addr1), Ok(addr2)) => addr1 == addr2,
-            _ => false,
-        }
+        self.addr == other.addr && self.port == other.port
     }
 }
 
@@ -136,11 +204,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_display_trait() {
-        let (addr, _guard) = run_test_server().await;
+        //let (addr, _guard) = run_test_server().await;
 
-        let comm = NetworkCommunicator::new(&addr.to_string())
-            .await
-            .expect("should construct");
+        let comm = NetworkCommunicator::new().await.expect("should construct");
         //tests Display trait
         assert_eq!(comm.to_string(), format!("{}", comm));
     }
@@ -149,9 +215,14 @@ mod tests {
     async fn test_send_receive() {
         let (addr, _guard) = run_test_server().await;
 
-        let mut comm = NetworkCommunicator::new(&addr.to_string())
-            .await
-            .expect("should construct");
+        let mut comm = NetworkCommunicator::new().await.expect("should construct");
+        let connect_res = <NetworkCommunicator as Communicator<String>>::connect_send::<'_, '_>(
+            &mut comm,
+            Some(addr.ip().to_string()),
+            Some(addr.port()),
+        )
+        .await;
+        assert!(connect_res.is_ok());
 
         //Send something
         let test_data: String = "Test Data\n".to_string();

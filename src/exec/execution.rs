@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::{env, thread, time::Duration};
 
-use anyhow::{Context as AnyhowContext, Result};
+use anyhow::Result;
 use metrics::increment_counter;
 #[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
@@ -10,16 +12,25 @@ use tracing::{error, info_span};
 
 #[cfg(feature = "tracing")]
 use crate::analytics::otlp_exporter::OtlpExporter;
+use crate::comm::communication::{Communicator, NodeCommunicator};
+use crate::comm::messages::Message;
+use crate::comm::network_communicator::NetworkCommunicator;
+use crate::comm::thread_communicator::ThreadCommunicator;
+use crate::connection::Edge;
+use crate::flow::execution_flow::ExecutionFlow;
+use crate::node::{ExecutionNode, Node};
 use crate::{
     exec::{
-        execution_controller::ExecutionController,
+        //execution_controller::ExecutionController,
         execution_state::ExecutionState,
         node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
     },
-    flow::flow::Flow,
-    node::ChangeObserver,
+    flow::abstract_flow::AbstractFlow,
     scheduler::{Scheduler, SchedulingInfo},
 };
+
+use super::execution_configuration::{ExecutionConfig, ExecutionConfigError, NodeConfig};
+use super::execution_mode::ExecutionMode;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracing")] {
@@ -32,11 +43,11 @@ cfg_if::cfg_if! {
 }
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
-    pub flow: Flow,
+    pub flow: AbstractFlow,
 }
 
 impl ExecutionContext {
-    pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
+    pub fn new(executor: StandardExecutor, flow: AbstractFlow) -> Self {
         Self {
             executor: executor,
             flow: flow,
@@ -52,12 +63,12 @@ pub struct ExecutionContextHandle {
 }
 
 pub trait Executor {
-    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
+    fn run<S, U>(&mut self, flow: AbstractFlow, scheduler: S, node_updater: U) -> Result<()>
     where
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop;
 
-    fn controller(&self) -> ExecutionController;
+    //fn controller(&self) -> ExecutionController;
 }
 
 #[derive(Error, Debug)]
@@ -67,7 +78,7 @@ pub enum ExecutionError {
 }
 
 pub struct StandardExecutor {
-    controller: ExecutionController,
+    //controller: ExecutionController,
     //observer: ChangeObserver,
 }
 
@@ -80,14 +91,14 @@ impl StandardExecutor {
     // }
     pub fn new() -> Self {
         Self {
-            controller: ExecutionController::new(),
+            //controller: ExecutionController::new(),
         }
     }
 
     #[tracing::instrument(skip_all)]
     fn run_update_loop<S, U>(
         &mut self,
-        flow: &mut Flow,
+        flow: &mut AbstractFlow,
         mut scheduler: S,
         mut node_updater: U,
     ) -> Result<(), ExecutionError>
@@ -95,104 +106,105 @@ impl StandardExecutor {
         S: Scheduler,
         U: NodeUpdater,
     {
-        self.controller.set_state(ExecutionState::Running);
+        //self.controller.set_state(ExecutionState::Running);
 
         let mut info = SchedulingInfo::new(flow.num_nodes());
 
-        let mut update_controllers = flow.get_update_controllers();
+        //let mut update_controllers = flow.get_update_controllers();
 
-        while !self.controller.cancellation_requested() {
-            increment_counter!("flowrs.executions");
-            // Run an epoch (an update of each node).
-            scheduler.restart_epoch(&mut info);
+        //while !self.controller.cancellation_requested() {
+        increment_counter!("flowrs.executions");
+        // Run an epoch (an update of each node).
+        scheduler.restart_epoch(&mut info);
 
-            //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
-            while !scheduler.epoch_is_over(&mut info) {
-                let node_idx = scheduler.get_next_node_idx();
-                //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
+        //println!("                                                                                                    {:?} NEW EPOCH", std::thread::current().id());
+        while !scheduler.epoch_is_over(&mut info) {
+            let node_idx = scheduler.get_next_node_idx();
+            //println!("                                                                                                    {:?} {}", std::thread::current().id(), node_idx);
 
-                let (node_description, node_id);
-                {
-                    // Borrow `flow` immutably to get the description.
-                    if let Some(n) = flow.node_by_index(node_idx) {
-                        node_id = n.0;
-                        node_description = flow.node_description_by_id(node_id).cloned();
-                    } else {
-                        continue;
-                    }
+            // let (node_description, node_id);
+            // {
+            //     // Borrow `flow` immutably to get the description.
+            //     if let Some(n) = flow.node_by_index(node_idx) {
+            //         node_id = n.0;
+            //         node_description = flow.node_description_by_id(node_id).cloned();
+            //     } else {
+            //         continue;
+            //     }
+            // }
+
+            // Now, borrow `flow` mutably to update the node.
+
+            // if let Some(n) = flow.node_by_index(node_idx) {
+            //     if let Some(description) = node_description {
+            //         node_updater.update((n.0, &mut n.1), Some(description));
+            //     } else {
+            //         node_updater.update((n.0, &mut n.1), None);
+            //     }
+            // }
+
+            // let node = flow.node_by_index(node_idx);
+
+            // if let Some(n) = node {
+            //     let description = flow.node_description_by_id(n.0);
+            //     let mut n1 = &mut *n.1;
+            //     node_updater.update((n.0, &n.1), description.cloned());
+            // }
+        }
+
+        // Sleep if necessary.
+        {
+            let _sleep_span = info_span!("sleep").entered();
+            match node_updater.sleep_mode() {
+                SleepMode::None => {}
+
+                SleepMode::Reactive => {
+                    //self.controller.set_state(ExecutionState::Sleeping);
+
+                    //self.observer.wait_for_changes();
+
+                    //self.controller.set_state(ExecutionState::Running);
                 }
 
-                // Now, borrow `flow` mutably to update the node.
-                if let Some(n) = flow.node_by_index(node_idx) {
-                    if let Some(description) = node_description {
-                        node_updater.update((n.0, &mut n.1), Some(description));
-                    } else {
-                        node_updater.update((n.0, &mut n.1), None);
+                SleepMode::FixedFrequency(fps) => {
+                    let actual_duration = info.epoch_duration;
+                    let target_duration = Duration::from_millis(1000 / fps);
+                    let delta = target_duration.saturating_sub(actual_duration);
+                    //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
+                    if delta > Duration::ZERO {
+                        thread::sleep(delta);
                     }
                 }
-
-                // let node = flow.node_by_index(node_idx);
-
-                // if let Some(n) = node {
-                //     let description = flow.node_description_by_id(n.0);
-                //     let mut n1 = &mut *n.1;
-                //     node_updater.update((n.0, &n.1), description.cloned());
-                // }
-            }
-
-            // Sleep if necessary.
-            {
-                let _sleep_span = info_span!("sleep").entered();
-                match node_updater.sleep_mode() {
-                    SleepMode::None => {}
-
-                    SleepMode::Reactive => {
-                        self.controller.set_state(ExecutionState::Sleeping);
-
-                        //self.observer.wait_for_changes();
-
-                        self.controller.set_state(ExecutionState::Running);
-                    }
-
-                    SleepMode::FixedFrequency(fps) => {
-                        let actual_duration = info.epoch_duration;
-                        let target_duration = Duration::from_millis(1000 / fps);
-                        let delta = target_duration.saturating_sub(actual_duration);
-                        //println!("AD: {:?} TD: {:?} DELTA: {:?}", actual_duration, target_duration, delta);
-                        if delta > Duration::ZERO {
-                            thread::sleep(delta);
-                        }
-                    }
-                }
-            }
-
-            // Check if async errors occured.
-            let errors: Vec<NodeUpdateError> = node_updater
-                .errors()
-                .into_iter()
-                .map(|mut err| {
-                    if let Some(id) = err.node_id {
-                        err.node_id = Some(id);
-                        if let Some(desc) = flow.node_description_by_id(id) {
-                            err.node_desc = Some(desc.clone());
-                        }
-                    }
-                    err
-                })
-                .collect();
-            if !errors.is_empty() {
-                return Err(ExecutionError::UpdateErrorCollection { errors });
             }
         }
 
+        // Check if async errors occured.
+        // let errors: Vec<NodeUpdateError> = node_updater
+        //     .errors()
+        //     .into_iter()
+        //     .map(|mut err| {
+        //         if let Some(id) = err.node_id {
+        //             err.node_id = Some(id);
+        //             if let Some(desc) = flow.node_description_by_id(id) {
+        //                 err.node_desc = Some(desc.clone());
+        //             }
+        //         }
+        //         err
+        //     })
+        //     .collect();
+        // if !errors.is_empty() {
+        //     return Err(ExecutionError::UpdateErrorCollection { errors });
+        // }
+        //}
+
         // Cancel long-running node updates.
-        update_controllers.iter_mut().for_each(|uc| uc.cancel());
+        //update_controllers.iter_mut().for_each(|uc| uc.cancel());
 
         // Drop node updater which destroys all workers.
-        drop(node_updater);
+        //drop(node_updater);
 
         // All done.
-        self.controller.set_state(ExecutionState::Ready);
+        //self.controller.set_state(ExecutionState::Ready);
 
         Ok(())
     }
@@ -201,7 +213,7 @@ impl StandardExecutor {
 impl Executor for StandardExecutor {
     fn run<S, U>(
         &mut self,
-        mut flow: Flow,
+        mut abstract_flow: AbstractFlow,
         scheduler: S,
         node_updater: U,
     ) -> Result<(), anyhow::Error>
@@ -209,23 +221,106 @@ impl Executor for StandardExecutor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop,
     {
-        let runner = || {
+        let mut runner = || {
             // Trace executed code
             // Spans will be sent to the configured OpenTelemetry exporter
             let _root = info_span!("executor_run").entered();
 
-            //TODO: Fix error flow.
+            //TODO STEP ONE: Read in Environment Config
+            //      --> Not yet implemented, skip
+            let mut execution_config = ExecutionConfig::new();
+            execution_config.node_configs = abstract_flow
+                .get_nodes()
+                .map(|(node_id, node)| (*node_id, NodeConfig::LocalNodeConfig))
+                .collect();
 
-            flow.init_all()
-                .context(format!("Unable to init all nodes."))?;
+            //TODO STEP TWO: Read in Flow (abstract but typed representation)
+            //not needed -> given as parameter
 
-            flow.ready_all()
-                .context(format!("Unable to make all nodes ready."))?;
+            //Step 3: Create ExecutionFlow (flow structure which is no longer abstract)
+            let mut execution_flow: ExecutionFlow = ExecutionFlow::new_empty();
+            let execution_mode = ExecutionMode::Continuous;
 
-            self.run_update_loop(&mut flow, scheduler, node_updater)?;
+            let connections = abstract_flow.move_connections();
+            execution_flow.set_connections(connections);
+            let nodes = abstract_flow.move_nodes();
+            // 3.2: Add all ExecutionNodes to the ExecutionFlow Structure
+            //create ExecutionNodes for each Node using their respective NodeConfigs to determine where to run
 
-            flow.shutdown_all()
-                .context(format!("Unable to shutdown all nodes"))?;
+            //store known network communicators to controll remote runners in a map
+            let known_communicators: HashMap<SocketAddr, NetworkCommunicator> = HashMap::new();
+
+            // execution_flow.set_nodes(
+            //     nodes
+            //         .into_iter()
+            //         .map(
+            //             move |(node_id, node)| match execution_config.node_configs.get(&node_id) {
+            //                 Some(node_config) => match node_config {
+            //                     NodeConfig::NetworkNodeConfig(ip) => {
+            //                         //try to find address in known hosts
+            //                         let known_communicator = known_communicators.get(ip);
+            //                         match known_communicator {
+            //                             Some(comm) => {
+            //                                 let msg = Message::SetupCommunication(())
+            //                                 comm.send(message)}},
+            //                             None => todo!(),
+            //                         }
+            //                     }
+            //                     NodeConfig::LocalNodeConfig => {
+            //                         // Use thread-communication locally
+            //                         let thread_comm = ThreadCommunicator::<String>::new().unwrap();
+            //                         let node_comm = NodeCommunicator::ThreadComm(thread_comm);
+            //                         let control_edge = Edge::<String>::new(node_comm);
+            //                         // For each abstract Node, create an ExecutionNode
+            //                         let exec_node = ExecutionNode::new(
+            //                             node,
+            //                             execution_mode.clone(),
+            //                             control_edge,
+            //                         );
+            //                         (node_id, Ok(exec_node))
+            //                     }
+            //                 },
+            //                 None => (
+            //                     node_id,
+            //                     Err(ExecutionConfigError::MissingExecutionConfig {
+            //                         message: format!("No Execution found for node {}", node_id),
+            //                     }),
+            //                 ),
+            //             },
+            //         )
+            //         .map(|(node_id, node_res)| {
+            //             (node_id, Box::new(node_res.unwrap()) as Box<dyn Node>)
+            //         })
+            //         .collect(),
+            // );
+
+            //Step 4: Setup Phase. Initialize all Nodes on their runners, then connect them together correctly
+            //4.1: Initialize all nodes on their runners
+            //4.2: Connect Nodes
+
+            //TODO STEP FOUR: Connect ExecutionFlow (SETUP PHASE)
+            // let connections = abstract_flow.get_connections();
+            // connections.for_each(|connection| {
+            //     connection.
+            // });
+
+            //TODO STEP FIVE: Start Execution using pre-determined scheduling
+
+            //TODO STEP SIX: After Execution, Tear Down Nodes and return Result
+
+            // abstract_flow
+            //     .init_all()
+            //     .context(format!("Unable to init all nodes."))?;
+
+            // abstract_flow
+            //     .ready_all()
+            //     .context(format!("Unable to make all nodes ready."))?;
+
+            // self.run_update_loop(&mut abstract_flow, scheduler, node_updater)?;
+
+            // abstract_flow
+            //     .shutdown_all()
+            //     .context(format!("Unable to shutdown all nodes"))?;
 
             #[cfg(feature = "metrics")]
             {
@@ -308,7 +403,7 @@ impl Executor for StandardExecutor {
         }
     }
 
-    fn controller(&self) -> ExecutionController {
-        self.controller.clone()
-    }
+    // fn controller(&self) -> ExecutionController {
+    //     self.controller.clone()
+    // }
 }

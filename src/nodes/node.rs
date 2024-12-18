@@ -109,23 +109,30 @@ pub trait Node {
         Ok(())
     }
 
-    /// Some nodes might have a long-running task in their [`Node::on_update`] method.
-    /// In this case, this method can return an [`UpdateController`] instance which can
-    /// be used for cancelling the update.
-    fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
-        None
-    }
+    // /// Some nodes might have a long-running task in their [`Node::on_update`] method.
+    // /// In this case, this method can return an [`UpdateController`] instance which can
+    // /// be used for cancelling the update.
+    // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
+    //     None
+    // }
+
+    fn get_input_count(&self) -> u128;
+    fn get_output_count(&self) -> u128;
 }
 
-pub struct ExecutionNode<N: Node> {
+pub struct ExecutionNode {
     execution_mode: ExecutionMode,
     execution_state: ExecutionState,
-    node: N,
+    node: Box<dyn Node>,
     control_edge: Edge<String>,
 }
 
-impl<N: Node> ExecutionNode<N> {
-    pub fn new(node: N, execution_mode: ExecutionMode, control_edge: Edge<String>) -> Self {
+impl ExecutionNode {
+    pub fn new(
+        node: Box<dyn Node>,
+        execution_mode: ExecutionMode,
+        control_edge: Edge<String>,
+    ) -> Self {
         ExecutionNode {
             node: node,
             execution_mode: execution_mode,
@@ -145,7 +152,7 @@ impl<N: Node> ExecutionNode<N> {
     }
 }
 
-impl<N: Node> Node for ExecutionNode<N> {
+impl Node for ExecutionNode {
     fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
         self.execution_mode = mode.clone();
         mode
@@ -220,10 +227,125 @@ impl<N: Node> Node for ExecutionNode<N> {
         Ok(())
     }
 
-    fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
-        None
+    // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
+    //     None
+    // }
+
+    fn get_input_count(&self) -> u128 {
+        self.node.get_input_count()
+    }
+
+    fn get_output_count(&self) -> u128 {
+        self.node.get_output_count()
     }
 }
+
+// impl<N: Node> ExecutionNode<N> {
+//     pub fn new(node: N, execution_mode: ExecutionMode, control_edge: Edge<String>) -> Self {
+//         ExecutionNode {
+//             node: node,
+//             execution_mode: execution_mode,
+//             execution_state: ExecutionState::Initialized,
+//             control_edge: control_edge,
+//         }
+//     }
+
+//     pub fn on_message(&mut self, msg: Message<String>) {
+//         match msg {
+//             Message::SetupCommunication(_comm_wrapper) => todo!(),
+//             Message::StartExecution => todo!(),
+//             Message::StopExecution => self.execution_state = ExecutionState::Shutdown,
+//             Message::Debug(_debug_string) => todo!(),
+//             Message::Data(_) => (), //ignore data messages
+//         }
+//     }
+
+//     fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
+//         self.execution_mode = mode.clone();
+//         mode
+//     }
+
+//     fn on_update(&mut self) -> Result<(), UpdateError> {
+//         match self.execution_state {
+//             ExecutionState::Ready => {
+//                 self.execution_state = ExecutionState::Running;
+//                 let mut res = Ok(());
+//                 loop {
+//                     // Check for incoming control messages
+//                     match Handle::current().block_on(self.control_edge.try_message()) {
+//                         Ok(Some(message)) => self.on_message(message),
+//                         Ok(None) => (), // No control messages, do nothing
+//                         Err(err) => {
+//                             return Err(UpdateError::RecvError {
+//                                 message: err.to_string(),
+//                             })
+//                         }
+//                     }
+
+//                     // Shut down Execution if Stop-Message was received
+//                     if self.execution_state == ExecutionState::Shutdown {
+//                         self.on_shutdown();
+//                         break;
+//                     }
+
+//                     // Execute Step
+//                     let execution_res = self.node.on_update();
+
+//                     match self.execution_mode {
+//                         ExecutionMode::Synchronized => {
+//                             self.execution_state = ExecutionState::Ready;
+//                             res = execution_res;
+//                             break;
+//                         }
+//                         ExecutionMode::Continuous => {
+//                             res = execution_res;
+//                             continue;
+//                         }
+//                     }
+//                 }
+//                 res
+//             }
+//             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
+//                 message: "The node is Sleeping".to_string(),
+//             }),
+//             ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
+//                 message: "The node is Running".to_string(),
+//             }),
+//             ExecutionState::Initialized => Err(UpdateError::NotReadyError {
+//                 message: "The node is not ready".to_string(),
+//             }),
+//             ExecutionState::Shutdown => Ok(()),
+//         }
+//     }
+
+//     fn get_execution_mode(&self) -> ExecutionMode {
+//         ExecutionMode::Continuous
+//     }
+
+//     fn on_init(&mut self) -> Result<(), InitError> {
+//         Ok(())
+//     }
+
+//     fn on_ready(&mut self) -> Result<(), ReadyError> {
+//         Ok(())
+//     }
+
+//     fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
+//         Ok(())
+//     }
+
+//     // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
+//     //     None
+//     // }
+
+//     fn get_input_count(&self) -> u128 {
+//         self.node.get_input_count()
+//     }
+
+//     fn get_output_count(&self) -> u128 {
+//         self.node.get_output_count()
+//     }
+// }
 
 #[derive(Error, Debug)]
 pub enum InitError {

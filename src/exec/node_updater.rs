@@ -1,5 +1,5 @@
 use crate::{
-    connection::RuntimeNode, flow::flow::NodeId, node::UpdateError,
+    connection::RuntimeNode, flow::flow_types::NodeId, node::UpdateError,
     nodes::node_description::NodeDescription,
 };
 use anyhow::Result;

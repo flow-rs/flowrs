@@ -1,4 +1,5 @@
 pub mod execution;
+pub mod execution_configuration;
 pub mod execution_controller;
 pub mod execution_mode;
 pub mod execution_state;

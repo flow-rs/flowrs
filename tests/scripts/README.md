@@ -1,0 +1,1 @@
+For the paths to match, the scripts must be executed in the crate main folder (/flowrs/tests/)

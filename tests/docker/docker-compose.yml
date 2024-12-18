@@ -1,0 +1,54 @@
+services:
+  build-runner:
+    build:
+      context: ../../../
+      dockerfile: /flowrs/tests/docker/Dockerfile.runner.build
+    volumes:
+      - ./output:/output   # Store the compiled runner in the output folder
+    
+  build-library:
+    build:
+      context: ../../../
+      dockerfile: /flowrs/tests/docker/Dockerfile.lib.build
+    volumes:
+      - ./output:/output   # Store the compiled library in the output folder
+
+  orchestrator:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.test
+    command: ["--role", "orchestrator", "--flow", "/output/libflow_project.so"]
+    volumes:
+      - ./output:/output
+    environment:
+      - LD_LIBRARY_PATH=/output
+    networks:
+      - test-net
+
+  nodert1:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.test
+    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so"]
+    volumes:
+      - ./output:/output
+    environment:
+      - LD_LIBRARY_PATH=/output
+    networks:
+      - test-net
+
+  nodert2:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.test
+    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so"]
+    volumes:
+      - ./output:/output
+    environment:
+      - LD_LIBRARY_PATH=/output
+    networks:
+      - test-net
+
+networks:
+  test-net:
+    driver: bridge

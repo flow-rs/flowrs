@@ -1,0 +1,13 @@
+FROM rust:latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy the flow-project source code from the build-repo
+COPY ../flowrs-build/flow-projects/flow_project_01 /app
+
+# Compile the Rust project for Linux
+RUN cargo build --release
+
+# Expose the compiled dynamic library
+CMD ["cp", "/app/target/release/libflow_project_01.so", "/output/libflow_project.so"]

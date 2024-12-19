@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::{env, thread, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use metrics::increment_counter;
 #[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
@@ -67,6 +67,8 @@ pub trait Executor {
     where
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop;
+
+    fn setup_and_connect(&mut self, flow: AbstractFlow) -> Result<ExecutionFlow, ExecutionError>;
 
     //fn controller(&self) -> ExecutionController;
 }
@@ -401,6 +403,10 @@ impl Executor for StandardExecutor {
 
             return runner();
         }
+    }
+
+    fn setup_and_connect(&mut self, flow: AbstractFlow) -> Result<ExecutionFlow, ExecutionError> {
+        Ok(ExecutionFlow::new_empty())
     }
 
     // fn controller(&self) -> ExecutionController {

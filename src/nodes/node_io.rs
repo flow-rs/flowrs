@@ -51,8 +51,7 @@ macro_rules! impl_setup_inputs {
         impl<$($D),+> SetupInputs for ($($crate::nodes::connection::Input<$D>,)+)
         where
             $(
-                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>
-                    + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>,
                 $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {
@@ -89,8 +88,7 @@ macro_rules! impl_setup_outputs {
         impl<$($D),+> SetupOutputs for ($($crate::nodes::connection::Output<$D>,)+)
         where
             $(
-                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>
-                    + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>,
                 $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {

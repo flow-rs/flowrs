@@ -28,8 +28,11 @@ impl<I, O> NodeIO<I, O> {
 
 /// This trait is used to set up the inputs and outputs with as little overhead as possible
 #[async_trait]
-pub trait SetupIO {
+pub trait SetupInputs {
     async fn setup_input(&mut self, idx: u128, local: bool);
+}
+#[async_trait]
+pub trait SetupOutputs {
     async fn setup_output(&mut self, idx: u128, local: bool);
 }
 
@@ -39,60 +42,99 @@ pub trait SetupIO {
 ///
 /// macro calls below
 #[macro_export]
-macro_rules! impl_setup_io {
-    // Match for a single type with a generic parameter
-    (($idx:tt $T:ident<$D:ident>)) => {
+macro_rules! impl_setup_inputs {
+
+    // General case for multiple inputs
+    ($(($($idx:tt $D:ident),+)),+) => {
+        $(
         #[async_trait::async_trait]
-        impl<$D> SetupIO for $T<$D>
+        impl<$($D),+> SetupInputs for ($($crate::nodes::connection::Input<$D>,)+)
         where
-            $T<$D>: crate::nodes::connection::EdgeTrait<$D>
-                + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
-            $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+            $(
+                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>
+                    + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
         {
             async fn setup_input(&mut self, idx: u128, local: bool) {
                 match idx {
-                    $idx => {
-                        *self = if local {
-                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_local()
-                        } else {
-                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_network().await
-                        };
-                    }
-                    _ => panic!("Invalid input index"),
-                }
-            }
-
-            async fn setup_output(&mut self, idx: u128, local: bool) {
-                match idx {
-                    $idx => {
-                        *self = if local {
-                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_local()
-                        } else {
-                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_network().await
-                        };
-                    }
-                    _ => panic!("Invalid output index"),
+                    $(
+                        $idx => {
+                            self.$idx = if local {
+                                <$crate::nodes::connection::Input<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                            } else {
+                                <$crate::nodes::connection::Input<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                            };
+                        }
+                    )+
+                    _ => {
+                        let _default_idx = u128::MAX;
+                        let _default_local = false;
+                        let _ = (_default_idx, _default_local); // No-op
+                    },
                 }
             }
         }
-    };
-
-    // Match multiple types with generic parameters
-    ($(($idx:tt $T:ident<$D:ident>)),+) => {
-        $(
-            impl_setup_io!(($idx $T<$D>));
         )+
     };
 }
 
-/// This macro call supports tuples of length 8.
-/// For nodes which need longer variable lists, the macro can be imported and used in the node repository
-impl_setup_io!(
-    (0 Input<D0>),
-    (1 Input<D1>),
-    (2 Input<D2>),
-    (0 Output<D0>),
-    (1 Output<D1>),
-    (2 Output<D2>),
-    (3 Output<D3>)
+#[macro_export]
+macro_rules! impl_setup_outputs {
+
+    // General case for multiple outputs
+    ($(($($idx:tt $D:ident),+)),+) => {
+        $(
+        #[async_trait::async_trait]
+        impl<$($D),+> SetupOutputs for ($($crate::nodes::connection::Output<$D>,)+)
+        where
+            $(
+                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>
+                    + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            async fn setup_output(&mut self, idx: u128, local: bool) {
+                match idx {
+                    $(
+                        $idx => {
+                            self.$idx = if local {
+                                <$crate::nodes::connection::Output<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                            } else {
+                                <$crate::nodes::connection::Output<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                            };
+                        }
+                    )+
+                    _ => {
+                        let _default_idx = u128::MAX;
+                        let _default_local = false;
+                        let _ = (_default_idx, _default_local); // No-op
+                    },
+                }
+            }
+        }
+        )+
+    };
+}
+
+impl_setup_inputs!(
+    (0 D0),                       // 1 input
+    (0 D0, 1 D1),                 // 2 inputs
+    (0 D0, 1 D1, 2 D2),           // 3 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3),     // 4 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4), // 5 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5), // 6 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6), // 7 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7) // 8 inputs
+);
+
+impl_setup_outputs!(
+    (0 D0),                       // 1 output
+    (0 D0, 1 D1),                 // 2 outputs
+    (0 D0, 1 D1, 2 D2),           // 3 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3),     // 4 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4), // 5 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5), // 6 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6), // 7 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7) // 8 outputs
 );

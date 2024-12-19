@@ -5,7 +5,10 @@ use std::{any::Any, rc::Rc};
 use crate::comm::communication::{Communicator, NodeCommunicator};
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
+use crate::comm::network_communicator::NetworkCommunicator;
+use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::node::{Node, ReceiveError, SendError};
+use async_trait::async_trait;
 use futures::executor::block_on;
 
 pub struct Edge<D>
@@ -71,18 +74,158 @@ where
     }
 }
 
-/// A node's input implemented as an [Edge] type.
-pub type Input<D> = Edge<D>;
-
-/// A node's input implemented as an [Edge] type.
-pub type Output<D> = Edge<D>;
-
-/// This trait is used for a accessing a node's
-/// inputs and outputs by index at runtime.
-pub trait RuntimeConnectable {
-    fn input_at(&self, index: usize) -> Rc<dyn Any>;
-    fn output_at(&self, index: usize) -> Rc<dyn Any>;
+pub struct Input<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    edge: Edge<D>,
 }
+
+pub struct Output<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    edge: Edge<D>,
+}
+
+// /// A node's input implemented as an [Edge] type.
+// pub type Input<D> = Edge<D>;
+
+// /// A node's input implemented as an [Edge] type.
+// pub type Output<D> = Edge<D>;
+
+// /// Marker traits for inputs and outputs
+// /// (mainly to avoid making them separate types)
+// pub trait IsInput {}
+// pub trait IsOutput {}
+// impl<D> IsInput for Edge<D> where D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static {}
+// impl<D> IsOutput for Edge<D> where D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static {}
+
+#[async_trait]
+pub trait EdgeTrait<D>: Sized
+where
+    D: Clone + Send + 'static,
+{
+    fn new_local() -> Self;
+    async fn new_network() -> Self;
+}
+
+impl<D> Input<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    pub fn new(communicator: NodeCommunicator<D>) -> Self {
+        Self {
+            edge: Edge::new(communicator),
+        }
+    }
+
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        self.edge.send(data)
+    }
+
+    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
+        self.edge.next()
+    }
+}
+
+impl<D> Output<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    pub fn new(communicator: NodeCommunicator<D>) -> Self {
+        Self {
+            edge: Edge::new(communicator),
+        }
+    }
+
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        self.edge.send(data)
+    }
+
+    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
+        self.edge.next()
+    }
+}
+
+#[async_trait]
+impl<D> EdgeTrait<D> for Input<D>
+where
+    D: Clone + Send + fmt::Debug + FromStr + 'static,
+{
+    fn new_local() -> Self {
+        Input::new(NodeCommunicator::ThreadComm(
+            ThreadCommunicator::<D>::new().expect("should construct"),
+        ))
+    }
+
+    async fn new_network() -> Self {
+        Input::new(NodeCommunicator::NetworkComm(
+            NetworkCommunicator::new().await.expect("should construct"),
+        ))
+    }
+}
+
+#[async_trait]
+impl<D> EdgeTrait<D> for Output<D>
+where
+    D: Clone + Send + fmt::Debug + FromStr + 'static,
+{
+    fn new_local() -> Self {
+        Output::new(NodeCommunicator::ThreadComm(
+            ThreadCommunicator::<D>::new().expect("should construct"),
+        ))
+    }
+
+    async fn new_network() -> Self {
+        Output::new(NodeCommunicator::NetworkComm(
+            NetworkCommunicator::new().await.expect("should construct"),
+        ))
+    }
+}
+
+// impl<D> EdgeTrait<D> for Input<D>
+// where
+//     D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static,
+//     Input<D>: IsInput,
+// {
+//     async fn new_local() -> Self {
+//         Input::new(NodeCommunicator::ThreadComm(
+//             ThreadCommunicator::<D>::new().expect("should construct"),
+//         ))
+//     }
+
+//     async fn new_network() -> Self {
+//         Input::new(NodeCommunicator::NetworkComm(
+//             NetworkCommunicator::new().await.expect("should construct"),
+//         ))
+//     }
+// }
+
+// impl<D> EdgeTrait<D> for Output<D>
+// where
+//     D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static,
+//     Output<D>: IsOutput,
+// {
+//     async fn new_local() -> Self {
+//         Output::new(NodeCommunicator::ThreadComm(
+//             ThreadCommunicator::<D>::new().expect("should construct"),
+//         ))
+//     }
+
+//     async fn new_network() -> Self {
+//         Output::new(NodeCommunicator::NetworkComm(
+//             NetworkCommunicator::new().await.expect("should construct"),
+//         ))
+//     }
+// }
+
+// /// This trait is used for a accessing a node's
+// /// inputs and outputs by index at runtime.
+// pub trait RuntimeConnectable {
+//     fn input_at(&self, index: usize) -> Rc<dyn Any>;
+//     fn output_at(&self, index: usize) -> Rc<dyn Any>;
+// }
 
 /// A [Node] that implements the [RuntimeConnectable] trait.
 //pub trait RuntimeNode: Node + RuntimeConnectable {}

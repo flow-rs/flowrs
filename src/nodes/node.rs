@@ -118,8 +118,8 @@ pub trait Node {
 
     fn get_input_count(&self) -> u128;
     fn get_output_count(&self) -> u128;
-    fn setup_input(&self, idx: u128, local: bool);
-    fn setup_output(&self, idx: u128, local: bool);
+    fn setup_input(&mut self, idx: u128, local: bool);
+    fn setup_output(&mut self, idx: u128, local: bool);
 }
 
 pub struct ExecutionNode {
@@ -239,6 +239,14 @@ impl Node for ExecutionNode {
 
     fn get_output_count(&self) -> u128 {
         self.node.get_output_count()
+    }
+
+    fn setup_input(&mut self, idx: u128, local: bool) {
+        self.node.setup_input(idx, local)
+    }
+
+    fn setup_output(&mut self, idx: u128, local: bool) {
+        self.node.setup_output(idx, local)
     }
 }
 

@@ -1,3 +1,5 @@
+use crate::connection::EdgeTrait;
+use async_trait::async_trait;
 /// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
 /// The macro allows node types to define Inputs and Outputs as Tupels. Example:
 /// pub struct AddNode<I1, I2, O>
@@ -23,9 +25,10 @@ impl<I, O> NodeIO<I, O> {
 }
 
 /// This trait is used to set up the inputs and outputs with as little overhead as possible
+#[async_trait]
 pub trait SetupIO {
-    fn setup_input(&mut self, idx: u128, local: bool);
-    fn setup_output(&mut self, idx: u128, local: bool);
+    async fn setup_input(&mut self, idx: u128, local: bool);
+    async fn setup_output(&mut self, idx: u128, local: bool);
 }
 
 /// THis macro will create the SetupIO for tuples with the given input and output count
@@ -37,18 +40,19 @@ pub trait SetupIO {
 macro_rules! impl_setup_io {
     ($(($($idx:tt $T:ident),+)),+) => {
         $(
+        #[async_trait::async_trait]
         impl<$($T),+> SetupIO for ($($T,)+)
         where
-            $($T: Clone + Send + 'static),+
+            $($T: EdgeTrait<$T> + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static),+
         {
-            fn setup_input(&mut self, idx: u128, local: bool) {
+            async fn setup_input(&mut self, idx: u128, local: bool) {
                 match idx {
                     $(
                         $idx => {
                             self.$idx = if local {
-                                Input::new_local()
+                                $T::new_local()
                             } else {
-                                Input::new_network()
+                                $T::new_network().await
                             };
                         }
                     )+
@@ -56,14 +60,14 @@ macro_rules! impl_setup_io {
                 }
             }
 
-            fn setup_output(&mut self, idx: u128, local: bool) {
+            async fn setup_output(&mut self, idx: u128, local: bool) {
                 match idx {
                     $(
                         $idx => {
                             self.$idx = if local {
-                                Output::new_local()
+                                $T::new_local()
                             } else {
-                                Output::new_network()
+                                $T::new_network().await
                             };
                         }
                     )+

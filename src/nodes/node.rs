@@ -14,7 +14,7 @@ use crate::{
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
 };
 
-use super::connection::Edge;
+use super::connection::{Edge, Input};
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -118,6 +118,8 @@ pub trait Node {
 
     fn get_input_count(&self) -> u128;
     fn get_output_count(&self) -> u128;
+    fn setup_input(&self, idx: u128, local: bool);
+    fn setup_output(&self, idx: u128, local: bool);
 }
 
 pub struct ExecutionNode {

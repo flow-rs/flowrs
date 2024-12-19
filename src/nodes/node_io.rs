@@ -1,5 +1,7 @@
 use crate::connection::EdgeTrait;
 use async_trait::async_trait;
+
+use super::connection::{Input, Output};
 /// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
 /// The macro allows node types to define Inputs and Outputs as Tupels. Example:
 /// pub struct AddNode<I1, I2, O>
@@ -38,43 +40,47 @@ pub trait SetupIO {
 /// macro calls below
 #[macro_export]
 macro_rules! impl_setup_io {
-    ($(($($idx:tt $T:ident),+)),+) => {
-        $(
+    // Match for a single type with a generic parameter
+    (($idx:tt $T:ident<$D:ident>)) => {
         #[async_trait::async_trait]
-        impl<$($T),+> SetupIO for ($($T,)+)
+        impl<$D> SetupIO for $T<$D>
         where
-            $($T: EdgeTrait<$T> + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static),+
+            $T<$D>: crate::nodes::connection::EdgeTrait<$D>
+                + Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
+            $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static,
         {
             async fn setup_input(&mut self, idx: u128, local: bool) {
                 match idx {
-                    $(
-                        $idx => {
-                            self.$idx = if local {
-                                $T::new_local()
-                            } else {
-                                $T::new_network().await
-                            };
-                        }
-                    )+
+                    $idx => {
+                        *self = if local {
+                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                        } else {
+                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                        };
+                    }
                     _ => panic!("Invalid input index"),
                 }
             }
 
             async fn setup_output(&mut self, idx: u128, local: bool) {
                 match idx {
-                    $(
-                        $idx => {
-                            self.$idx = if local {
-                                $T::new_local()
-                            } else {
-                                $T::new_network().await
-                            };
-                        }
-                    )+
+                    $idx => {
+                        *self = if local {
+                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                        } else {
+                            <$T<$D> as crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                        };
+                    }
                     _ => panic!("Invalid output index"),
                 }
             }
         }
+    };
+
+    // Match multiple types with generic parameters
+    ($(($idx:tt $T:ident<$D:ident>)),+) => {
+        $(
+            impl_setup_io!(($idx $T<$D>));
         )+
     };
 }
@@ -82,12 +88,11 @@ macro_rules! impl_setup_io {
 /// This macro call supports tuples of length 8.
 /// For nodes which need longer variable lists, the macro can be imported and used in the node repository
 impl_setup_io!(
-    (0 T0),
-    (0 T0, 1 T1),
-    (0 T0, 1 T1, 2 T2),
-    (0 T0, 1 T1, 2 T2, 3 T3),
-    (0 T0, 1 T1, 2 T2, 3 T3, 4 T4),
-    (0 T0, 1 T1, 2 T2, 3 T3, 4 T4, 5 T5),
-    (0 T0, 1 T1, 2 T2, 3 T3, 4 T4, 5 T5, 6 T6),
-    (0 T0, 1 T1, 2 T2, 3 T3, 4 T4, 5 T5, 6 T6, 7 T7)
+    (0 Input<D0>),
+    (1 Input<D1>),
+    (2 Input<D2>),
+    (0 Output<D0>),
+    (1 Output<D1>),
+    (2 Output<D2>),
+    (3 Output<D3>)
 );

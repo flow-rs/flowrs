@@ -104,7 +104,7 @@ where
 #[async_trait]
 pub trait EdgeTrait<D>: Sized
 where
-    D: Clone + Send + 'static,
+    D: Clone + Send + fmt::Debug + FromStr + 'static,
 {
     fn new_local() -> Self;
     async fn new_network() -> Self;

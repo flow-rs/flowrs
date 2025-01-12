@@ -59,28 +59,14 @@ pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
 }
 
-/// implementation special case for 0 inputs
-#[async_trait::async_trait]
-impl SetupInputs for () {
-    async fn setup_input(&mut self, _idx: u128, _local: bool) {
-        // No-op because there are no inputs
-    }
-}
-
-/// implementation special case for 0 outputs
-impl SetupInputsSync for () {
-    fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
-        // No-op because there are no inputs
-    }
-}
-
 /// THis macro will create the SetupIO for tuples with the given input and output count
 /// e.g. for the count of 3 generic variables, the call would be
 /// impl_setup_io!((0 T0, 1 T1, 2 T2));
 ///
 /// macro calls below
+#[macro_export]
 macro_rules! impl_setup_inputs {
-    // Handle the special case for zero inputs
+    // Special case for zero inputs
     () => {
         #[async_trait::async_trait]
         impl SetupInputs for () {
@@ -97,7 +83,7 @@ macro_rules! impl_setup_inputs {
     };
 
     // General case for multiple inputs
-    ($(($($idx:tt $D:ident),+)),+) => {
+    ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait::async_trait]
         impl<$($D),+> SetupInputs for ($($crate::nodes::connection::Input<$D>,)+)
@@ -141,7 +127,7 @@ macro_rules! impl_setup_inputs {
 
 #[macro_export]
 macro_rules! impl_setup_outputs {
-    // Handle the special case for zero outputs
+    // Special case for zero outputs
     () => {
         #[async_trait::async_trait]
         impl SetupOutputs for () {
@@ -158,7 +144,7 @@ macro_rules! impl_setup_outputs {
     };
 
     // General case for multiple outputs
-    ($(($($idx:tt $D:ident),+)),+) => {
+    ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait::async_trait]
         impl<$($D),+> SetupOutputs for ($($crate::nodes::connection::Output<$D>,)+)
@@ -200,8 +186,9 @@ macro_rules! impl_setup_outputs {
     };
 }
 
+impl_setup_inputs!(); // 0 inputs
+
 impl_setup_inputs!(
-    (),                                                 // 0 inputs
     (0 D0),                                             // 1 input
     (0 D0, 1 D1),                                       // 2 inputs
     (0 D0, 1 D1, 2 D2),                                 // 3 inputs
@@ -212,8 +199,8 @@ impl_setup_inputs!(
     (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)    // 8 inputs
 );
 
+impl_setup_outputs!(); // 0 outputs
 impl_setup_outputs!(
-    (),                                                 // 0 outputs
     (0 D0),                                             // 1 output
     (0 D0, 1 D1),                                       // 2 outputs
     (0 D0, 1 D1, 2 D2),                                 // 3 outputs

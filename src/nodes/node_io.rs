@@ -1,5 +1,6 @@
 use crate::connection::EdgeTrait;
 use async_trait::async_trait;
+use tokio::runtime::Runtime;
 
 use super::connection::{Input, Output};
 /// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
@@ -20,9 +21,23 @@ pub struct NodeIO<I, O> {
     pub outputs: O,
 }
 
-impl<I, O> NodeIO<I, O> {
+impl<I, O> NodeIO<I, O>
+where
+    I: SetupInputs,
+    O: SetupOutputs,
+{
     pub fn new(inputs: I, outputs: O) -> Self {
         Self { inputs, outputs }
+    }
+
+    pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(self.inputs.setup_input(idx, local));
+    }
+
+    pub fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(self.outputs.setup_output(idx, local));
     }
 }
 
@@ -36,6 +51,14 @@ pub trait SetupOutputs {
     async fn setup_output(&mut self, idx: u128, local: bool);
 }
 
+pub trait SetupInputsSync {
+    fn setup_input_sync(&mut self, idx: u128, local: bool);
+}
+
+pub trait SetupOutputsSync {
+    fn setup_output_sync(&mut self, idx: u128, local: bool);
+}
+
 /// THis macro will create the SetupIO for tuples with the given input and output count
 /// e.g. for the count of 3 generic variables, the call would be
 /// impl_setup_io!((0 T0, 1 T1, 2 T2));
@@ -43,8 +66,6 @@ pub trait SetupOutputs {
 /// macro calls below
 #[macro_export]
 macro_rules! impl_setup_inputs {
-
-    // General case for multiple inputs
     ($(($($idx:tt $D:ident),+)),+) => {
         $(
         #[async_trait::async_trait]
@@ -66,12 +87,21 @@ macro_rules! impl_setup_inputs {
                             };
                         }
                     )+
-                    _ => {
-                        let _default_idx = u128::MAX;
-                        let _default_local = false;
-                        let _ = (_default_idx, _default_local); // No-op
-                    },
+                    _ => (),
                 }
+            }
+        }
+
+        impl<$($D),+> SetupInputsSync for ($($crate::nodes::connection::Input<$D>,)+)
+        where
+            $(
+                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>,
+                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            fn setup_input_sync(&mut self, idx: u128, local: bool) {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(self.setup_input(idx, local));
             }
         }
         )+
@@ -80,8 +110,6 @@ macro_rules! impl_setup_inputs {
 
 #[macro_export]
 macro_rules! impl_setup_outputs {
-
-    // General case for multiple outputs
     ($(($($idx:tt $D:ident),+)),+) => {
         $(
         #[async_trait::async_trait]
@@ -103,12 +131,21 @@ macro_rules! impl_setup_outputs {
                             };
                         }
                     )+
-                    _ => {
-                        let _default_idx = u128::MAX;
-                        let _default_local = false;
-                        let _ = (_default_idx, _default_local); // No-op
-                    },
+                    _ => (),
                 }
+            }
+        }
+
+        impl<$($D),+> SetupOutputsSync for ($($crate::nodes::connection::Output<$D>,)+)
+        where
+            $(
+                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>,
+                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            fn setup_output_sync(&mut self, idx: u128, local: bool) {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(self.setup_output(idx, local));
             }
         }
         )+

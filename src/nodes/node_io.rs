@@ -201,23 +201,25 @@ macro_rules! impl_setup_outputs {
 }
 
 impl_setup_inputs!(
-    (0 D0),                       // 1 input
-    (0 D0, 1 D1),                 // 2 inputs
-    (0 D0, 1 D1, 2 D2),           // 3 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3),     // 4 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4), // 5 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5), // 6 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6), // 7 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7) // 8 inputs
+    (),                                                 // 0 inputs
+    (0 D0),                                             // 1 input
+    (0 D0, 1 D1),                                       // 2 inputs
+    (0 D0, 1 D1, 2 D2),                                 // 3 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3),                           // 4 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),                     // 5 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),               // 6 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),         // 7 inputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)    // 8 inputs
 );
 
 impl_setup_outputs!(
-    (0 D0),                       // 1 output
-    (0 D0, 1 D1),                 // 2 outputs
-    (0 D0, 1 D1, 2 D2),           // 3 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3),     // 4 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4), // 5 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5), // 6 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6), // 7 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7) // 8 outputs
+    (),                                                 // 0 outputs
+    (0 D0),                                             // 1 output
+    (0 D0, 1 D1),                                       // 2 outputs
+    (0 D0, 1 D1, 2 D2),                                 // 3 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3),                           // 4 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),                     // 5 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),               // 6 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),         // 7 outputs
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)    // 8 outputs
 );

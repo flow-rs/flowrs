@@ -59,13 +59,44 @@ pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
 }
 
+/// implementation special case for 0 inputs
+#[async_trait::async_trait]
+impl SetupInputs for () {
+    async fn setup_input(&mut self, _idx: u128, _local: bool) {
+        // No-op because there are no inputs
+    }
+}
+
+/// implementation special case for 0 outputs
+impl SetupInputsSync for () {
+    fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
+        // No-op because there are no inputs
+    }
+}
+
 /// THis macro will create the SetupIO for tuples with the given input and output count
 /// e.g. for the count of 3 generic variables, the call would be
 /// impl_setup_io!((0 T0, 1 T1, 2 T2));
 ///
 /// macro calls below
-#[macro_export]
 macro_rules! impl_setup_inputs {
+    // Handle the special case for zero inputs
+    () => {
+        #[async_trait::async_trait]
+        impl SetupInputs for () {
+            async fn setup_input(&mut self, _idx: u128, _local: bool) {
+                // No-op for zero inputs
+            }
+        }
+
+        impl SetupInputsSync for () {
+            fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
+                // No-op for zero inputs
+            }
+        }
+    };
+
+    // General case for multiple inputs
     ($(($($idx:tt $D:ident),+)),+) => {
         $(
         #[async_trait::async_trait]
@@ -110,6 +141,23 @@ macro_rules! impl_setup_inputs {
 
 #[macro_export]
 macro_rules! impl_setup_outputs {
+    // Handle the special case for zero outputs
+    () => {
+        #[async_trait::async_trait]
+        impl SetupOutputs for () {
+            async fn setup_output(&mut self, _idx: u128, _local: bool) {
+                // No-op for zero outputs
+            }
+        }
+
+        impl SetupOutputsSync for () {
+            fn setup_output_sync(&mut self, _idx: u128, _local: bool) {
+                // No-op for zero outputs
+            }
+        }
+    };
+
+    // General case for multiple outputs
     ($(($($idx:tt $D:ident),+)),+) => {
         $(
         #[async_trait::async_trait]

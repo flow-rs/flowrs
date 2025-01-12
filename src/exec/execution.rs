@@ -1,8 +1,9 @@
+use std::collections::hash_map::Drain;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::{env, thread, time::Duration};
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use metrics::increment_counter;
 #[cfg(feature = "metrics")]
 use metrics_exporter_prometheus::PrometheusBuilder;
@@ -13,18 +14,14 @@ use tracing::{error, info_span};
 #[cfg(feature = "tracing")]
 use crate::analytics::otlp_exporter::OtlpExporter;
 use crate::comm::communication::{Communicator, NodeCommunicator};
-use crate::comm::messages::Message;
 use crate::comm::network_communicator::NetworkCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::connection::Edge;
 use crate::flow::execution_flow::ExecutionFlow;
+use crate::flow::flow_types::NodeId;
 use crate::node::{ExecutionNode, Node};
 use crate::{
-    exec::{
-        //execution_controller::ExecutionController,
-        execution_state::ExecutionState,
-        node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
-    },
+    exec::node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
     flow::abstract_flow::AbstractFlow,
     scheduler::{Scheduler, SchedulingInfo},
 };
@@ -68,32 +65,31 @@ pub trait Executor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop;
 
-    fn setup_and_connect(&mut self, flow: AbstractFlow) -> Result<ExecutionFlow, ExecutionError>;
-
-    //fn controller(&self) -> ExecutionController;
+    async fn setup_and_connect(
+        &mut self,
+        abstract_flow: AbstractFlow,
+        execution_config: ExecutionConfig,
+    ) -> Result<ExecutionFlow, ExecutionError>;
 }
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
     #[error("Errors occured while updating nodes: {errors:?}")]
     UpdateErrorCollection { errors: Vec<NodeUpdateError> },
+
+    #[error("Node Setup Failed Error. Message: {message:?}")]
+    NodeSetupFailed { message: String },
 }
 
 pub struct StandardExecutor {
-    //controller: ExecutionController,
-    //observer: ChangeObserver,
+    // contains the known network communicators for the executor
+    //known_communicators: HashMap<SocketAddr, NodeCommunicator<String>>,
 }
 
 impl StandardExecutor {
-    // pub fn new(observer: ChangeObserver) -> Self {
-    //     Self {
-    //         controller: ExecutionController::new(observer.notifier.clone()),
-    //         observer,
-    //     }
-    // }
     pub fn new() -> Self {
         Self {
-            //controller: ExecutionController::new(),
+            //known_communicators: HashMap::new(),
         }
     }
 
@@ -210,6 +206,132 @@ impl StandardExecutor {
 
         Ok(())
     }
+
+    /// Private helper function
+    /// handles network node configurations
+    #[inline]
+    async fn handle_network_node_config(
+        &mut self,
+        ip: &SocketAddr,
+        node: Box<dyn Node>,
+        execution_mode: ExecutionMode,
+    ) -> Result<ExecutionNode, ExecutionConfigError> {
+        // if let Some(node_comm) = self.known_communicators.remove(ip) {
+        //     //let node_comm = NodeCommunicator::<String>::NetworkComm(net_comm);
+        //     let control_edge = Edge::<String>::new(node_comm);
+        //     let exec_node = ExecutionNode::new(node, execution_mode, control_edge);
+        //     self.known_communicators.insert(*ip, node_comm);
+        //     Ok(exec_node)
+        // } else {
+        let mut net_comm = NetworkCommunicator::new().await.unwrap();
+        let connect_res = <NetworkCommunicator as Communicator<String>>::connect_send(
+            &mut net_comm,
+            Some(ip.ip().to_string()),
+            Some(ip.port()),
+        )
+        .await;
+        match connect_res {
+            Ok(_) => {
+                let node_comm = NodeCommunicator::<String>::NetworkComm(net_comm);
+                let control_edge = Edge::<String>::new(node_comm);
+                let exec_node = ExecutionNode::new(node, execution_mode, control_edge);
+                Ok(exec_node)
+            }
+            Err(err) => Err(ExecutionConfigError::CommunicationSetupFailed {
+                message: format!(
+                    "Connecting as Sender to Network Runtime [{}:{}has failed. {:?}",
+                    ip.ip(),
+                    ip.port(),
+                    err
+                ),
+            }),
+        }
+        //}
+    }
+
+    /// Private helper function
+    /// handles local node configurations
+    /// creates a local (Thread) communicator
+    /// returns initialized execution node
+    #[inline]
+    async fn handle_local_node_config(
+        &self,
+        node_id: NodeId,
+        node: Box<dyn Node>,
+        execution_mode: ExecutionMode,
+    ) -> Result<ExecutionNode, ExecutionConfigError> {
+        match ThreadCommunicator::<String>::new() {
+            Ok(thread_comm) => {
+                let node_comm = NodeCommunicator::ThreadComm(thread_comm);
+                let control_edge = Edge::<String>::new(node_comm);
+                let exec_node = ExecutionNode::new(node, execution_mode, control_edge);
+                Ok(exec_node)
+            }
+            Err(err) => Err(ExecutionConfigError::CommunicationSetupFailed {
+                message: format!(
+                    "Failed to create thread communicator for node {}: {}",
+                    node_id, err
+                ),
+            }),
+        }
+    }
+
+    /// Private helper function
+    /// handles missing execution configurations
+    #[inline]
+    fn handle_missing_execution_config(node_id: NodeId) -> ExecutionConfigError {
+        ExecutionConfigError::MissingExecutionConfig {
+            message: format!("No ExecutionConfig found for node {}", node_id),
+        }
+    }
+
+    /// Private helper function
+    /// handles execution node creation from nodes according to their config
+    #[inline]
+    async fn create_execution_nodes<'a>(
+        &mut self,
+        nodes: Drain<'a, u128, Box<dyn Node>>,
+        execution_config: &ExecutionConfig,
+        execution_mode: ExecutionMode,
+    ) -> Result<HashMap<u128, Box<dyn Node>>, ExecutionError> {
+        let mut results = Vec::new();
+
+        for (node_id, node) in nodes {
+            let execution_mode = execution_mode.clone();
+            let node_config = execution_config.node_configs.get(&node_id);
+
+            let result = match node_config {
+                Some(NodeConfig::NetworkNodeConfig(ip)) => {
+                    self.handle_network_node_config(ip, node, execution_mode)
+                        .await
+                }
+                Some(NodeConfig::LocalNodeConfig) => {
+                    self.handle_local_node_config(node_id, node, execution_mode)
+                        .await
+                }
+                None => Err(StandardExecutor::handle_missing_execution_config(node_id)),
+            };
+
+            // store the result with its node_id
+            results.push((node_id, result));
+        }
+
+        // convert results into a HashMap
+        let node_map = results
+            .into_iter()
+            .map(|(node_id, node_res)| match node_res {
+                Ok(exec_node) => Ok((node_id, Box::new(exec_node) as Box<dyn Node>)),
+                Err(err) => {
+                    eprintln!("Error setting up node {}: {:?}", node_id, err);
+                    Err(ExecutionError::NodeSetupFailed {
+                        message: format!("Error setting up node {}: {:?}", node_id, err,),
+                    })
+                }
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
+
+        Ok(node_map)
+    }
 }
 
 impl Executor for StandardExecutor {
@@ -251,50 +373,6 @@ impl Executor for StandardExecutor {
 
             //store known network communicators to controll remote runners in a map
             let known_communicators: HashMap<SocketAddr, NetworkCommunicator> = HashMap::new();
-
-            // execution_flow.set_nodes(
-            //     nodes
-            //         .into_iter()
-            //         .map(
-            //             move |(node_id, node)| match execution_config.node_configs.get(&node_id) {
-            //                 Some(node_config) => match node_config {
-            //                     NodeConfig::NetworkNodeConfig(ip) => {
-            //                         //try to find address in known hosts
-            //                         let known_communicator = known_communicators.get(ip);
-            //                         match known_communicator {
-            //                             Some(comm) => {
-            //                                 let msg = Message::SetupCommunication(())
-            //                                 comm.send(message)}},
-            //                             None => todo!(),
-            //                         }
-            //                     }
-            //                     NodeConfig::LocalNodeConfig => {
-            //                         // Use thread-communication locally
-            //                         let thread_comm = ThreadCommunicator::<String>::new().unwrap();
-            //                         let node_comm = NodeCommunicator::ThreadComm(thread_comm);
-            //                         let control_edge = Edge::<String>::new(node_comm);
-            //                         // For each abstract Node, create an ExecutionNode
-            //                         let exec_node = ExecutionNode::new(
-            //                             node,
-            //                             execution_mode.clone(),
-            //                             control_edge,
-            //                         );
-            //                         (node_id, Ok(exec_node))
-            //                     }
-            //                 },
-            //                 None => (
-            //                     node_id,
-            //                     Err(ExecutionConfigError::MissingExecutionConfig {
-            //                         message: format!("No Execution found for node {}", node_id),
-            //                     }),
-            //                 ),
-            //             },
-            //         )
-            //         .map(|(node_id, node_res)| {
-            //             (node_id, Box::new(node_res.unwrap()) as Box<dyn Node>)
-            //         })
-            //         .collect(),
-            // );
 
             //Step 4: Setup Phase. Initialize all Nodes on their runners, then connect them together correctly
             //4.1: Initialize all nodes on their runners
@@ -405,8 +483,34 @@ impl Executor for StandardExecutor {
         }
     }
 
-    fn setup_and_connect(&mut self, flow: AbstractFlow) -> Result<ExecutionFlow, ExecutionError> {
-        Ok(ExecutionFlow::new_empty())
+    async fn setup_and_connect(
+        &mut self,
+        mut abstract_flow: AbstractFlow,
+        execution_config: ExecutionConfig,
+    ) -> Result<ExecutionFlow, ExecutionError> {
+        // create ExecutionMode
+        // StandardExecutor operates continuously
+        let execution_mode = ExecutionMode::Continuous;
+
+        // create execution flow
+        let mut execution_flow = ExecutionFlow::new_empty();
+
+        // move connections to execution flow
+        let connections = abstract_flow.move_connections();
+        execution_flow.set_connections(connections);
+
+        // create executionNodes and move to execution flow
+        let nodes = abstract_flow.move_nodes();
+        let node_map = self
+            .create_execution_nodes(nodes, &execution_config, execution_mode)
+            .await?;
+        execution_flow.set_nodes(node_map);
+
+        // connect with control edges of each node
+
+        // connect nodes into a flow
+
+        Ok(execution_flow)
     }
 
     // fn controller(&self) -> ExecutionController {

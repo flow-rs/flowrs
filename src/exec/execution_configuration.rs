@@ -26,4 +26,7 @@ impl ExecutionConfig {
 pub enum ExecutionConfigError {
     #[error("Missing Execution Config Error. Message: {message:?}")]
     MissingExecutionConfig { message: String },
+
+    #[error("Communication Setup Failed Error. Message: {message:?}")]
+    CommunicationSetupFailed { message: String },
 }

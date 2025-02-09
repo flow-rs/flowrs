@@ -16,7 +16,7 @@ pub struct NetworkCommunicator {
 }
 
 impl NetworkCommunicator {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Ok(NetworkCommunicator {
             stream: None,
             addr: None,
@@ -237,7 +237,7 @@ mod tests {
         assert!(send_res.is_ok());
 
         //Try to receive
-        let recv_res: Result<Message<String>, Box<dyn Error>> = comm.receive().await;
+        let recv_res: Result<Message<String>, Box<dyn Error + Send + Sync>> = comm.receive().await;
         assert!(recv_res.is_ok());
         let received_msg: Message<String> = recv_res.unwrap();
         match received_msg {

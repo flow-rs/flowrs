@@ -1,8 +1,6 @@
-use crate::connection::EdgeTrait;
 use async_trait::async_trait;
 use tokio::runtime::Runtime;
 
-use super::connection::{Input, Output};
 /// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
 /// The macro allows node types to define Inputs and Outputs as Tupels. Example:
 /// pub struct AddNode<I1, I2, O>

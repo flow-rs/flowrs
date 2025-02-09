@@ -14,7 +14,7 @@ use crate::{
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
 };
 
-use super::connection::{Edge, Input};
+use super::connection::Edge;
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.

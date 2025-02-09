@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::{error::Error, fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 
@@ -20,29 +20,31 @@ where
     D: fmt::Debug,
     D: FromStr,
 {
-    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>>;
-    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>>;
-    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>>;
+    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn Error + Send + Sync>>;
 
-    // Functions needed to seperate sending and receiving
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn Error + Send + Sync>>;
+
+    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn Error + Send + Sync>>;
+
     fn clone_send(&self) -> Self
     where
         Self: Sized;
-    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+
+    fn move_recv(&mut self) -> Result<Self, Box<dyn Error + Send + Sync>>
     where
         Self: Sized;
 
-    // Functions needed to connect sending and receiving parts
     async fn connect_send(
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>>;
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
+
     async fn connect_recv(
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>>;
+    ) -> Result<(), Box<dyn Error + Send + Sync>>;
 }
 
 /// NodeCommunicator ==============================================================================
@@ -139,21 +141,26 @@ where
     D: Send,
     D: 'static,
 {
-    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
+    async fn send(
+        &mut self,
+        message: Message<D>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.send(message).await,
             NodeCommunicator::NetworkComm(comm) => comm.send(message).await,
         }
     }
 
-    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.receive().await,
             NodeCommunicator::NetworkComm(comm) => comm.receive().await,
         }
     }
 
-    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+    async fn try_receive(
+        &mut self,
+    ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.try_receive().await,
             NodeCommunicator::NetworkComm(comm) => comm.try_receive().await,
@@ -172,7 +179,7 @@ where
         }
     }
 
-    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,
     {
@@ -192,7 +199,7 @@ where
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_send(addr, port).await,
             NodeCommunicator::NetworkComm(comm) => {
@@ -206,7 +213,7 @@ where
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_recv(addr, port).await,
             NodeCommunicator::NetworkComm(comm) => {

@@ -34,7 +34,10 @@ where
     D: Send,
     D: 'static,
 {
-    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
+    async fn send(
+        &mut self,
+        message: Message<D>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(ref mut stream) = self.stream {
             // if the stream exists, write to it
             stream
@@ -48,7 +51,7 @@ where
         }
     }
 
-    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {
         if self.stream.is_none() {
             return Err("Can not receive, as the receiving stream was moved".into());
         }
@@ -61,7 +64,9 @@ where
         }
     }
 
-    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+    async fn try_receive(
+        &mut self,
+    ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
         if self.stream.is_none() {
             return Err("Can not receive, as the receiving stream was moved".into());
         }
@@ -90,7 +95,7 @@ where
             port: self.port.clone(),
         }
     }
-    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,
     {
@@ -108,7 +113,7 @@ where
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if addr.is_none() || port.is_none() {
             return Err("IP Address and port must be given".into());
         }
@@ -124,7 +129,7 @@ where
         &mut self,
         addr: Option<String>,
         port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if addr.is_none() || port.is_none() {
             return Err("IP Address and port must be given".into());
         }

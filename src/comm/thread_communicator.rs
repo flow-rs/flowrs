@@ -2,9 +2,12 @@ use std::{error::Error, fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 use async_trait::async_trait;
-use tokio::sync::{
-    broadcast::error::RecvError,
-    mpsc::{channel, Receiver, Sender},
+use tokio::{
+    io,
+    sync::{
+        broadcast::error::RecvError,
+        mpsc::{channel, Receiver, Sender},
+    },
 };
 
 use super::communication::Communicator;
@@ -28,7 +31,7 @@ where
     D: fmt::Debug,
     D: FromStr,
 {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let (tx, rx) = channel(BUFFER_SIZE);
 
         Ok(ThreadCommunicator {
@@ -85,14 +88,21 @@ where
     D: Send,
     D: 'static,
 {
-    async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn std::error::Error>> {
-        self.sender
-            .send(message)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+    async fn send(
+        &mut self,
+        message: Message<D>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.sender.send(message).await.map_err(|_| {
+            Box::new(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to send message",
+            )) as Box<dyn std::error::Error + Send + Sync>
+        })?;
+
+        Ok(())
     }
 
-    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error>> {
+    async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {
         // temporarily take the receiver from self
         let mut receiver = self
             .receiver
@@ -102,13 +112,15 @@ where
         let result = receiver
             .recv()
             .await
-            .ok_or_else(|| Box::new(RecvError::Closed) as Box<dyn Error>);
+            .ok_or_else(|| Box::new(RecvError::Closed) as Box<dyn Error + Send + Sync>);
         //put back the receiver into self
         self.receiver = Some(receiver);
         result
     }
 
-    async fn try_receive(&mut self) -> Result<Option<Message<D>>, Box<dyn std::error::Error>> {
+    async fn try_receive(
+        &mut self,
+    ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
         // temporarily take the receiver from self
         let mut receiver = self
             .receiver
@@ -117,7 +129,7 @@ where
         // use the receiver
         let result = receiver
             .try_recv()
-            .map_err(|e| Box::new(e) as Box<dyn Error>)
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
             .map(|res| Some(res));
         // put back the reveicer into self
         self.receiver = Some(receiver);
@@ -133,7 +145,7 @@ where
             receiver: None,
         }
     }
-    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error>>
+    fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,
     {
@@ -151,14 +163,14 @@ where
         &mut self,
         _addr: Option<String>,
         _port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
     async fn connect_recv(
         &mut self,
         _addr: Option<String>,
         _port: Option<u16>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
 }

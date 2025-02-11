@@ -42,7 +42,7 @@ impl AbstractFlow {
         //check for errors
         match self.nodes.get(&sender_node) {
             Some(node) => {
-                if sender_out_idx < node.get_output_count() {
+                if sender_out_idx >= node.get_output_count() {
                     return Err(FlowError::InvalidNodeIOIndexError);
                 }
             }
@@ -50,7 +50,7 @@ impl AbstractFlow {
         }
         match self.nodes.get(&recv_node) {
             Some(node) => {
-                if recv_in_idx < node.get_input_count() {
+                if recv_in_idx >= node.get_input_count() {
                     return Err(FlowError::InvalidNodeIOIndexError);
                 }
             }

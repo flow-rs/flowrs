@@ -15,11 +15,8 @@ use super::flow_types::NodeId;
 //use crate::connection::RuntimeNode;
 
 pub struct AbstractFlow {
-    //nodes: Vec<(NodeId, Box<dyn RuntimeNode>)>,
     nodes: HashMap<NodeId, Box<dyn Node>>,
     network: FlowNetwork,
-    // id_to_node_idx: HashMap<NodeId, usize>,
-    // id_to_desc: HashMap<NodeId, NodeDescription>,
 }
 
 impl AbstractFlow {
@@ -28,92 +25,12 @@ impl AbstractFlow {
             //nodes: Vec::new(),
             nodes: HashMap::new(),
             network: FlowNetwork::new(),
-            // id_to_node_idx: HashMap::new(),
-            // id_to_desc: HashMap::new(),
         }
     }
-
-    //pub fn new(nodes: HashMap<NodeId, Box<dyn RuntimeNode>>) -> Self {
-    //pub fn new() -> Self {
-    //Self {
-    //nodes: Vec::new(),
-    //network: FlowNetwork::new(),
-    // id_to_node_idx: HashMap::new(),
-    // id_to_desc: HashMap::new(),
-    // id_counter: 0,
-    //}
-
-    // for (id, runtime_node) in nodes {
-    //     let node_idx = obj.nodes.len();
-    //     obj.nodes.push((id, runtime_node));
-    //     obj.id_to_node_idx.insert(id, node_idx);
-    // }
-
-    //obj
-    //}
-
-    // fn generate_id(&mut self) -> NodeId {
-    //     self.id_counter += 1;
-    //     self.id_counter
-    // }
-
-    // pub fn node_description_by_id(&self, id: NodeId) -> Option<&NodeDescription> {
-    //     self.id_to_desc.get(&id)
-    // }
-
-    // pub fn add_node<T>(&mut self, node: T) -> NodeId
-    // where
-    //     T: RuntimeNode + 'static,
-    // {
-    //     let id = self.generate_id();
-    //     self.add_node_with_id_and_desc(node, id, NodeDescription::default())
-    // }
 
     pub fn add_node_with_id(&mut self, node: Box<dyn Node>, id: NodeId) -> Option<Box<dyn Node>> {
         self.nodes.insert(id, node)
     }
-
-    // pub fn add_node_with_id_and_desc<T>(
-    //     &mut self,
-    //     node: T,
-    //     id: NodeId,
-    //     desc: NodeDescription,
-    // ) -> NodeId
-    // where
-    //     T: RuntimeNode + 'static,
-    // {
-    //     if !self.id_to_node_idx.contains_key(&id) {
-    //         self.nodes.push((id, Box::new(node)));
-    //         self.id_to_node_idx.insert(id, self.nodes.len() - 1);
-    //         self.id_to_desc.insert(id, desc);
-    //     }
-
-    //     id
-    // }
-
-    // pub fn node_by_index(&mut self, index: usize) -> Option<&mut (NodeId, Box<dyn RuntimeNode>)> {
-    //     self.nodes.get_mut(index)
-    // }
-
-    // pub fn node_by_id(&mut self, id: NodeId) -> Option<&(NodeId, Box<dyn RuntimeNode>)> {
-    //     if let Some(idx) = self.id_to_node_idx.get(&id) {
-    //         return self.node_by_index(*idx).map(|x| &*x);
-    //     }
-    //     None
-    // }
-
-    // pub fn num_nodes(&self) -> usize {
-    //     self.nodes.len()
-    // }
-
-    /// Inserts a node description and returns the NodeId of the inserted node
-    // pub fn add_node(&mut self, node_desc: NodeDesc) -> NodeId {
-    //     let id: NodeId = self.id_counter;
-    //     self.id_counter = self.id_counter + 1;
-    //     self.nodes.insert(id, node_desc);
-
-    //     id
-    // }
 
     pub fn connect_nodes(
         &mut self,
@@ -124,16 +41,16 @@ impl AbstractFlow {
     ) -> Result<(), FlowError> {
         //check for errors
         match self.nodes.get(&sender_node) {
-            Some(node_desc) => {
-                if sender_out_idx < node_desc.get_output_count().try_into().unwrap() {
+            Some(node) => {
+                if sender_out_idx < node.get_output_count() {
                     return Err(FlowError::InvalidNodeIOIndexError);
                 }
             }
             None => return Err(FlowError::InvalidNodeIdError),
         }
         match self.nodes.get(&recv_node) {
-            Some(node_desc) => {
-                if recv_in_idx < node_desc.get_input_count().try_into().unwrap() {
+            Some(node) => {
+                if recv_in_idx < node.get_input_count() {
                     return Err(FlowError::InvalidNodeIOIndexError);
                 }
             }
@@ -223,17 +140,201 @@ pub struct NodeDesc {
 
 impl NodeDesc {
     pub fn new(input_count: usize, output_count: usize) -> Self {
-        //let mut input_count = 0;
-        //let mut output_count = 0;
-        // if let Some(inputs) = node_type.clone().inputs {
-        //     input_count = inputs.len();
-        // }
-        // if let Some(outputs) = node_type.clone().outputs {
-        //     output_count = outputs.len();
-        // }
         NodeDesc {
             node_input_count: input_count,
             node_output_count: output_count,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::flow::{abstract_flow::AbstractFlow, flow_error::FlowError};
+    /// A mock node for testing, simulating a basic node with configurable input/output counts.
+    pub struct MockNode {
+        input_count: u128,
+        output_count: u128,
+    }
+
+    impl MockNode {
+        /// Creates a new MockNode with given input and output ports.
+        pub fn new(input_count: u128, output_count: u128) -> Self {
+            MockNode {
+                input_count,
+                output_count,
+            }
+        }
+    }
+
+    impl Node for MockNode {
+        fn get_input_count(&self) -> u128 {
+            self.input_count
+        }
+
+        fn get_output_count(&self) -> u128 {
+            self.output_count
+        }
+
+        fn setup_input(&mut self, _idx: u128, _local: bool) {
+            //
+        }
+
+        fn setup_output(&mut self, _idx: u128, _local: bool) {
+            //
+        }
+    }
+
+    /// Helper function to create a test node
+    fn create_test_node() -> Box<dyn Node> {
+        Box::new(MockNode::new(2, 3))
+    }
+
+    #[test]
+    fn test_new_empty_flow() {
+        let flow = AbstractFlow::new_empty();
+        assert_eq!(flow.num_nodes(), 0, "New flow should have zero nodes");
+    }
+
+    #[test]
+    fn test_add_node_with_id() {
+        let mut flow = AbstractFlow::new_empty();
+        let node_id = 1;
+        let node = create_test_node();
+
+        assert!(
+            flow.add_node_with_id(node, node_id).is_none(),
+            "Node should be added successfully"
+        );
+        assert_eq!(
+            flow.num_nodes(),
+            1,
+            "Flow should have one node after addition"
+        );
+    }
+
+    #[test]
+    fn test_add_duplicate_node() {
+        let mut flow = AbstractFlow::new_empty();
+        let node_id = 1;
+        let node1 = create_test_node();
+        let node2 = create_test_node();
+
+        assert!(
+            flow.add_node_with_id(node1, node_id).is_none(),
+            "First node should be added successfully"
+        );
+        assert!(
+            flow.add_node_with_id(node2, node_id).is_some(),
+            "Second node with the same ID should return the old node"
+        );
+        assert_eq!(
+            flow.num_nodes(),
+            1,
+            "Flow should still have one node after replacement"
+        );
+    }
+
+    #[test]
+    fn test_connect_nodes_success() {
+        let mut flow = AbstractFlow::new_empty();
+        let node1 = create_test_node();
+        let node2 = create_test_node();
+        let id1 = 1;
+        let id2 = 2;
+
+        flow.add_node_with_id(node1, id1);
+        flow.add_node_with_id(node2, id2);
+
+        let result = flow.connect_nodes(id1, id2, 0, 0);
+        assert!(result.is_ok(), "Nodes should connect successfully");
+        assert_eq!(
+            flow.get_connections().count(),
+            1,
+            "There should be one connection"
+        );
+    }
+
+    #[test]
+    fn test_connect_nodes_invalid_ids() {
+        let mut flow = AbstractFlow::new_empty();
+        let node1 = create_test_node();
+        let id1 = 1;
+        let id_invalid = 999; // Non-existing node ID
+
+        flow.add_node_with_id(node1, id1);
+
+        let result = flow.connect_nodes(id1, id_invalid, 0, 0);
+        assert!(
+            matches!(result, Err(FlowError::InvalidNodeIdError)),
+            "Should return an InvalidNodeIdError"
+        );
+    }
+
+    #[test]
+    fn test_connect_nodes_invalid_io_index() {
+        let mut flow = AbstractFlow::new_empty();
+        let node1 = create_test_node();
+        let node2 = create_test_node();
+        let id1 = 1;
+        let id2 = 2;
+
+        flow.add_node_with_id(node1, id1);
+        flow.add_node_with_id(node2, id2);
+
+        let result = flow.connect_nodes(id1, id2, 10, 0); // Invalid output index
+        assert!(
+            matches!(result, Err(FlowError::InvalidNodeIOIndexError)),
+            "Should return an InvalidNodeIOIndexError"
+        );
+    }
+
+    #[test]
+    fn test_get_nodes() {
+        let mut flow = AbstractFlow::new_empty();
+        let node1 = create_test_node();
+        let node2 = create_test_node();
+
+        flow.add_node_with_id(node1, 1);
+        flow.add_node_with_id(node2, 2);
+
+        assert_eq!(flow.get_nodes().count(), 2, "Flow should contain two nodes");
+    }
+
+    #[test]
+    fn test_move_nodes() {
+        let mut flow = AbstractFlow::new_empty();
+        flow.add_node_with_id(create_test_node(), 1);
+        flow.add_node_with_id(create_test_node(), 2);
+
+        let moved_nodes: Vec<_> = flow.move_nodes().collect();
+        assert_eq!(moved_nodes.len(), 2, "Should have moved two nodes");
+        assert_eq!(
+            flow.num_nodes(),
+            0,
+            "Flow should be empty after moving nodes"
+        );
+    }
+
+    #[test]
+    fn test_move_connections() {
+        let mut flow = AbstractFlow::new_empty();
+        let id1 = 1;
+        let id2 = 2;
+        flow.add_node_with_id(create_test_node(), id1);
+        flow.add_node_with_id(create_test_node(), id2);
+        flow.connect_nodes(id1, id2, 0, 0).unwrap();
+
+        let moved_connections: Vec<_> = flow.move_connections().collect();
+        assert_eq!(
+            moved_connections.len(),
+            1,
+            "Should have moved one connection"
+        );
+        assert_eq!(
+            flow.get_connections().count(),
+            0,
+            "Flow should have no connections after move"
+        );
     }
 }

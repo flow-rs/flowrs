@@ -31,15 +31,17 @@ where
     StartExecution,
     StopExecution,
     SetupCommunication(CommWrapper<D>),
+    SetupCommunicationPort(u16),
     Debug(String),
     Data(DataWrapper<D>),
 }
 
 pub const START_EXECUTION: &str = "[[MESSAGE]: StartExecution]";
 pub const STOP_EXECUTION: &str = "[[MESSAGE]: StopExecution]";
-pub const SETUP_COMMUNICATION_PREFIX: &str = "[[MESSAGE]: SetupCommunication]";
+pub const SETUP_COMMUNICATION_PREFIX: &str = "[[MESSAGE]: SetupCommunication]>";
 pub const SETUP_COMMUNICATION_COMM: &str = "[Communicator:[";
 pub const SETUP_COMMUNICATION_TYPE: &str = "], Type:[";
+pub const SETUP_COMMUNICATION_PORT_PREFIX: &str = "[[MESSAGE]: SetupCommunicationPort]>";
 pub const DEBUG: &str = "[[MESSAGE]: [DEBUG]>]";
 pub const DATA: &str = "[[MESSAGE]: [DATA]>]";
 
@@ -51,6 +53,7 @@ const PATTERNS: &[&str] = &[
     SETUP_COMMUNICATION_COMM,
     SETUP_COMMUNICATION_PREFIX,
     SETUP_COMMUNICATION_TYPE,
+    SETUP_COMMUNICATION_PORT_PREFIX,
 ];
 
 impl<D> fmt::Debug for Message<D>
@@ -74,6 +77,9 @@ where
                 SETUP_COMMUNICATION_TYPE,
                 comm.node_type
             ),
+            Message::SetupCommunicationPort(port) => {
+                write!(f, "{} {}", SETUP_COMMUNICATION_PORT_PREFIX, port)
+            }
         }
     }
 }
@@ -99,6 +105,9 @@ where
                 SETUP_COMMUNICATION_TYPE,
                 serde_json::to_string(&(comm.node_type)).expect("should serialize"),
             ),
+            Message::SetupCommunicationPort(port) => {
+                write!(f, "{} {}", SETUP_COMMUNICATION_PORT_PREFIX, port)
+            }
         }
     }
 }
@@ -150,6 +159,11 @@ where
                     communicator: communicator,
                     node_type: node_type,
                 }))
+            }
+            Some(SETUP_COMMUNICATION_PORT_PREFIX) => {
+                let port_string = s.replacen(SETUP_COMMUNICATION_PORT_PREFIX, "", 1);
+                let port = port_string.parse::<u16>().ok()?;
+                Some(Self::SetupCommunicationPort(port))
             }
             _ => None,
         }
@@ -210,6 +224,14 @@ mod tests {
                 setup_communication_msg,
                 Message::SetupCommunication(comm_wrapper)
             );
+        }
+        if let Some(setup_communication_port_msg) =
+            Message::<u32>::from_str(format!("{}5050", SETUP_COMMUNICATION_PORT_PREFIX).as_str())
+        {
+            assert_eq!(
+                setup_communication_port_msg,
+                Message::SetupCommunicationPort(5050)
+            )
         }
     }
 }

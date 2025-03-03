@@ -133,7 +133,7 @@ where
         if addr.is_none() || port.is_none() {
             return Err("IP Address and port must be given".into());
         }
-        let listener = TcpListener::bind(("127.0.0.1", port.unwrap())).await?;
+        let listener = TcpListener::bind(("0.0.0.0", port.unwrap())).await?;
         let (stream, remote_addr) = listener.accept().await?;
         self.stream = Some(BufReader::new(stream));
         self.addr = Some(addr.clone().unwrap());

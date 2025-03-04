@@ -79,36 +79,82 @@ where
     }
 
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {
+        // if self.stream.is_none() {
+        //     return Err("Can not receive, as the receiving stream was moved".into());
+        // }
+        // let stream = self.stream.as_mut().unwrap();
+        // let mut line = String::new();
+        // let timeout_duration = Duration::from_secs(30);
+        // let result = timeout(timeout_duration, stream.read_line(&mut line)).await;
+        // match result {
+        //     Ok(Ok(_)) => {
+        //         // Successfully read a line
+        //         println!("Received raw message: {}", line.trim());
+
+        //         match Message::from_str(&line) {
+        //             Some(message) => {
+        //                 println!("Successfully parsed message: {:?}", message);
+        //                 Ok(message)
+        //             }
+        //             None => {
+        //                 println!("Failed to parse message: {}", line.trim());
+        //                 Err(Box::new(MessageError::CouldNotParse(line)))
+        //             }
+        //         }
+        //     }
+        //     Ok(Err(e)) => {
+        //         println!("Read error: {}", e);
+        //         Err(Box::new(e))
+        //     }
+        //     Err(_) => {
+        //         println!(
+        //             "Timeout reached! No message received within {:?}.",
+        //             timeout_duration
+        //         );
+        //         Err("Timeout: No message received within the expected time".into())
+        //     }
+        // }
         if self.stream.is_none() {
-            return Err("Can not receive, as the receiving stream was moved".into());
+            return Err("Cannot receive, as the receiving stream was moved".into());
         }
         let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
         let timeout_duration = Duration::from_secs(30);
+
+        println!(
+            "[DEBUG] Waiting to receive message on {}:{}",
+            self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
+            self.port.unwrap_or(0)
+        );
+
         let result = timeout(timeout_duration, stream.read_line(&mut line)).await;
+
         match result {
-            Ok(Ok(_)) => {
-                // Successfully read a line
-                println!("Received raw message: {}", line.trim());
+            Ok(Ok(bytes_read)) => {
+                println!("[DEBUG] Received {} bytes: '{}'", bytes_read, line.trim());
+
+                if bytes_read == 0 {
+                    return Err("Stream closed unexpectedly".into());
+                }
 
                 match Message::from_str(&line) {
                     Some(message) => {
-                        println!("Successfully parsed message: {:?}", message);
+                        println!("[DEBUG] Successfully parsed message: {:?}", message);
                         Ok(message)
                     }
                     None => {
-                        println!("Failed to parse message: {}", line.trim());
+                        println!("[ERROR] Failed to parse message: '{}'", line.trim());
                         Err(Box::new(MessageError::CouldNotParse(line)))
                     }
                 }
             }
             Ok(Err(e)) => {
-                println!("Read error: {}", e);
+                println!("[ERROR] Read error: {}", e);
                 Err(Box::new(e))
             }
             Err(_) => {
                 println!(
-                    "Timeout reached! No message received within {:?}.",
+                    "[ERROR] Timeout reached! No message received within {:?}.",
                     timeout_duration
                 );
                 Err("Timeout: No message received within the expected time".into())

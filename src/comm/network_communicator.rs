@@ -109,6 +109,7 @@ where
             Err("Can not move stream as it is None".into())
         }
     }
+
     async fn connect_send(
         &mut self,
         addr: Option<String>,
@@ -125,6 +126,7 @@ where
         self.port = Some(port.unwrap());
         Ok(())
     }
+
     async fn connect_recv(
         &mut self,
         addr: Option<String>,
@@ -138,8 +140,14 @@ where
         self.stream = Some(BufReader::new(stream));
         self.addr = Some(addr.clone().unwrap());
         self.port = Some(port.unwrap());
-        if !(remote_addr.to_string() == addr.unwrap()) {
-            return Err("Received connection from wrong IP".into());
+        if !(remote_addr.to_string() == addr.clone().unwrap()) {
+            //strict check not working with docker's NAT resolution
+            //return Err("Received connection from wrong IP".into());
+            //display warning message instead
+            println!(
+            "[Node RT] WARN: Receiver accepted connection from {} while expected address was {}",
+            remote_addr, addr.unwrap()
+);
         }
         Ok(())
     }

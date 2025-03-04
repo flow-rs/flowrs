@@ -39,16 +39,42 @@ where
         &mut self,
         message: Message<D>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // if let Some(ref mut stream) = self.stream {
+        //     // if the stream exists, write to it
+        //     stream
+        //         .get_mut()
+        //         .write_all(message.to_string().as_bytes())
+        //         .await?;
+        //     stream.get_mut().flush().await?;
+        //     Ok(())
+        // } else {
+        //     Err("Can not send, as the receiving stream was moved".into())
+        // }
         if let Some(ref mut stream) = self.stream {
-            // if the stream exists, write to it
-            stream
-                .get_mut()
-                .write_all(message.to_string().as_bytes())
-                .await?;
-            stream.get_mut().flush().await?;
+            let msg_str = message.to_string();
+            println!(
+                "[DEBUG] Attempting to send message to {}:{} -> {:?}",
+                self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
+                self.port.unwrap_or(0),
+                msg_str
+            );
+
+            let bytes = msg_str.as_bytes();
+            println!("[DEBUG] Writing {} bytes...", bytes.len());
+
+            match stream.get_mut().write_all(bytes).await {
+                Ok(_) => println!("[DEBUG] write_all() completed successfully."),
+                Err(e) => println!("[ERROR] write_all() failed: {}", e),
+            }
+
+            match stream.get_mut().flush().await {
+                Ok(_) => println!("[DEBUG] flush() completed successfully."),
+                Err(e) => println!("[ERROR] flush() failed: {}", e),
+            }
+
             Ok(())
         } else {
-            Err("Can not send, as the receiving stream was moved".into())
+            Err("Cannot send, as the stream was moved".into())
         }
     }
 

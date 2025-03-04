@@ -58,7 +58,7 @@ where
         }
         let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
-        let timeout_duration = Duration::from_secs(5);
+        let timeout_duration = Duration::from_secs(30);
         let result = timeout(timeout_duration, stream.read_line(&mut line)).await;
         match result {
             Ok(Ok(_)) => {

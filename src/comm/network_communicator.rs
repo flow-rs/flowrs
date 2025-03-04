@@ -3,6 +3,7 @@ use std::{fmt, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
+    time::{timeout, Duration},
 };
 
 use super::{communication::Communicator, messages::MessageError};
@@ -57,10 +58,35 @@ where
         }
         let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
-        stream.read_line(&mut line).await?;
-        match Message::from_str(&line) {
-            Some(message) => Ok(message),
-            None => Err(Box::new(MessageError::CouldNotParse(line))),
+        let timeout_duration = Duration::from_secs(5);
+        let result = timeout(timeout_duration, stream.read_line(&mut line)).await;
+        match result {
+            Ok(Ok(_)) => {
+                // Successfully read a line
+                println!("Received raw message: {}", line.trim());
+
+                match Message::from_str(&line) {
+                    Some(message) => {
+                        println!("Successfully parsed message: {:?}", message);
+                        Ok(message)
+                    }
+                    None => {
+                        println!("Failed to parse message: {}", line.trim());
+                        Err(Box::new(MessageError::CouldNotParse(line)))
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                println!("Read error: {}", e);
+                Err(Box::new(e))
+            }
+            Err(_) => {
+                println!(
+                    "Timeout reached! No message received within {:?}.",
+                    timeout_duration
+                );
+                Err("Timeout: No message received within the expected time".into())
+            }
         }
     }
 

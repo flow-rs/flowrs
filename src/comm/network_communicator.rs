@@ -50,32 +50,71 @@ where
         // } else {
         //     Err("Can not send, as the receiving stream was moved".into())
         // }
-        if let Some(ref mut stream) = self.stream {
-            let msg_str = message.to_string();
-            println!(
-                "[DEBUG] Attempting to send message to {}:{} -> {:?}",
-                self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
-                self.port.unwrap_or(0),
-                msg_str
-            );
 
-            let bytes = msg_str.as_bytes();
-            println!("[DEBUG] Writing {} bytes...", bytes.len());
+        // if let Some(ref mut stream) = self.stream {
+        //     let msg_str = message.to_string();
+        //     println!(
+        //         "[DEBUG] Attempting to send message to {}:{} -> {:?}",
+        //         self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
+        //         self.port.unwrap_or(0),
+        //         msg_str
+        //     );
 
-            match stream.get_mut().write_all(bytes).await {
-                Ok(_) => println!("[DEBUG] write_all() completed successfully."),
-                Err(e) => println!("[ERROR] write_all() failed: {}", e),
-            }
+        //     let bytes = msg_str.as_bytes();
+        //     println!("[DEBUG] Writing {} bytes...", bytes.len());
 
-            match stream.get_mut().flush().await {
-                Ok(_) => println!("[DEBUG] flush() completed successfully."),
-                Err(e) => println!("[ERROR] flush() failed: {}", e),
-            }
+        //     match stream.get_mut().write_all(bytes).await {
+        //         Ok(_) => println!("[DEBUG] write_all() completed successfully."),
+        //         Err(e) => println!("[ERROR] write_all() failed: {}", e),
+        //     }
 
-            Ok(())
-        } else {
-            Err("Cannot send, as the stream was moved".into())
+        //     match stream.get_mut().flush().await {
+        //         Ok(_) => println!("[DEBUG] flush() completed successfully."),
+        //         Err(e) => println!("[ERROR] flush() failed: {}", e),
+        //     }
+
+        //     Ok(())
+        // } else {
+        //     Err("Cannot send, as the stream was moved".into())
+        // }
+
+        if self.stream.is_none() {
+            return Err("Can not send, as the receiving stream was moved".into());
         }
+
+        let msg_str = format!("{}\n", message.to_string()); // Ensure newline termination
+        let mut attempts = 0;
+        let max_retries = 5;
+        let retry_delay = Duration::from_secs(1); // 1-second delay between retries
+
+        while attempts < max_retries {
+            if let Some(ref mut stream) = self.stream {
+                match stream.get_mut().write_all(msg_str.as_bytes()).await {
+                    Ok(_) => {
+                        stream.get_mut().flush().await?;
+                        println!(
+                            "[DEBUG] Successfully sent message after {} attempt(s).",
+                            attempts + 1
+                        );
+                        return Ok(()); // Message sent successfully
+                    }
+                    Err(e) => {
+                        println!(
+                            "[WARN] Failed to send message (attempt {}/{}): {}",
+                            attempts + 1,
+                            max_retries,
+                            e
+                        );
+                        attempts += 1;
+                        sleep(retry_delay).await; // Wait before retrying
+                    }
+                }
+            } else {
+                return Err("Can not send, as the receiving stream was moved".into());
+            }
+        }
+
+        Err("Failed to send message after multiple retries.".into()) // Return error if all retries fail
     }
 
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {

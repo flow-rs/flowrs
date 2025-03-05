@@ -3,7 +3,7 @@ use std::{fmt, str::FromStr};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    time::{timeout, Duration},
+    time::{sleep, timeout, Duration},
 };
 
 use super::{communication::Communicator, messages::MessageError};

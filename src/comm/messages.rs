@@ -161,7 +161,11 @@ where
                 }))
             }
             Some(SETUP_COMMUNICATION_PORT_PREFIX) => {
-                let port_string = s.replacen(SETUP_COMMUNICATION_PORT_PREFIX, "", 1);
+                let port_string = s
+                    .replacen(SETUP_COMMUNICATION_PORT_PREFIX, "", 1)
+                    .trim()
+                    .to_string();
+                println!("[DEBUG] Extracted Port String: '{}'", port_string.clone());
                 let port = port_string.parse::<u16>().ok()?;
                 Some(Self::SetupCommunicationPort(port))
             }

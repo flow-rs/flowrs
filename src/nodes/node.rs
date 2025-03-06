@@ -149,8 +149,9 @@ impl ExecutionNode {
             Message::StartExecution => todo!(),
             Message::StopExecution => self.execution_state = ExecutionState::Shutdown,
             Message::Debug(_debug_string) => todo!(),
-            Message::Data(_) => (), //ignore data messages
+            Message::Data(_) => (),
             Message::SetupCommunicationPort(_) => todo!(),
+            Message::AcknowledgeConnection => todo!(),
         }
     }
 }

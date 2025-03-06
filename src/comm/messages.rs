@@ -32,6 +32,7 @@ where
     StopExecution,
     SetupCommunication(CommWrapper<D>),
     SetupCommunicationPort(u16),
+    AcknowledgeConnection,
     Debug(String),
     Data(DataWrapper<D>),
 }
@@ -42,6 +43,7 @@ pub const SETUP_COMMUNICATION_PREFIX: &str = "[[MESSAGE]: SetupCommunication]>";
 pub const SETUP_COMMUNICATION_COMM: &str = "[Communicator:[";
 pub const SETUP_COMMUNICATION_TYPE: &str = "], Type:[";
 pub const SETUP_COMMUNICATION_PORT_PREFIX: &str = "[[MESSAGE]: SetupCommunicationPort]>";
+pub const ACKNOWLEDGE_CONNECTION: &str = "[[MESSAGE]: AcknowledgeConnection]";
 pub const DEBUG: &str = "[[MESSAGE]: [DEBUG]>]";
 pub const DATA: &str = "[[MESSAGE]: [DATA]>]";
 
@@ -54,6 +56,7 @@ const PATTERNS: &[&str] = &[
     SETUP_COMMUNICATION_PREFIX,
     SETUP_COMMUNICATION_TYPE,
     SETUP_COMMUNICATION_PORT_PREFIX,
+    ACKNOWLEDGE_CONNECTION,
 ];
 
 impl<D> fmt::Debug for Message<D>
@@ -80,6 +83,7 @@ where
             Message::SetupCommunicationPort(port) => {
                 write!(f, "{} {}", SETUP_COMMUNICATION_PORT_PREFIX, port)
             }
+            Message::AcknowledgeConnection => write!(f, "{}", ACKNOWLEDGE_CONNECTION),
         }
     }
 }
@@ -108,6 +112,7 @@ where
             Message::SetupCommunicationPort(port) => {
                 write!(f, "{} {}", SETUP_COMMUNICATION_PORT_PREFIX, port)
             }
+            Message::AcknowledgeConnection => write!(f, "{}", ACKNOWLEDGE_CONNECTION),
         }
     }
 }
@@ -169,6 +174,7 @@ where
                 let port = port_string.parse::<u16>().ok()?;
                 Some(Self::SetupCommunicationPort(port))
             }
+            Some(ACKNOWLEDGE_CONNECTION) => Some(Self::AcknowledgeConnection),
             _ => None,
         }
     }
@@ -236,6 +242,9 @@ mod tests {
                 setup_communication_port_msg,
                 Message::SetupCommunicationPort(5050)
             )
+        }
+        if let Some(acknowledge_connection_msg) = Message::<u32>::from_str(ACKNOWLEDGE_CONNECTION) {
+            assert_eq!(acknowledge_connection_msg, Message::AcknowledgeConnection)
         }
     }
 }

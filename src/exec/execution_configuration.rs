@@ -1,16 +1,19 @@
-use crate::flow::flow_types::NodeId;
-use std::{collections::HashMap, net::SocketAddr};
+use crate::{
+    flow::flow_types::NodeId,
+    sched::scheduling_config::{RuntimeId, SchedulingConfig},
+};
+use std::collections::HashMap;
 use thiserror::Error;
 
-/// The ExecutionConfig determines for all nodes where they are executed
+/// The ExecutionConfig determines which nodes a specifc runtime is responsible for
 pub struct ExecutionConfig {
     pub node_configs: HashMap<NodeId, NodeConfig>,
 }
 
-/// The NodeConfig determines where a node is run, either local or remote
+/// The NodeConfig determines whether a node is local to this runtime, or remote
 pub enum NodeConfig {
     // not sure which type of address to use
-    NetworkNodeConfig(SocketAddr),
+    RemoteNodeConfig(RuntimeId),
     LocalNodeConfig,
 }
 
@@ -19,6 +22,36 @@ impl ExecutionConfig {
         ExecutionConfig {
             node_configs: HashMap::<NodeId, NodeConfig>::new(),
         }
+    }
+
+    /// Creates an ExecutionConfig for a specific runtime based on the SchedulingConfig
+    pub fn from_scheduling_config(
+        scheduling_config: &SchedulingConfig,
+        runtime_id: RuntimeId,
+    ) -> Self {
+        let mut execution_config = ExecutionConfig::new();
+
+        // Assign local nodes
+        if let Some(local_nodes) = scheduling_config.get_nodes_for_runtime(runtime_id) {
+            for &node_id in local_nodes {
+                execution_config
+                    .node_configs
+                    .insert(node_id, NodeConfig::LocalNodeConfig);
+            }
+        }
+
+        // Assign remote nodes (cross-runtime communication)
+        for (other_runtime_id, nodes) in &scheduling_config.runtime_nodes {
+            if *other_runtime_id != runtime_id {
+                for &node_id in nodes {
+                    execution_config
+                        .node_configs
+                        .insert(node_id, NodeConfig::RemoteNodeConfig(*other_runtime_id));
+                }
+            }
+        }
+
+        execution_config
     }
 }
 

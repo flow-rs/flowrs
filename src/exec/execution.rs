@@ -294,43 +294,44 @@ impl StandardExecutor {
         execution_config: &ExecutionConfig,
         execution_mode: ExecutionMode,
     ) -> Result<HashMap<u128, Box<dyn Node>>, ExecutionError> {
-        let mut results = Vec::new();
+        //     let mut results = Vec::new();
 
-        for (node_id, node) in nodes {
-            let execution_mode = execution_mode.clone();
-            let node_config = execution_config.node_configs.get(&node_id);
+        //     for (node_id, node) in nodes {
+        //         let execution_mode = execution_mode.clone();
+        //         let node_config = execution_config.node_configs.get(&node_id);
 
-            let result = match node_config {
-                Some(NodeConfig::NetworkNodeConfig(ip)) => {
-                    self.handle_network_node_config(ip, node, execution_mode)
-                        .await
-                }
-                Some(NodeConfig::LocalNodeConfig) => {
-                    self.handle_local_node_config(node_id, node, execution_mode)
-                        .await
-                }
-                None => Err(StandardExecutor::handle_missing_execution_config(node_id)),
-            };
+        //         let result = match node_config {
+        //             Some(NodeConfig::RemoteNodeConfig(ip)) => {
+        //                 self.handle_network_node_config(ip, node, execution_mode)
+        //                     .await
+        //             }
+        //             Some(NodeConfig::LocalNodeConfig) => {
+        //                 self.handle_local_node_config(node_id, node, execution_mode)
+        //                     .await
+        //             }
+        //             None => Err(StandardExecutor::handle_missing_execution_config(node_id)),
+        //         };
 
-            // store the result with its node_id
-            results.push((node_id, result));
-        }
+        //         // store the result with its node_id
+        //         results.push((node_id, result));
+        //     }
 
-        // convert results into a HashMap
-        let node_map = results
-            .into_iter()
-            .map(|(node_id, node_res)| match node_res {
-                Ok(exec_node) => Ok((node_id, Box::new(exec_node) as Box<dyn Node>)),
-                Err(err) => {
-                    eprintln!("Error setting up node {}: {:?}", node_id, err);
-                    Err(ExecutionError::NodeSetupFailed {
-                        message: format!("Error setting up node {}: {:?}", node_id, err,),
-                    })
-                }
-            })
-            .collect::<Result<HashMap<_, _>, _>>()?;
+        //     // convert results into a HashMap
+        //     let node_map = results
+        //         .into_iter()
+        //         .map(|(node_id, node_res)| match node_res {
+        //             Ok(exec_node) => Ok((node_id, Box::new(exec_node) as Box<dyn Node>)),
+        //             Err(err) => {
+        //                 eprintln!("Error setting up node {}: {:?}", node_id, err);
+        //                 Err(ExecutionError::NodeSetupFailed {
+        //                     message: format!("Error setting up node {}: {:?}", node_id, err,),
+        //                 })
+        //             }
+        //         })
+        //         .collect::<Result<HashMap<_, _>, _>>()?;
+        //     Ok(node_map)
 
-        Ok(node_map)
+        Ok(HashMap::new())
     }
 }
 

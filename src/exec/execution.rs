@@ -347,33 +347,33 @@ impl Executor for StandardExecutor {
         U: NodeUpdater + Drop,
     {
         let mut runner = || {
-            // Trace executed code
-            // Spans will be sent to the configured OpenTelemetry exporter
-            let _root = info_span!("executor_run").entered();
+            // // Trace executed code
+            // // Spans will be sent to the configured OpenTelemetry exporter
+            // let _root = info_span!("executor_run").entered();
 
-            //TODO STEP ONE: Read in Environment Config
-            //      --> Not yet implemented, skip
-            let mut execution_config = ExecutionConfig::new();
-            execution_config.node_configs = abstract_flow
-                .get_nodes()
-                .map(|(node_id, node)| (*node_id, NodeConfig::LocalNodeConfig))
-                .collect();
+            // //TODO STEP ONE: Read in Environment Config
+            // //      --> Not yet implemented, skip
+            // let mut execution_config = ExecutionConfig::new();
+            // execution_config.node_configs = abstract_flow
+            //     .get_nodes()
+            //     .map(|(node_id, node)| (*node_id, NodeConfig::LocalNodeConfig))
+            //     .collect();
 
-            //TODO STEP TWO: Read in Flow (abstract but typed representation)
-            //not needed -> given as parameter
+            // //TODO STEP TWO: Read in Flow (abstract but typed representation)
+            // //not needed -> given as parameter
 
-            //Step 3: Create ExecutionFlow (flow structure which is no longer abstract)
-            let mut execution_flow: ExecutionFlow = ExecutionFlow::new_empty();
-            let execution_mode = ExecutionMode::Continuous;
+            // //Step 3: Create ExecutionFlow (flow structure which is no longer abstract)
+            // let mut execution_flow: ExecutionFlow = ExecutionFlow::new_empty();
+            // let execution_mode = ExecutionMode::Continuous;
 
-            let connections = abstract_flow.move_connections();
-            execution_flow.set_connections(connections);
-            let nodes = abstract_flow.move_nodes();
-            // 3.2: Add all ExecutionNodes to the ExecutionFlow Structure
-            //create ExecutionNodes for each Node using their respective NodeConfigs to determine where to run
+            // let connections = abstract_flow.move_connections();
+            // execution_flow.set_connections(connections);
+            // let nodes = abstract_flow.move_nodes();
+            // // 3.2: Add all ExecutionNodes to the ExecutionFlow Structure
+            // //create ExecutionNodes for each Node using their respective NodeConfigs to determine where to run
 
-            //store known network communicators to controll remote runners in a map
-            let known_communicators: HashMap<SocketAddr, NetworkCommunicator> = HashMap::new();
+            // //store known network communicators to controll remote runners in a map
+            // let known_communicators: HashMap<SocketAddr, NetworkCommunicator> = HashMap::new();
 
             //Step 4: Setup Phase. Initialize all Nodes on their runners, then connect them together correctly
             //4.1: Initialize all nodes on their runners

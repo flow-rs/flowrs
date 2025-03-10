@@ -7,6 +7,7 @@ use thiserror::Error;
 
 /// The ExecutionConfig determines which nodes a specifc runtime is responsible for
 pub struct ExecutionConfig {
+    pub runtime_id: RuntimeId,
     pub node_configs: HashMap<NodeId, NodeConfig>,
 }
 
@@ -18,8 +19,9 @@ pub enum NodeConfig {
 }
 
 impl ExecutionConfig {
-    pub fn new() -> Self {
+    pub fn new(runtime_id: RuntimeId) -> Self {
         ExecutionConfig {
+            runtime_id: runtime_id,
             node_configs: HashMap::<NodeId, NodeConfig>::new(),
         }
     }
@@ -29,7 +31,7 @@ impl ExecutionConfig {
         scheduling_config: &SchedulingConfig,
         runtime_id: RuntimeId,
     ) -> Self {
-        let mut execution_config = ExecutionConfig::new();
+        let mut execution_config = ExecutionConfig::new(runtime_id);
 
         // Assign local nodes
         if let Some(local_nodes) = scheduling_config.get_nodes_for_runtime(runtime_id) {

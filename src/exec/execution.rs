@@ -89,8 +89,8 @@ pub enum ExecutionError {
 }
 
 pub struct StandardExecutor {
-    execution_mode: ExecutionMode,
-    execution_nodes: HashMap<NodeId, Arc<Mutex<ExecutionNode>>>,
+    pub execution_mode: ExecutionMode,
+    pub execution_nodes: HashMap<NodeId, Arc<Mutex<ExecutionNode>>>,
 }
 
 impl StandardExecutor {

@@ -4,10 +4,13 @@ use std::{
     collections::HashMap,
     fmt,
     str::FromStr,
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
 };
 use thiserror::Error;
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, sync::Mutex};
 
 use crate::{
     comm::messages::Message,
@@ -78,7 +81,7 @@ pub trait UpdateController {
 
 /// Trait that has to be implemented by any node.
 /// Contains methods for each state in the lifecycle of a node.
-pub trait Node {
+pub trait Node: Send + Sync {
     /// This method changes the current execution mode of the node
     fn set_execution_mode(&mut self, _mode: ExecutionMode) -> ExecutionMode {
         ExecutionMode::Continuous
@@ -136,7 +139,7 @@ impl ExecutionNode {
         control_edge: Edge<String>,
     ) -> Self {
         ExecutionNode {
-            node: node,
+            node,
             execution_mode: execution_mode,
             execution_state: ExecutionState::Initialized,
             control_edge: control_edge,
@@ -174,6 +177,7 @@ impl Node for ExecutionNode {
             ExecutionState::Ready => {
                 self.execution_state = ExecutionState::Running;
                 let mut res = Ok(());
+
                 loop {
                     // Check for incoming control messages
                     match Handle::current().block_on(self.control_edge.try_message()) {
@@ -192,7 +196,6 @@ impl Node for ExecutionNode {
                         break;
                     }
 
-                    // Execute Step
                     let execution_res = self.node.on_update();
 
                     match self.execution_mode {
@@ -251,11 +254,11 @@ impl Node for ExecutionNode {
     }
 
     fn setup_input(&mut self, idx: u128, local: bool) {
-        self.node.setup_input(idx, local)
+        self.node.setup_input(idx, local);
     }
 
     fn setup_output(&mut self, idx: u128, local: bool) {
-        self.node.setup_output(idx, local)
+        self.node.setup_output(idx, local);
     }
 }
 

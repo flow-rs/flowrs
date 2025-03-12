@@ -29,7 +29,7 @@ impl NetworkCommunicator {
 #[async_trait]
 impl<D> Communicator<D> for NetworkCommunicator
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
     D: Send,

@@ -10,6 +10,7 @@ use crate::node::{Node, ReceiveError, SendError};
 use async_trait::async_trait;
 use futures::executor::block_on;
 
+#[derive(Debug)]
 pub struct Edge<D>
 where
     D: Clone,
@@ -73,6 +74,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct Input<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
@@ -80,6 +82,7 @@ where
     edge: Edge<D>,
 }
 
+#[derive(Debug)]
 pub struct Output<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,

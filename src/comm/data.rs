@@ -4,7 +4,6 @@ use std::{fmt, str::FromStr};
 //Wraps a single data point of type D
 pub struct DataWrapper<D>
 where
-    D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -13,7 +12,7 @@ where
 
 impl<D> DataWrapper<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -26,14 +25,14 @@ where
         Ok(DataWrapper::<D> { data: res })
     }
 
-    pub fn get_data(&self) -> D {
-        self.data.clone()
+    pub fn get_data(self) -> D {
+        self.data
     }
 }
 
 impl<D> fmt::Display for DataWrapper<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {

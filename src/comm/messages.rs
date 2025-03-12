@@ -31,7 +31,6 @@ impl fmt::Display for MessageError {
 #[derive(PartialEq)]
 pub enum Message<D>
 where
-    D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -101,7 +100,7 @@ const PATTERNS: &[&str] = &[
 // Implement fmt::Debug
 impl<D> fmt::Debug for Message<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -176,7 +175,7 @@ where
 // Implement fmt::Display
 impl<D> fmt::Display for Message<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -188,7 +187,7 @@ where
 // Parsing Logic using Aho-Corasick
 impl<D> Message<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {

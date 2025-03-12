@@ -17,7 +17,7 @@ const BUFFER_SIZE: usize = 10;
 #[derive(Debug)]
 pub struct ThreadCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -27,7 +27,7 @@ where
 
 impl<D> ThreadCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -57,7 +57,7 @@ where
 
 impl<D> fmt::Display for ThreadCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -68,7 +68,7 @@ where
 
 impl<D> PartialEq for ThreadCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -82,7 +82,7 @@ where
 #[async_trait]
 impl<D> Communicator<D> for ThreadCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
     D: Send,

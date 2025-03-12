@@ -20,16 +20,16 @@ impl TypeRegistry {
         }
     }
 
-    /// Register a type with a factory function
-    pub fn register<T: 'static + Send + Sync + FromStr + Debug + Clone>(&mut self)
+    /// Register a type with a **custom factory function**
+    pub fn register<T, F>(&mut self, factory: F)
     where
+        T: 'static + Send + Sync + FromStr + Debug,
         NetworkCommunicator: Communicator<T>,
+        F: Fn() -> T + Send + Sync + 'static,
     {
         if !self.creators.contains_key(&TypeId::of::<T>()) {
-            self.creators.insert(
-                TypeId::of::<T>(),
-                Box::new(|| Box::new(NetworkCommunicator::new())),
-            );
+            self.creators
+                .insert(TypeId::of::<T>(), Box::new(move || Box::new(factory())));
         }
     }
 
@@ -49,15 +49,17 @@ pub fn initialize_registry() {
     }
 }
 
-/// Register a type globally
-pub async fn register_global<T: 'static + Send + Sync + FromStr + Debug + Clone>()
+/// Register a type globally **with a custom factory function**
+pub async fn register_global<T, F>(factory: F)
 where
+    T: 'static + Send + Sync + FromStr + Debug,
     NetworkCommunicator: Communicator<T>,
+    F: Fn() -> T + Send + Sync + 'static, // Custom factory function
 {
     unsafe {
         if let Some(registry) = &TYPE_REGISTRY {
             let mut reg = registry.lock().await;
-            reg.register::<T>();
+            reg.register::<T, F>(factory);
         }
     }
 }

@@ -16,7 +16,6 @@ use super::{
 #[async_trait]
 pub trait Communicator<D>
 where
-    D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -52,7 +51,6 @@ where
 #[derive(PartialEq)]
 pub enum NodeCommunicator<D>
 where
-    D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -81,7 +79,7 @@ const PATTERNS: &[&str] = &[
 
 impl<D> NodeCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -104,7 +102,7 @@ where
 
 impl<D> fmt::Debug for NodeCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -119,7 +117,7 @@ where
 
 impl<D> fmt::Display for NodeCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {
@@ -135,7 +133,7 @@ where
 #[async_trait]
 impl<D> Communicator<D> for NodeCommunicator<D>
 where
-    D: Clone,
+    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
     D: Send,
@@ -228,7 +226,6 @@ where
 #[derive(PartialEq, Debug)]
 pub struct CommWrapper<D>
 where
-    D: Clone,
     D: fmt::Debug,
     D: FromStr,
 {

@@ -19,8 +19,8 @@ use tokio::runtime::Runtime;
 /// The main IO wrapper for all node implementations
 pub struct NodeIO<I, O>
 where
-    I: 'static + Send + Sync + FromStr + Debug + Clone,
-    O: 'static + Send + Sync + FromStr + Debug + Clone,
+    I: 'static + Send + Sync + FromStr + Debug,
+    O: 'static + Send + Sync + FromStr + Debug,
 {
     pub inputs: I,
     pub outputs: O,
@@ -29,9 +29,9 @@ where
 impl<I, O> NodeIO<I, O>
 where
     I: SetupInputs,
-    I: 'static + Send + Sync + FromStr + Debug + Clone,
+    I: 'static + Send + Sync + FromStr + Debug,
     O: SetupOutputs,
-    O: 'static + Send + Sync + FromStr + Debug + Clone,
+    O: 'static + Send + Sync + FromStr + Debug,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
         Self::register_io_types();
@@ -48,12 +48,12 @@ where
 
     async fn register_inputs() {
         // Extract all input types and register them
-        register_global::<I>().await;
+        register_global::<I, _>(|| panic!("Cannot create instance of generic Input type")).await;
     }
 
     async fn register_outputs() {
         // Extract all output types and register them
-        register_global::<O>().await;
+        register_global::<O, _>(|| panic!("Cannot create instance of generic Output type")).await;
     }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {

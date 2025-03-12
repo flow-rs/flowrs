@@ -1,4 +1,7 @@
+use crate::r#type::type_registry::register_global;
 use async_trait::async_trait;
+use std::fmt::Debug;
+use std::str::FromStr;
 use tokio::runtime::Runtime;
 
 /// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
@@ -14,7 +17,11 @@ use tokio::runtime::Runtime;
 /// IMPORTANT: The macro expands the I/O count. For unique combinations of I/O counts, a new macro call must be placed
 
 /// The main IO wrapper for all node implementations
-pub struct NodeIO<I, O> {
+pub struct NodeIO<I, O>
+where
+    I: 'static + Send + Sync + FromStr + Debug + Clone,
+    O: 'static + Send + Sync + FromStr + Debug + Clone,
+{
     pub inputs: I,
     pub outputs: O,
 }
@@ -22,10 +29,31 @@ pub struct NodeIO<I, O> {
 impl<I, O> NodeIO<I, O>
 where
     I: SetupInputs,
+    I: 'static + Send + Sync + FromStr + Debug + Clone,
     O: SetupOutputs,
+    O: 'static + Send + Sync + FromStr + Debug + Clone,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
+        Self::register_io_types();
         Self { inputs, outputs }
+    }
+
+    /// Register the generic types of inputs and outputs
+    fn register_io_types() {
+        tokio::spawn(async move {
+            Self::register_inputs().await;
+            Self::register_outputs().await;
+        });
+    }
+
+    async fn register_inputs() {
+        // Extract all input types and register them
+        register_global::<I>().await;
+    }
+
+    async fn register_outputs() {
+        // Extract all output types and register them
+        register_global::<O>().await;
     }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {

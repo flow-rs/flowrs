@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::collections::hash_map::Drain as MapDrain;
 use std::collections::hash_map::Iter as MapIter;
 use std::collections::hash_set::Drain as SetDrain;
@@ -146,17 +147,27 @@ impl ExecutionFlow {
             send_out_idx: sender_out_idx,
             recv_in_idx: recv_in_idx,
         };
-        self.network.add_connection(connection);
+        let type_id = self
+            .network
+            .get_connection_type(&connection)
+            .expect("must be known");
+        self.network.add_connection(connection, type_id);
 
         Ok(())
     }
 
-    pub fn get_connections(&self) -> SetIter<FlowNodeConnection> {
+    pub fn get_connections(&self) -> SetIter<'_, FlowNodeConnection> {
         self.network.get_connections()
     }
 
     pub fn set_connections(&mut self, connections: SetDrain<FlowNodeConnection>) {
-        connections.for_each(move |connection| self.network.add_connection(connection))
+        connections.for_each(|connection| {
+            let type_id = self
+                .network
+                .get_connection_type(&connection)
+                .expect("TypeId must be known before setting connections.");
+            self.network.add_connection(connection, type_id);
+        });
     }
 
     pub fn get_nodes(&self) -> MapIter<'_, NodeId, Box<dyn Node>> {

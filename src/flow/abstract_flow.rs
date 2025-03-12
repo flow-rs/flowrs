@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::collections::hash_map::Drain as MapDrain;
 use std::collections::hash_map::Iter as MapIter;
 use std::collections::hash_set::Drain as SetDrain;
@@ -32,40 +33,35 @@ impl AbstractFlow {
         self.nodes.insert(id, node)
     }
 
-    pub fn connect_nodes(
+    pub fn connect_nodes<T: 'static>(
         &mut self,
         sender_node: NodeId,
         recv_node: NodeId,
         sender_out_idx: NodeIOIndex,
         recv_in_idx: NodeIOIndex,
     ) -> Result<(), FlowError> {
-        //check for errors
-        match self.nodes.get(&sender_node) {
-            Some(node) => {
-                if sender_out_idx >= node.get_output_count() {
-                    return Err(FlowError::InvalidNodeIOIndexError);
-                }
-            }
-            None => return Err(FlowError::InvalidNodeIdError),
+        if !self.nodes.contains_key(&sender_node) || !self.nodes.contains_key(&recv_node) {
+            return Err(FlowError::InvalidNodeIdError);
         }
-        match self.nodes.get(&recv_node) {
-            Some(node) => {
-                if recv_in_idx >= node.get_input_count() {
-                    return Err(FlowError::InvalidNodeIOIndexError);
-                }
-            }
-            None => return Err(FlowError::InvalidNodeIdError),
-        }
-        //add connection
+
         let connection = FlowNodeConnection {
             sender_id: sender_node,
             receiver_id: recv_node,
             send_out_idx: sender_out_idx,
             recv_in_idx: recv_in_idx,
         };
-        self.network.add_connection(connection);
 
+        let type_id = self
+            .network
+            .get_connection_type(&connection)
+            .expect("must be known");
+        self.network.add_connection(connection, type_id);
         Ok(())
+    }
+
+    /// Retrieve a connection & its type
+    pub fn get_connection_type(&self, connection: &FlowNodeConnection) -> Option<TypeId> {
+        self.network.get_connection_type(connection)
     }
 
     pub fn get_connections(&self) -> SetIter<FlowNodeConnection> {

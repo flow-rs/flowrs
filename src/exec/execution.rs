@@ -69,11 +69,11 @@ pub trait Executor {
         S: Scheduler + std::marker::Send,
         U: NodeUpdater + Drop;
 
-    async fn setup_and_connect(
-        &mut self,
-        abstract_flow: AbstractFlow,
-        execution_config: ExecutionConfig,
-    ) -> Result<ExecutionFlow, ExecutionError>;
+    // async fn setup_and_connect(
+    //     &mut self,
+    //     abstract_flow: AbstractFlow,
+    //     execution_config: ExecutionConfig,
+    // ) -> Result<ExecutionFlow, ExecutionError>;
 }
 
 #[derive(Error, Debug)]

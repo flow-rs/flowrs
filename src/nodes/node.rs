@@ -157,7 +157,7 @@ impl ExecutionNode {
             Message::AcknowledgeConnection => todo!(),
             Message::InitializeLocalNodes => todo!(),
             Message::AcknowledgeNodeInitialization => todo!(),
-            Message::OrchestratorRequestNodeConnection(_, _, _, _) => todo!(),
+            Message::OrchestratorRequestNodeConnection(_, _, _, _, _, _) => todo!(),
             Message::RequestPeerConnection(_, _, _, _, _) => todo!(),
             Message::AcceptPeerConnection(_, _, _) => todo!(),
             Message::RejectPeerConnection(_, _, _) => todo!(),

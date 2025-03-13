@@ -48,8 +48,8 @@ where
     AcknowledgeNodeInitialization,
 
     // P2P Connection Coordination
-    OrchestratorRequestNodeConnection(NodeId, NodeId, RuntimeId, String),
-    RequestPeerConnection(NodeId, NodeId, u16, u16, Type),
+    OrchestratorRequestNodeConnection(NodeId, NodeId, RuntimeId, String, u128, u128),
+    RequestPeerConnection(NodeId, NodeId, u128, u128, Type),
     AcceptPeerConnection(NodeId, NodeId, u16),
     RejectPeerConnection(NodeId, NodeId, String),
     AcknowledgeConnectionSetup(NodeId, NodeId, u16),
@@ -132,11 +132,11 @@ where
             }
 
             // P2P Connection Coordination
-            Message::OrchestratorRequestNodeConnection(n1, n2, r_id, r_ip) => {
+            Message::OrchestratorRequestNodeConnection(n1, n2, r_id, r_ip, send_idx, recv_idx) => {
                 write!(
                     f,
-                    "{}{},{},{},{}",
-                    ORCHESTRATOR_REQUEST_NODE_CONNECTION, n1, n2, r_id, r_ip
+                    "{}{},{},{},{},{},{}",
+                    ORCHESTRATOR_REQUEST_NODE_CONNECTION, n1, n2, r_id, r_ip, send_idx, recv_idx,
                 )
             }
             Message::RequestPeerConnection(n1, n2, o_idx, i_idx, dtype) => {
@@ -246,12 +246,15 @@ where
             Some(ORCHESTRATOR_REQUEST_NODE_CONNECTION) => {
                 let stripped_msg = s.replacen(ORCHESTRATOR_REQUEST_NODE_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
-                if parts.len() == 4 {
+
+                if parts.len() == 6 {
                     Some(Self::OrchestratorRequestNodeConnection(
-                        parts[0].parse().ok()?,
-                        parts[1].parse().ok()?,
-                        parts[2].parse().ok()?,
-                        parts[3].to_string(),
+                        parts[0].parse().ok()?, // NodeId (sender)
+                        parts[1].parse().ok()?, // NodeId (receiver)
+                        parts[2].parse().ok()?, // RuntimeId
+                        parts[3].to_string(),   // Runtime IP Address
+                        parts[4].parse().ok()?, // Output index (sender)
+                        parts[5].parse().ok()?, // Input index (receiver)
                     ))
                 } else {
                     None
@@ -410,19 +413,31 @@ mod tests {
         let n2: NodeId = 2;
         let r_id: RuntimeId = 3;
         let r_ip = "192.168.1.1".to_string();
+        let sender_out_idx: u128 = 10; // Example output index
+        let receiver_in_idx: u128 = 20; // Example input index
         let dtype: Type = serde_json::from_str(TYPE_JSON).unwrap();
 
+        // Updated test with output and input indices
         let msg_str = format!(
-            "{}{},{},{},{}",
-            ORCHESTRATOR_REQUEST_NODE_CONNECTION, n1, n2, r_id, r_ip
+            "{}{},{},{},{},{},{}",
+            ORCHESTRATOR_REQUEST_NODE_CONNECTION,
+            n1,
+            n2,
+            r_id,
+            r_ip,
+            sender_out_idx,
+            receiver_in_idx
         );
+
         assert_eq!(
             Message::<String>::from_str(&msg_str),
             Some(Message::OrchestratorRequestNodeConnection(
                 n1,
                 n2,
                 r_id,
-                r_ip.clone()
+                r_ip.clone(),
+                sender_out_idx,  // Added field
+                receiver_in_idx  // Added field
             ))
         );
 

@@ -313,6 +313,70 @@ impl SetupOutputsSync for () {
     }
 }
 
+// Implement for single TypedOutput<T>
+impl<T> SetupOutputsSync for (TypedOutput<T>,)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        self.0.output.setup_output_sync(idx, local);
+    }
+}
+
+// Recursive implementation for tuples of TypedOutput
+impl<T, Rest> SetupOutputsSync for (TypedOutput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: SetupOutputsSync,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        self.0.output.setup_output_sync(idx, local);
+        self.1.setup_output_sync(idx, local);
+    }
+}
+
+impl<D> SetupOutputsSync for Output<D>
+where
+    D: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(self.setup_output(idx, local));
+    }
+}
+
+// Implement for single TypedInput<T>
+impl<T> SetupInputsSync for (TypedInput<T>,)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        self.0.input.setup_input_sync(idx, local);
+    }
+}
+
+// Recursive implementation for tuples of TypedInput
+impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: SetupInputsSync,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        self.0.input.setup_input_sync(idx, local);
+        self.1.setup_input_sync(idx, local);
+    }
+}
+
+impl<D> SetupInputsSync for Input<D>
+where
+    D: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(self.setup_input(idx, local));
+    }
+}
+
 #[macro_export]
 macro_rules! impl_register_base_types {
     // **Base case: Single element tuples**

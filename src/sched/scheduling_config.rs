@@ -2,7 +2,7 @@ use crate::flow::flow_types::NodeId;
 use std::collections::HashMap;
 
 /// Unique identifier for each runtime.
-pub type RuntimeId = usize;
+pub type RuntimeId = u128;
 
 /// The SchedulingConfig is created by the scheduler and contains the final mapping of nodes to runtimes.
 pub struct SchedulingConfig {

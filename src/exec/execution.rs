@@ -101,6 +101,10 @@ impl StandardExecutor {
         }
     }
 
+    pub fn has_node(&self, node_id: NodeId) -> bool {
+        self.execution_nodes.contains_key(&node_id)
+    }
+
     /// **Creates Execution Nodes for each local node in the flow.**
     pub async fn initialize_nodes(
         &mut self,

@@ -1,26 +1,13 @@
-use crate::r#type::type_registry::register_global;
+use crate::r#type::type_registry::{register_base_type, register_global};
 use async_trait::async_trait;
-use std::fmt::Debug;
-use std::str::FromStr;
+use std::{fmt::Debug, str::FromStr};
 use tokio::runtime::Runtime;
 
-/// This mod will allow node implementations to take on inputs and outputs of arbitrary length and generic types
-/// The macro allows node types to define Inputs and Outputs as Tupels. Example:
-/// pub struct AddNode<I1, I2, O>
-/// where
-///    I1: Clone + Send + 'static,
-///    I2: Clone + Send + 'static,
-///    O: Clone + Send + 'static,
-///{
-///    io: NodeIO<(Input<I1>, Input<I2>), (Output<O>,)>,
-///}
-/// IMPORTANT: The macro expands the I/O count. For unique combinations of I/O counts, a new macro call must be placed
-
-/// The main IO wrapper for all node implementations
+/// The main I/O wrapper for all node implementations
 pub struct NodeIO<I, O>
 where
-    I: 'static + Send + Sync + FromStr + Debug,
-    O: 'static + Send + Sync + FromStr + Debug,
+    I: 'static + Send + Sync + Debug + FromStr,
+    O: 'static + Send + Sync + Debug + FromStr,
 {
     pub inputs: I,
     pub outputs: O,
@@ -29,31 +16,20 @@ where
 impl<I, O> NodeIO<I, O>
 where
     I: SetupInputs,
-    I: 'static + Send + Sync + FromStr + Debug,
     O: SetupOutputs,
-    O: 'static + Send + Sync + FromStr + Debug,
+    I: 'static + Send + Sync + Debug + FromStr + Clone,
+    O: 'static + Send + Sync + Debug + FromStr + Clone,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
         Self::register_io_types();
         Self { inputs, outputs }
     }
 
-    /// Register the generic types of inputs and outputs
+    /// Register only base types `T`
     fn register_io_types() {
         tokio::spawn(async move {
-            Self::register_inputs().await;
-            Self::register_outputs().await;
+            tokio::join!(register_tuple_inputs::<I>(), register_tuple_outputs::<O>());
         });
-    }
-
-    async fn register_inputs() {
-        // Extract all input types and register them
-        register_global::<I, _>(|| panic!("Cannot create instance of generic Input type")).await;
-    }
-
-    async fn register_outputs() {
-        // Extract all output types and register them
-        register_global::<O, _>(|| panic!("Cannot create instance of generic Output type")).await;
     }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
@@ -67,16 +43,42 @@ where
     }
 }
 
-/// This trait is used to set up the inputs and outputs with as little overhead as possible
+/// **Helper functions to register individual types within tuples**
+async fn register_tuple_inputs<T>()
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    register_base_type::<T>().await;
+}
+
+async fn register_tuple_outputs<T>()
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    register_base_type::<T>().await;
+}
+
+// /// **Recursive function to register each type in a tuple**
+// async fn register_tuple<T>()
+// where
+//     T: 'static + Debug + Send + Sync,
+// {
+//     // This ensures that `T` is a valid type for registration.
+//     register_global::<T, _>(|| panic!("Cannot create instance of generic type")).await;
+// }
+
+/// **Traits for setting up inputs and outputs asynchronously**
 #[async_trait]
 pub trait SetupInputs {
     async fn setup_input(&mut self, idx: u128, local: bool);
 }
+
 #[async_trait]
 pub trait SetupOutputs {
     async fn setup_output(&mut self, idx: u128, local: bool);
 }
 
+/// **Synchronous wrapper traits**
 pub trait SetupInputsSync {
     fn setup_input_sync(&mut self, idx: u128, local: bool);
 }
@@ -85,26 +87,18 @@ pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
 }
 
-/// THis macro will create the SetupIO for tuples with the given input and output count
-/// e.g. for the count of 3 generic variables, the call would be
-/// impl_setup_io!((0 T0, 1 T1, 2 T2));
-///
-/// macro calls below
+/// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_inputs {
     // Special case for zero inputs
     () => {
         #[async_trait::async_trait]
         impl SetupInputs for () {
-            async fn setup_input(&mut self, _idx: u128, _local: bool) {
-                // No-op for zero inputs
-            }
+            async fn setup_input(&mut self, _idx: u128, _local: bool) {}
         }
 
         impl SetupInputsSync for () {
-            fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
-                // No-op for zero inputs
-            }
+            fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
         }
     };
 
@@ -115,9 +109,9 @@ macro_rules! impl_setup_inputs {
         impl<$($D),+> SetupInputs for ($($crate::nodes::connection::Input<$D>,)+)
         where
             $(
+                $D: Send + Debug + Clone + FromStr + 'static,  // ✅ Enforce `FromStr` per element
                 $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
-            ),+
+            )+
         {
             async fn setup_input(&mut self, idx: u128, local: bool) {
                 match idx {
@@ -134,38 +128,22 @@ macro_rules! impl_setup_inputs {
                 }
             }
         }
-
-        impl<$($D),+> SetupInputsSync for ($($crate::nodes::connection::Input<$D>,)+)
-        where
-            $(
-                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
-            ),+
-        {
-            fn setup_input_sync(&mut self, idx: u128, local: bool) {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(self.setup_input(idx, local));
-            }
-        }
         )+
     };
 }
 
+/// **Macro to generate `SetupOutputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_outputs {
     // Special case for zero outputs
     () => {
         #[async_trait::async_trait]
         impl SetupOutputs for () {
-            async fn setup_output(&mut self, _idx: u128, _local: bool) {
-                // No-op for zero outputs
-            }
+            async fn setup_output(&mut self, _idx: u128, _local: bool) {}
         }
 
         impl SetupOutputsSync for () {
-            fn setup_output_sync(&mut self, _idx: u128, _local: bool) {
-                // No-op for zero outputs
-            }
+            fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
         }
     };
 
@@ -176,9 +154,9 @@ macro_rules! impl_setup_outputs {
         impl<$($D),+> SetupOutputs for ($($crate::nodes::connection::Output<$D>,)+)
         where
             $(
+                $D: Send + Debug + Clone + FromStr + 'static,  // ✅ Enforce `FromStr` per element
                 $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
-            ),+
+            )+
         {
             async fn setup_output(&mut self, idx: u128, local: bool) {
                 match idx {
@@ -195,44 +173,32 @@ macro_rules! impl_setup_outputs {
                 }
             }
         }
-
-        impl<$($D),+> SetupOutputsSync for ($($crate::nodes::connection::Output<$D>,)+)
-        where
-            $(
-                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-                $D: Clone + Send + std::str::FromStr + std::fmt::Debug + 'static
-            ),+
-        {
-            fn setup_output_sync(&mut self, idx: u128, local: bool) {
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                rt.block_on(self.setup_output(idx, local));
-            }
-        }
         )+
     };
 }
 
+/// **Implement Input and Output setup macros**
 impl_setup_inputs!(); // 0 inputs
+impl_setup_outputs!(); // 0 outputs
 
 impl_setup_inputs!(
-    (0 D0),                                             // 1 input
-    (0 D0, 1 D1),                                       // 2 inputs
-    (0 D0, 1 D1, 2 D2),                                 // 3 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3),                           // 4 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),                     // 5 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),               // 6 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),         // 7 inputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)    // 8 inputs
+    (0 D0),
+    (0 D0, 1 D1),
+    (0 D0, 1 D1, 2 D2),
+    (0 D0, 1 D1, 2 D2, 3 D3),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)
 );
 
-impl_setup_outputs!(); // 0 outputs
 impl_setup_outputs!(
-    (0 D0),                                             // 1 output
-    (0 D0, 1 D1),                                       // 2 outputs
-    (0 D0, 1 D1, 2 D2),                                 // 3 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3),                           // 4 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),                     // 5 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),               // 6 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),         // 7 outputs
-    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)    // 8 outputs
+    (0 D0),
+    (0 D0, 1 D1),
+    (0 D0, 1 D1, 2 D2),
+    (0 D0, 1 D1, 2 D2, 3 D3),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),
+    (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)
 );

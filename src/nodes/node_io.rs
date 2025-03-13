@@ -74,6 +74,15 @@ where
     register_base_type::<T>().await;
 }
 
+impl<T> SetupOutputsSync for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        self.output.setup_output_sync(idx, local);
+    }
+}
+
 // /// **Recursive function to register each type in a tuple**
 // async fn register_tuple<T>()
 // where

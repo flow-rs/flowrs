@@ -181,6 +181,27 @@ where
     }
 }
 
+impl<D> SetupInputsSync for Input<D>
+where
+    D: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(self.setup_input(idx, local));
+    }
+}
+
+impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: SetupInputsSync,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        self.0.input.setup_input_sync(idx, local);
+        self.1.setup_input_sync(idx, local);
+    }
+}
+
 /// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_inputs {
@@ -352,28 +373,6 @@ where
 {
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         self.0.input.setup_input_sync(idx, local);
-    }
-}
-
-// Recursive implementation for tuples of TypedInput
-impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-    Rest: SetupInputsSync,
-{
-    fn setup_input_sync(&mut self, idx: u128, local: bool) {
-        self.0.input.setup_input_sync(idx, local);
-        self.1.setup_input_sync(idx, local);
-    }
-}
-
-impl<D> SetupInputsSync for Input<D>
-where
-    D: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn setup_input_sync(&mut self, idx: u128, local: bool) {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(self.setup_input(idx, local));
     }
 }
 

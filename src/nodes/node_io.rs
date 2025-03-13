@@ -261,6 +261,46 @@ macro_rules! impl_setup_outputs {
     };
 }
 
+macro_rules! impl_setup_inputs_sync {
+    ($(($($D:ident),+)),+ $(,)?) => {
+        $(
+        impl<$($D),+> SetupInputsSync for ($(TypedInput<$D>,)+)
+        where
+            $($D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static),+
+        {
+            fn setup_input_sync(&mut self, idx: u128, local: bool) {
+                match idx {
+                    $(
+                        $D => self.$D.input.setup_input_sync(idx, local),
+                    )+
+                    _ => (),
+                }
+            }
+        }
+        )+
+    };
+}
+
+macro_rules! impl_setup_outputs_sync {
+    ($(($($D:ident),+)),+ $(,)?) => {
+        $(
+        impl<$($D),+> SetupOutputsSync for ($(TypedOutput<$D>,)+)
+        where
+            $($D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static),+
+        {
+            fn setup_output_sync(&mut self, idx: u128, local: bool) {
+                match idx {
+                    $(
+                        $D => self.$D.input.setup_output_sync(idx, local),
+                    )+
+                    _ => (),
+                }
+            }
+        }
+        )+
+    };
+}
+
 #[macro_export]
 macro_rules! impl_register_base_types {
     // **Base case: Single element tuples**

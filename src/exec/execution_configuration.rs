@@ -55,6 +55,15 @@ impl ExecutionConfig {
 
         execution_config
     }
+
+    pub fn is_local_connection(&self, sender_id: NodeId, receiver_id: NodeId) -> bool {
+        let sender_config = self.node_configs.get(&sender_id);
+        let receiver_config = self.node_configs.get(&receiver_id);
+        match (sender_config, receiver_config) {
+            (Some(NodeConfig::LocalNodeConfig), Some(NodeConfig::LocalNodeConfig)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Error, Debug)]

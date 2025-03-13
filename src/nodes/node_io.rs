@@ -3,46 +3,48 @@ use async_trait::async_trait;
 use std::{fmt::Debug, str::FromStr};
 use tokio::runtime::Runtime;
 
+use super::connection::EdgeTrait;
+use super::connection::Input;
+use super::connection::Output;
+
 /// The main I/O wrapper for all node implementations
 pub struct NodeIO<I, O>
 where
-    I: 'static + Send + Sync + Debug + FromStr,
-    O: 'static + Send + Sync + Debug + FromStr,
+    I: 'static + Send + Sync + Debug + FromStr + Clone,
+    O: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    pub inputs: I,
-    pub outputs: O,
+    pub inputs: Input<I>,
+    pub outputs: Output<O>,
 }
 
 impl<I, O> NodeIO<I, O>
 where
-    I: SetupInputs,
-    O: SetupOutputs,
     I: 'static + Send + Sync + Debug + FromStr + Clone,
     O: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    pub fn new(inputs: I, outputs: O) -> Self {
+    pub fn new(inputs: Input<I>, outputs: Output<O>) -> Self {
         Self::register_io_types();
         Self { inputs, outputs }
     }
 
-    /// Register only base types `T`
+    /// Register only base types `I` and `O`
     fn register_io_types() {
         tokio::spawn(async move {
-            tokio::join!(register_tuple_inputs::<I>(), register_tuple_outputs::<O>());
+            register_base_type::<I>().await;
+            register_base_type::<O>().await;
         });
     }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.inputs.setup_input(idx, local));
     }
 
     pub fn setup_output_sync(&mut self, idx: u128, local: bool) {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.outputs.setup_output(idx, local));
     }
 }
-
 /// **Helper functions to register individual types within tuples**
 async fn register_tuple_inputs<T>()
 where
@@ -85,6 +87,34 @@ pub trait SetupInputsSync {
 
 pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
+}
+
+#[async_trait]
+impl<I> SetupInputs for Input<I>
+where
+    I: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    async fn setup_input(&mut self, idx: u128, local: bool) {
+        *self = if local {
+            Input::new_local()
+        } else {
+            Input::new_network().await
+        };
+    }
+}
+
+#[async_trait]
+impl<O> SetupOutputs for Output<O>
+where
+    O: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    async fn setup_output(&mut self, idx: u128, local: bool) {
+        *self = if local {
+            Output::new_local()
+        } else {
+            Output::new_network().await
+        };
+    }
 }
 
 /// **Macro to generate `SetupInputs` implementations**

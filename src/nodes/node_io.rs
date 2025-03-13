@@ -301,6 +301,18 @@ macro_rules! impl_setup_outputs_sync {
     };
 }
 
+impl SetupInputsSync for () {
+    fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
+        // No inputs, nothing to set up
+    }
+}
+
+impl SetupOutputsSync for () {
+    fn setup_output_sync(&mut self, _idx: u128, _local: bool) {
+        // No outputs, nothing to set up
+    }
+}
+
 #[macro_export]
 macro_rules! impl_register_base_types {
     // **Base case: Single element tuples**

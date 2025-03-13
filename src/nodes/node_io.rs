@@ -376,6 +376,15 @@ where
     }
 }
 
+impl<T> SetupInputsSync for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        self.input.setup_input_sync(idx, local);
+    }
+}
+
 #[macro_export]
 macro_rules! impl_register_base_types {
     // **Base case: Single element tuples**

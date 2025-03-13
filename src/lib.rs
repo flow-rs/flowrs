@@ -5,7 +5,7 @@ pub mod exec;
 pub mod flow;
 pub mod nodes;
 pub mod sched;
-pub mod r#type;
+pub mod types;
 
 pub use self::nodes::connection;
 pub use self::nodes::node;

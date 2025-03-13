@@ -1,4 +1,4 @@
-use crate::r#type::type_registry::{register_base_type, register_global};
+use crate::types::type_registry::{register_base_type, register_global};
 use async_trait::async_trait;
 use std::{fmt::Debug, str::FromStr};
 use tokio::runtime::Runtime;

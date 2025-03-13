@@ -7,22 +7,22 @@ use super::connection::EdgeTrait;
 use super::connection::Input;
 use super::connection::Output;
 
-/// The main I/O wrapper for all node implementations
+/// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
 pub struct NodeIO<I, O>
 where
-    I: 'static + Send + Sync + Debug + FromStr + Clone,
-    O: 'static + Send + Sync + Debug + FromStr + Clone,
+    I: SetupInputs,  // Change `FromStr + Clone` to `SetupInputs`
+    O: SetupOutputs, // Change `FromStr + Clone` to `SetupOutputs`
 {
-    pub inputs: Input<I>,
-    pub outputs: Output<O>,
+    pub inputs: I,
+    pub outputs: O,
 }
 
 impl<I, O> NodeIO<I, O>
 where
-    I: 'static + Send + Sync + Debug + FromStr + Clone,
-    O: 'static + Send + Sync + Debug + FromStr + Clone,
+    I: SetupInputs + RegisterBaseTypes + Send + Sync, // Ensure it implements `RegisterBaseTypes`
+    O: SetupOutputs + RegisterBaseTypes + Send + Sync, // Ensure it implements `RegisterBaseTypes`
 {
-    pub fn new(inputs: Input<I>, outputs: Output<O>) -> Self {
+    pub fn new(inputs: I, outputs: O) -> Self {
         Self::register_io_types();
         Self { inputs, outputs }
     }
@@ -30,20 +30,34 @@ where
     /// Register only base types `I` and `O`
     fn register_io_types() {
         tokio::spawn(async move {
-            register_base_type::<I>().await;
-            register_base_type::<O>().await;
+            I::register_types().await;
+            O::register_types().await;
         });
     }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = Runtime::new().unwrap();
         rt.block_on(self.inputs.setup_input(idx, local));
     }
 
     pub fn setup_output_sync(&mut self, idx: u128, local: bool) {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(self.outputs.setup_output(idx, local));
+        let rt = Runtime::new().unwrap();
+        rt.block_on(self.outputs.setup_output(idx, local)); // ✅ Now works because `O` implements `SetupOutputs`
     }
+}
+
+pub struct TypedInput<I>
+where
+    I: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub input: Input<I>,
+}
+
+pub struct TypedOutput<O>
+where
+    O: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub output: Output<O>,
 }
 /// **Helper functions to register individual types within tuples**
 async fn register_tuple_inputs<T>()
@@ -68,6 +82,81 @@ where
 //     // This ensures that `T` is a valid type for registration.
 //     register_global::<T, _>(|| panic!("Cannot create instance of generic type")).await;
 // }
+
+/// **Helper trait to register base types from a tuple**
+#[async_trait]
+pub trait RegisterBaseTypes {
+    async fn register_types();
+}
+
+/// **Base case for empty tuple (does nothing)**
+#[async_trait]
+impl RegisterBaseTypes for () {
+    async fn register_types() {}
+}
+
+impl<T> RegisterBaseTypes for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    #[must_use]
+    #[allow(
+        elided_named_lifetimes,
+        clippy::type_complexity,
+        clippy::type_repetition_in_bounds
+    )]
+    fn register_types<'async_trait>() -> ::core::pin::Pin<
+        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
+    > {
+        Box::pin(async move {
+            register_base_type::<T>().await;
+        })
+    }
+}
+
+impl<T> RegisterBaseTypes for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    #[must_use]
+    #[allow(
+        elided_named_lifetimes,
+        clippy::type_complexity,
+        clippy::type_repetition_in_bounds
+    )]
+    fn register_types<'async_trait>() -> ::core::pin::Pin<
+        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
+    > {
+        Box::pin(async move {
+            register_base_type::<T>().await;
+        })
+    }
+}
+
+/// **Recursive case: Register each type in a tuple**
+#[async_trait]
+impl<T, Rest> RegisterBaseTypes for (TypedInput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: RegisterBaseTypes + Send,
+{
+    async fn register_types() {
+        register_base_type::<T>().await;
+        Rest::register_types().await;
+    }
+}
+
+#[async_trait]
+impl<T, Rest> RegisterBaseTypes for (TypedOutput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: RegisterBaseTypes + Send,
+{
+    async fn register_types() {
+        register_base_type::<T>().await;
+        Rest::register_types().await;
+    }
+}
 
 /// **Traits for setting up inputs and outputs asynchronously**
 #[async_trait]
@@ -121,14 +210,10 @@ where
 #[macro_export]
 macro_rules! impl_setup_inputs {
     // Special case for zero inputs
-    () => {
+    (() $(,)?) => {
         #[async_trait::async_trait]
         impl SetupInputs for () {
             async fn setup_input(&mut self, _idx: u128, _local: bool) {}
-        }
-
-        impl SetupInputsSync for () {
-            fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
         }
     };
 
@@ -136,21 +221,20 @@ macro_rules! impl_setup_inputs {
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait::async_trait]
-        impl<$($D),+> SetupInputs for ($($crate::nodes::connection::Input<$D>,)+)
+        impl<$($D),+> SetupInputs for ($($crate::nodes::node_io::TypedInput<$D>,)+) // <-- Ensure full path
         where
             $(
-                $D: Send + Debug + Clone + FromStr + 'static,  // ✅ Enforce `FromStr` per element
-                $crate::nodes::connection::Input<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-            )+
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
         {
             async fn setup_input(&mut self, idx: u128, local: bool) {
                 match idx {
                     $(
                         $idx => {
-                            self.$idx = if local {
-                                <$crate::nodes::connection::Input<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                            self.$idx.input = if local {
+                                <$crate::nodes::connection::Input<$D>>::new_local()
                             } else {
-                                <$crate::nodes::connection::Input<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                                <$crate::nodes::connection::Input<$D>>::new_network().await
                             };
                         }
                     )+
@@ -166,14 +250,10 @@ macro_rules! impl_setup_inputs {
 #[macro_export]
 macro_rules! impl_setup_outputs {
     // Special case for zero outputs
-    () => {
+    (() $(,)?) => {
         #[async_trait::async_trait]
         impl SetupOutputs for () {
             async fn setup_output(&mut self, _idx: u128, _local: bool) {}
-        }
-
-        impl SetupOutputsSync for () {
-            fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
         }
     };
 
@@ -181,21 +261,20 @@ macro_rules! impl_setup_outputs {
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait::async_trait]
-        impl<$($D),+> SetupOutputs for ($($crate::nodes::connection::Output<$D>,)+)
+        impl<$($D),+> SetupOutputs for ($($crate::nodes::node_io::TypedOutput<$D>,)+) // <-- Ensure full path
         where
             $(
-                $D: Send + Debug + Clone + FromStr + 'static,  // ✅ Enforce `FromStr` per element
-                $crate::nodes::connection::Output<$D>: $crate::nodes::connection::EdgeTrait<$D>,
-            )+
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
         {
             async fn setup_output(&mut self, idx: u128, local: bool) {
                 match idx {
                     $(
                         $idx => {
-                            self.$idx = if local {
-                                <$crate::nodes::connection::Output<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_local()
+                            self.$idx.output = if local {
+                                <$crate::nodes::connection::Output<$D>>::new_local()
                             } else {
-                                <$crate::nodes::connection::Output<$D> as $crate::nodes::connection::EdgeTrait<$D>>::new_network().await
+                                <$crate::nodes::connection::Output<$D>>::new_network().await
                             };
                         }
                     )+
@@ -208,8 +287,8 @@ macro_rules! impl_setup_outputs {
 }
 
 /// **Implement Input and Output setup macros**
-impl_setup_inputs!(); // 0 inputs
-impl_setup_outputs!(); // 0 outputs
+impl_setup_inputs!(());
+impl_setup_outputs!(());
 
 impl_setup_inputs!(
     (0 D0),

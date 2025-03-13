@@ -51,10 +51,9 @@ impl AbstractFlow {
             recv_in_idx: recv_in_idx,
         };
 
-        let type_id = self
-            .network
-            .get_connection_type(&connection)
-            .expect("must be known");
+        // Get TypeId using the generic type parameter
+        let type_id = TypeId::of::<T>();
+
         self.network.add_connection(connection, type_id);
         Ok(())
     }

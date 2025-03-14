@@ -200,7 +200,7 @@ impl StandardExecutor {
     }
 
     /// **Starts execution using a Tokio task per node.**
-    pub async fn start_execution(self: Arc<Self>) {
+    pub async fn start_execution(&self) {
         println!("[Executor] Starting execution...");
 
         for (node_id, execution_node) in &self.execution_nodes {

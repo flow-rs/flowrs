@@ -180,6 +180,25 @@ impl StandardExecutor {
         }
     }
 
+    /// **Ensure all nodes are in ready state before execution**
+    pub async fn ready_nodes(&self) -> Result<(), anyhow::Error> {
+        println!("[Executor] Ensuring all nodes are in ready state...");
+
+        for (node_id, node) in &self.execution_nodes {
+            let mut node_guard = node.lock().await;
+            if let Err(e) = node_guard.on_ready() {
+                println!(
+                    "[Executor] ERROR: Node {} failed to enter ready state: {}",
+                    node_id, e
+                );
+                return Err(anyhow::Error::msg("Node ready state failed"));
+            }
+        }
+
+        println!("[Executor] All nodes are ready.");
+        Ok(())
+    }
+
     /// **Starts execution using a Tokio task per node.**
     pub async fn start_execution(self: Arc<Self>) {
         println!("[Executor] Starting execution...");

@@ -148,20 +148,35 @@ impl ExecutionNode {
 
     pub fn on_message(&mut self, msg: Message<String>) {
         match msg {
-            Message::SetupCommunication(_comm_wrapper) => todo!(),
-            Message::StartExecution => todo!(),
-            Message::StopExecution => self.execution_state = ExecutionState::Shutdown,
-            Message::Debug(_debug_string) => todo!(),
-            Message::Data(_) => (),
-            Message::SetupCommunicationPort(_) => todo!(),
-            Message::AcknowledgeConnection => todo!(),
-            Message::InitializeLocalNodes => todo!(),
-            Message::AcknowledgeNodeInitialization => todo!(),
-            Message::OrchestratorRequestNodeConnection(_, _, _, _, _, _) => todo!(),
-            Message::RequestPeerConnection(_, _, _, _, _) => todo!(),
-            Message::AcceptPeerConnection(_, _, _) => todo!(),
-            Message::RejectPeerConnection(_, _, _) => todo!(),
-            Message::AcknowledgeConnectionSetup(_, _, _) => todo!(),
+            // Handle Peer Connection Messages
+            Message::RequestPeerConnection(sender, receiver, out_idx, in_idx, dtype) => {
+                println!(
+                    "[ExecutionNode] Received Peer Connection Request: {} -> {} (Out {} -> In {})",
+                    sender, receiver, out_idx, in_idx
+                );
+
+                // TODO: Implement logic to handle connection request.
+            }
+            Message::AcceptPeerConnection(sender, receiver, port) => {
+                println!(
+                    "[ExecutionNode] Peer Connection Accepted: {} -> {} on Port {}",
+                    sender, receiver, port
+                );
+
+                // TODO: Implement logic to finalize accepted connection.
+            }
+            Message::RejectPeerConnection(sender, receiver, reason) => {
+                println!(
+                    "[ExecutionNode] Peer Connection Rejected: {} -> {} | Reason: {}",
+                    sender, receiver, reason
+                );
+
+                // TODO: Handle rejected connections appropriately.
+            }
+            // Ignore all other messages
+            _ => {
+                println!("[ExecutionNode] Ignoring irrelevant message: {:?}", msg);
+            }
         }
     }
 }
@@ -234,7 +249,13 @@ impl Node for ExecutionNode {
     }
 
     fn on_ready(&mut self) -> Result<(), ReadyError> {
-        Ok(())
+        if self.execution_state == ExecutionState::Initialized {
+            println!("[ExecutionNode] Node is now READY.");
+            self.execution_state = ExecutionState::Ready;
+            Ok(())
+        } else {
+            Err(ReadyError::from("Node is not in an initialized state"))
+        }
     }
 
     fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
@@ -262,113 +283,6 @@ impl Node for ExecutionNode {
     }
 }
 
-// impl<N: Node> ExecutionNode<N> {
-//     pub fn new(node: N, execution_mode: ExecutionMode, control_edge: Edge<String>) -> Self {
-//         ExecutionNode {
-//             node: node,
-//             execution_mode: execution_mode,
-//             execution_state: ExecutionState::Initialized,
-//             control_edge: control_edge,
-//         }
-//     }
-
-//     pub fn on_message(&mut self, msg: Message<String>) {
-//         match msg {
-//             Message::SetupCommunication(_comm_wrapper) => todo!(),
-//             Message::StartExecution => todo!(),
-//             Message::StopExecution => self.execution_state = ExecutionState::Shutdown,
-//             Message::Debug(_debug_string) => todo!(),
-//             Message::Data(_) => (), //ignore data messages
-//         }
-//     }
-
-//     fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
-//         self.execution_mode = mode.clone();
-//         mode
-//     }
-
-//     fn on_update(&mut self) -> Result<(), UpdateError> {
-//         match self.execution_state {
-//             ExecutionState::Ready => {
-//                 self.execution_state = ExecutionState::Running;
-//                 let mut res = Ok(());
-//                 loop {
-//                     // Check for incoming control messages
-//                     match Handle::current().block_on(self.control_edge.try_message()) {
-//                         Ok(Some(message)) => self.on_message(message),
-//                         Ok(None) => (), // No control messages, do nothing
-//                         Err(err) => {
-//                             return Err(UpdateError::RecvError {
-//                                 message: err.to_string(),
-//                             })
-//                         }
-//                     }
-
-//                     // Shut down Execution if Stop-Message was received
-//                     if self.execution_state == ExecutionState::Shutdown {
-//                         self.on_shutdown();
-//                         break;
-//                     }
-
-//                     // Execute Step
-//                     let execution_res = self.node.on_update();
-
-//                     match self.execution_mode {
-//                         ExecutionMode::Synchronized => {
-//                             self.execution_state = ExecutionState::Ready;
-//                             res = execution_res;
-//                             break;
-//                         }
-//                         ExecutionMode::Continuous => {
-//                             res = execution_res;
-//                             continue;
-//                         }
-//                     }
-//                 }
-//                 res
-//             }
-//             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
-//                 message: "The node is Sleeping".to_string(),
-//             }),
-//             ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
-//                 message: "The node is Running".to_string(),
-//             }),
-//             ExecutionState::Initialized => Err(UpdateError::NotReadyError {
-//                 message: "The node is not ready".to_string(),
-//             }),
-//             ExecutionState::Shutdown => Ok(()),
-//         }
-//     }
-
-//     fn get_execution_mode(&self) -> ExecutionMode {
-//         ExecutionMode::Continuous
-//     }
-
-//     fn on_init(&mut self) -> Result<(), InitError> {
-//         Ok(())
-//     }
-
-//     fn on_ready(&mut self) -> Result<(), ReadyError> {
-//         Ok(())
-//     }
-
-//     fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
-//         Ok(())
-//     }
-
-//     // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
-//     //     None
-//     // }
-
-//     fn get_input_count(&self) -> u128 {
-//         self.node.get_input_count()
-//     }
-
-//     fn get_output_count(&self) -> u128 {
-//         self.node.get_output_count()
-//     }
-// }
-
 #[derive(Error, Debug)]
 pub enum InitError {
     //TODO: Add init specific errors.
@@ -376,11 +290,21 @@ pub enum InitError {
     Other(#[from] anyhow::Error),
 }
 
-#[derive(Error, Debug)]
+#[derive(Debug, Error)]
 pub enum ReadyError {
-    //TODO: Add ready specific errors.
+    // General ready-specific errors
+    #[error("{0}")]
+    Message(String),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+// Allow conversion from &str to ReadyError
+impl From<&str> for ReadyError {
+    fn from(msg: &str) -> Self {
+        ReadyError::Message(msg.to_string())
+    }
 }
 
 #[derive(Error, Debug)]

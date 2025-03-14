@@ -54,6 +54,10 @@ where
     RejectPeerConnection(NodeId, NodeId, String),
     AcknowledgeConnectionSetup(NodeId, NodeId, u16),
 
+    // P2P Connection - IP Resolution
+    RequestNodeRuntimeIP(NodeId),
+    RespondNodeRuntimeIP(NodeId, String),
+
     // Debug & Data Messages
     Debug(String),
     Data(DataWrapper<D>),
@@ -77,6 +81,8 @@ pub const REQUEST_PEER_CONNECTION: &str = "[[MESSAGE]: RequestPeerConnection]>";
 pub const ACCEPT_PEER_CONNECTION: &str = "[[MESSAGE]: AcceptPeerConnection]>";
 pub const REJECT_PEER_CONNECTION: &str = "[[MESSAGE]: RejectPeerConnection]>";
 pub const ACKNOWLEDGE_CONNECTION_SETUP: &str = "[[MESSAGE]: AcknowledgeConnectionSetup]>";
+pub const REQUEST_NODE_RUNTIME_IP: &str = "[[MESSAGE]: RequestNodeRuntimeIP]>";
+pub const RESPOND_NODE_RUNTIME_IP: &str = "[[MESSAGE]: RespondNodeRuntimeIP]>";
 
 // Integrate into Pattern Matching for Aho-Corasick
 const PATTERNS: &[&str] = &[
@@ -95,6 +101,8 @@ const PATTERNS: &[&str] = &[
     SETUP_COMMUNICATION_COMM,
     SETUP_COMMUNICATION_PORT_PREFIX,
     ACKNOWLEDGE_CONNECTION,
+    REQUEST_NODE_RUNTIME_IP,
+    RESPOND_NODE_RUNTIME_IP,
 ];
 
 // Implement fmt::Debug
@@ -163,6 +171,12 @@ where
                     "{}{},{},{}",
                     ACKNOWLEDGE_CONNECTION_SETUP, n1, n2, recv_port
                 )
+            }
+            Message::RequestNodeRuntimeIP(node_id) => {
+                write!(f, "{}{}", REQUEST_NODE_RUNTIME_IP, node_id)
+            }
+            Message::RespondNodeRuntimeIP(node_id, ip) => {
+                write!(f, "{}{},{}", RESPOND_NODE_RUNTIME_IP, node_id, ip)
             }
 
             // Debugging & Data Transfer
@@ -314,6 +328,27 @@ where
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
                         parts[2].parse().ok()?,
+                    ))
+                } else {
+                    None
+                }
+            }
+            Some(REQUEST_NODE_RUNTIME_IP) => {
+                let stripped_msg = s.replacen(REQUEST_NODE_RUNTIME_IP, "", 1);
+                let parts: Vec<&str> = stripped_msg.split(',').collect();
+                if parts.len() == 1 {
+                    Some(Self::RequestNodeRuntimeIP(parts[0].parse().ok()?))
+                } else {
+                    None
+                }
+            }
+            Some(RESPOND_NODE_RUNTIME_IP) => {
+                let stripped_msg = s.replacen(RESPOND_NODE_RUNTIME_IP, "", 1);
+                let parts: Vec<&str> = stripped_msg.split(',').collect();
+                if parts.len() == 2 {
+                    Some(Self::RespondNodeRuntimeIP(
+                        parts[0].parse().ok()?,
+                        parts[1].to_string(),
                     ))
                 } else {
                     None
@@ -478,6 +513,23 @@ mod tests {
         assert_eq!(
             Message::<String>::from_str(&msg_str),
             Some(Message::AcknowledgeConnectionSetup(n1, n2, 5050))
+        );
+
+        let node_id: NodeId = 5;
+        let node_ip = "192.168.1.10".to_string();
+
+        // Test RequestNodeRuntimeIP
+        let msg_str = format!("{}{}", REQUEST_NODE_RUNTIME_IP, node_id);
+        assert_eq!(
+            Message::<String>::from_str(&msg_str),
+            Some(Message::RequestNodeRuntimeIP(node_id))
+        );
+
+        // Test RespondNodeRuntimeIP
+        let msg_str = format!("{}{},{}", RESPOND_NODE_RUNTIME_IP, node_id, node_ip);
+        assert_eq!(
+            Message::<String>::from_str(&msg_str),
+            Some(Message::RespondNodeRuntimeIP(node_id, node_ip.clone()))
         );
     }
 }

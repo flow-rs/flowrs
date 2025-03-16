@@ -254,7 +254,13 @@ where
 /// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_inputs {
+    // Special case for zero inputs
     (() $(,)?) => {
+        #[async_trait]
+        impl SetupInputs for () {
+            async fn setup_input(&mut self, _idx: u128, _local: bool) {}
+        }
+
         impl SetupInputsSync for () {
             fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
 
@@ -267,8 +273,26 @@ macro_rules! impl_setup_inputs {
         }
     };
 
+    // General case for multiple inputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
+        #[async_trait]
+        impl<$($D),+> SetupInputs for ($($crate::nodes::node_io::TypedInput<$D>,)+)
+        where
+            $(
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            async fn setup_input(&mut self, idx: u128, local: bool) {
+                match idx {
+                    $(
+                        $idx => self.$idx.input.setup_input(idx, local).await,
+                    )+
+                    _ => panic!("Invalid input index {}", idx),
+                }
+            }
+        }
+
         impl<$($D),+> SetupInputsSync for ($($crate::nodes::node_io::TypedInput<$D>,)+)
         where
             $(
@@ -280,7 +304,7 @@ macro_rules! impl_setup_inputs {
                     $(
                         $idx => self.$idx.input.setup_input_sync(idx, local),
                     )+
-                    _ => (),
+                    _ => panic!("Invalid input index {}", idx),
                 }
             }
 
@@ -573,20 +597,6 @@ macro_rules! impl_register_base_types {
         }
         )+
     };
-}
-
-#[async_trait]
-impl SetupInputs for () {
-    async fn setup_input(&mut self, _idx: u128, _local: bool) {
-        // No inputs, nothing to set up
-    }
-}
-
-#[async_trait]
-impl SetupOutputs for () {
-    async fn setup_output(&mut self, _idx: u128, _local: bool) {
-        // No outputs, nothing to set up
-    }
 }
 
 pub trait AsAny {

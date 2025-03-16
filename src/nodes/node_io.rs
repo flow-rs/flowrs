@@ -602,6 +602,19 @@ where
     }
 }
 
+pub trait AsAnyImpl {}
+impl<T: 'static> AsAny for T
+where
+    T: AsAnyImpl,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 impl<D> AsAny for Input<D>
 where
     D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,

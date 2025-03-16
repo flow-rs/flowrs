@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     connection::Edge,
-    node_io::{SetupInputsSync, SetupOutputsSync},
+    node_io::{SetupIO, SetupInputsSync, SetupOutputsSync},
 };
 
 /// A node can take a shared reference to a [`Context`] instance.
@@ -126,8 +126,8 @@ pub trait Node: Send + Sync {
     fn get_output_count(&self) -> u128;
     fn setup_input(&mut self, idx: u128, local: bool);
     fn setup_output(&mut self, idx: u128, local: bool);
+    fn get_io_mut(&mut self) -> &mut dyn SetupIO;
 }
-
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,
     execution_state: ExecutionState,
@@ -137,7 +137,7 @@ pub struct ExecutionNode {
 
 impl ExecutionNode {
     pub fn new(
-        node: Box<dyn Node>,
+        node: Box<dyn Node + Send + Sync>,
         execution_mode: ExecutionMode,
         control_edge: Edge<String>,
     ) -> Self {
@@ -283,6 +283,10 @@ impl Node for ExecutionNode {
 
     fn setup_output(&mut self, idx: u128, local: bool) {
         self.node.setup_output(idx, local);
+    }
+
+    fn get_io_mut(&mut self) -> &mut dyn SetupIO {
+        self.node.get_io_mut()
     }
 }
 

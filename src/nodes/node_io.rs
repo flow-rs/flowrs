@@ -84,22 +84,6 @@ where
     fn setup_output_sync(&mut self, idx: u128, local: bool) {
         self.output.setup_output_sync(idx, local);
     }
-    fn set_local_output_communicator<TC>(&mut self, _idx: usize, comm: ThreadCommunicator<TC>)
-    where
-        TC: 'static + Send + Sync + Debug + FromStr + Clone,
-    {
-        // Ensure the types match before setting the communicator
-        if let Some(output) = (self as &mut dyn AsAny)
-            .as_any_mut()
-            .downcast_mut::<TypedOutput<TC>>()
-        {
-            output
-                .output
-                .set_communicator(NodeCommunicator::ThreadComm(comm));
-        } else {
-            panic!("Type mismatch in set_local_output_communicator");
-        }
-    }
 }
 
 // /// **Recursive function to register each type in a tuple**
@@ -175,19 +159,14 @@ pub trait SetupOutputs {
 /// **Synchronous wrapper traits**
 pub trait SetupInputsSync {
     fn setup_input_sync(&mut self, idx: u128, local: bool);
-
-    fn set_local_input_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone;
 }
 
 pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
-    fn set_local_output_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone;
 }
 
+pub trait SetupIO: SetupInputsSync + SetupOutputsSync {}
+impl<T: SetupInputsSync + SetupOutputsSync> SetupIO for T {}
 #[async_trait]
 impl<I> SetupInputs for Input<I>
 where
@@ -224,20 +203,6 @@ where
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_input(idx, local));
     }
-    fn set_local_input_communicator<T>(&mut self, _idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone,
-    {
-        // Ensure the types match before setting the communicator
-        if let Some(input) = (self as &mut dyn AsAny)
-            .as_any_mut()
-            .downcast_mut::<Input<T>>()
-        {
-            input.set_communicator(NodeCommunicator::ThreadComm(comm));
-        } else {
-            panic!("Type mismatch in set_local_input_communicator");
-        }
-    }
 }
 
 // impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
@@ -263,13 +228,6 @@ macro_rules! impl_setup_inputs {
 
         impl SetupInputsSync for () {
             fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
-
-            fn set_local_input_communicator<T>(&mut self, _idx: usize, _comm: ThreadCommunicator<T>)
-            where
-                T: 'static + Send + Sync + Debug + FromStr + Clone,
-            {
-                panic!("Cannot set input communicator on a node with no inputs");
-            }
         }
     };
 
@@ -307,24 +265,6 @@ macro_rules! impl_setup_inputs {
                     _ => panic!("Invalid input index {}", idx),
                 }
             }
-
-            fn set_local_input_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-            where
-                T: 'static + Send + Sync + Debug + FromStr + Clone,
-            {
-                match idx {
-                    $(
-                        $idx => {
-                            if let Some(input) = (&mut self.$idx as &mut dyn AsAny).as_any_mut().downcast_mut::<TypedInput<T>>() {
-                                input.input.set_communicator(NodeCommunicator::ThreadComm(comm));
-                            } else {
-                                panic!("Invalid type for input at index {}", idx);
-                            }
-                        }
-                    )+
-                    _ => panic!("Invalid input index {}", idx),
-                }
-            }
         }
         )+
     };
@@ -337,13 +277,6 @@ macro_rules! impl_setup_outputs {
     (() $(,)?) => {
         impl SetupOutputsSync for () {
             fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
-
-            fn set_local_output_communicator<T>(&mut self, _idx: usize, _comm: ThreadCommunicator<T>)
-            where
-                T: 'static + Send + Sync + Debug + FromStr + Clone,
-            {
-                panic!("Cannot set output communicator on a node with no outputs");
-            }
         }
     };
 
@@ -377,24 +310,6 @@ macro_rules! impl_setup_outputs {
                 match idx {
                     $(
                         $idx => self.$idx.output.setup_output_sync(idx, local),
-                    )+
-                    _ => panic!("Invalid output index {}", idx),
-                }
-            }
-
-            fn set_local_output_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-            where
-                T: 'static + Send + Sync + Debug + FromStr + Clone,
-            {
-                match idx {
-                    $(
-                        $idx => {
-                            if let Some(output) = (&mut self.$idx as &mut dyn AsAny).as_any_mut().downcast_mut::<TypedOutput<T>>() {
-                                output.output.set_communicator(NodeCommunicator::ThreadComm(comm));
-                            } else {
-                                panic!("Invalid type for output at index {}", idx);
-                            }
-                        }
                     )+
                     _ => panic!("Invalid output index {}", idx),
                 }
@@ -486,21 +401,6 @@ where
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
     }
-
-    fn set_local_output_communicator<T>(&mut self, _idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone,
-    {
-        // Ensure the types match before setting the communicator
-        if let Some(output) = (self as &mut dyn AsAny)
-            .as_any_mut()
-            .downcast_mut::<Output<T>>()
-        {
-            output.set_communicator(NodeCommunicator::ThreadComm(comm));
-        } else {
-            panic!("Type mismatch in set_local_output_communicator");
-        }
-    }
 }
 
 // // Implement for single TypedInput<T>
@@ -520,11 +420,28 @@ where
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         self.input.setup_input_sync(idx, local);
     }
+}
+
+pub trait SetupInputCommunicator {
+    fn set_local_input_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
+    where
+        T: 'static + Send + Sync + Debug + FromStr + Clone;
+}
+
+pub trait SetupOutputCommunicator {
+    fn set_local_output_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
+    where
+        T: 'static + Send + Sync + Debug + FromStr + Clone;
+}
+
+impl<T> SetupInputCommunicator for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
     fn set_local_input_communicator<TC>(&mut self, _idx: usize, comm: ThreadCommunicator<TC>)
     where
         TC: 'static + Send + Sync + Debug + FromStr + Clone,
     {
-        // Ensure the types match before setting the communicator
         if let Some(input) = (self as &mut dyn AsAny)
             .as_any_mut()
             .downcast_mut::<TypedInput<TC>>()
@@ -534,6 +451,27 @@ where
                 .set_communicator(NodeCommunicator::ThreadComm(comm));
         } else {
             panic!("Type mismatch in set_local_input_communicator");
+        }
+    }
+}
+
+impl<T> SetupOutputCommunicator for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn set_local_output_communicator<TC>(&mut self, _idx: usize, comm: ThreadCommunicator<TC>)
+    where
+        TC: 'static + Send + Sync + Debug + FromStr + Clone,
+    {
+        if let Some(output) = (self as &mut dyn AsAny)
+            .as_any_mut()
+            .downcast_mut::<TypedOutput<TC>>()
+        {
+            output
+                .output
+                .set_communicator(NodeCommunicator::ThreadComm(comm));
+        } else {
+            panic!("Type mismatch in set_local_output_communicator");
         }
     }
 }
@@ -598,7 +536,6 @@ macro_rules! impl_register_base_types {
         )+
     };
 }
-
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;

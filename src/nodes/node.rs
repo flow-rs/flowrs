@@ -17,7 +17,10 @@ use crate::{
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
 };
 
-use super::connection::Edge;
+use super::{
+    connection::Edge,
+    node_io::{SetupInputsSync, SetupOutputsSync},
+};
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -128,7 +131,7 @@ pub trait Node: Send + Sync {
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,
     execution_state: ExecutionState,
-    node: Box<dyn Node>,
+    pub node: Box<dyn Node>,
     control_edge: Edge<String>,
 }
 

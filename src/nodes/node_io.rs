@@ -254,7 +254,6 @@ where
 /// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_inputs {
-    // Special case for zero inputs
     (() $(,)?) => {
         impl SetupInputsSync for () {
             fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
@@ -268,7 +267,6 @@ macro_rules! impl_setup_inputs {
         }
     };
 
-    // General case for multiple inputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         impl<$($D),+> SetupInputsSync for ($($crate::nodes::node_io::TypedInput<$D>,)+)
@@ -311,7 +309,6 @@ macro_rules! impl_setup_inputs {
 /// **Macro to generate `SetupOutputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_outputs {
-    // Special case for zero outputs
     (() $(,)?) => {
         impl SetupOutputsSync for () {
             fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
@@ -325,7 +322,6 @@ macro_rules! impl_setup_outputs {
         }
     };
 
-    // General case for multiple outputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         impl<$($D),+> SetupOutputsSync for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
@@ -350,7 +346,6 @@ macro_rules! impl_setup_outputs {
                 match idx {
                     $(
                         $idx => {
-                            // Directly access the tuple index instead of calling `get_output_mut`
                             if let Some(output) = (&mut self.$idx as &mut dyn AsAny).as_any_mut().downcast_mut::<TypedOutput<T>>() {
                                 output.output.set_communicator(NodeCommunicator::ThreadComm(comm));
                             } else {
@@ -559,6 +554,20 @@ macro_rules! impl_register_base_types {
         }
         )+
     };
+}
+
+#[async_trait]
+impl SetupInputs for () {
+    async fn setup_input(&mut self, _idx: u128, _local: bool) {
+        // No inputs, nothing to set up
+    }
+}
+
+#[async_trait]
+impl SetupOutputs for () {
+    async fn setup_output(&mut self, _idx: u128, _local: bool) {
+        // No outputs, nothing to set up
+    }
 }
 
 pub trait AsAny {

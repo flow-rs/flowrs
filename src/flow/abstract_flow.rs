@@ -63,6 +63,14 @@ impl AbstractFlow {
         self.network.get_connection_type(connection)
     }
 
+    pub fn get_output_type(
+        &self,
+        sender_id: NodeId,
+        sender_out_idx: NodeIOIndex,
+    ) -> Option<TypeId> {
+        self.network.get_output_type(sender_id, sender_out_idx)
+    }
+
     pub fn get_connections(&self) -> SetIter<FlowNodeConnection> {
         self.network.get_connections()
     }

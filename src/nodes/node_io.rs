@@ -309,6 +309,7 @@ macro_rules! impl_setup_inputs {
 /// **Macro to generate `SetupOutputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_outputs {
+    // Special case for zero outputs
     (() $(,)?) => {
         impl SetupOutputsSync for () {
             fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
@@ -322,8 +323,26 @@ macro_rules! impl_setup_outputs {
         }
     };
 
+    // General case for multiple outputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
+        #[async_trait]
+        impl<$($D),+> SetupOutputs for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
+        where
+            $(
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            async fn setup_output(&mut self, idx: u128, local: bool) {
+                match idx {
+                    $(
+                        $idx => self.$idx.output.setup_output(idx, local).await,
+                    )+
+                    _ => panic!("Invalid output index {}", idx),
+                }
+            }
+        }
+
         impl<$($D),+> SetupOutputsSync for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
         where
             $(
@@ -335,7 +354,7 @@ macro_rules! impl_setup_outputs {
                     $(
                         $idx => self.$idx.output.setup_output_sync(idx, local),
                     )+
-                    _ => (),
+                    _ => panic!("Invalid output index {}", idx),
                 }
             }
 

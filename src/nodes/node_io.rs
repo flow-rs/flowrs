@@ -165,7 +165,7 @@ pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
 }
 
-pub trait SetupIO: SetupInputsSync + SetupOutputsSync + AsAnyImpl {}
+pub trait SetupIO: SetupInputsSync + SetupOutputsSync + AsAnyImpl + AsAny {}
 
 #[async_trait]
 impl<I> SetupInputs for Input<I>
@@ -180,8 +180,6 @@ where
         };
     }
 }
-
-impl<T: SetupIO + 'static> AsAnyImpl for T {}
 
 impl<I, O> SetupIO for NodeIO<I, O>
 where
@@ -605,21 +603,25 @@ where
 }
 
 pub trait AsAnyImpl {}
-impl<T: 'static> AsAny for T
+
+impl<T: 'static + AsAny> AsAnyImpl for T {}
+impl<D> AsAny for Input<D>
 where
-    T: AsAnyImpl,
+    D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
 
-impl<D> AsAny for Input<D>
+impl<I, O> AsAny for NodeIO<I, O>
 where
-    D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
+    I: SetupInputsSync + SetupInputs + 'static,
+    O: SetupOutputsSync + SetupOutputs + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self

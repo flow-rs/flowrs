@@ -13,8 +13,8 @@ use crate::comm::communication::NodeCommunicator;
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
 pub struct NodeIO<I, O>
 where
-    I: SetupInputs,  // Change `FromStr + Clone` to `SetupInputs`
-    O: SetupOutputs, // Change `FromStr + Clone` to `SetupOutputs`
+    I: SetupInputs,
+    O: SetupOutputs,
 {
     pub inputs: I,
     pub outputs: O,
@@ -22,8 +22,8 @@ where
 
 impl<I, O> NodeIO<I, O>
 where
-    I: SetupInputs + RegisterBaseTypes + Send + Sync, // Ensure it implements `RegisterBaseTypes`
-    O: SetupOutputs + RegisterBaseTypes + Send + Sync, // Ensure it implements `RegisterBaseTypes`
+    I: SetupInputs + SetupInputsSync + RegisterBaseTypes + Send + Sync,
+    O: SetupOutputs + SetupOutputsSync + RegisterBaseTypes + Send + Sync,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
         Self::register_io_types();
@@ -166,7 +166,7 @@ pub trait SetupOutputsSync {
 }
 
 pub trait SetupIO: SetupInputsSync + SetupOutputsSync {}
-impl<T: SetupInputsSync + SetupOutputsSync> SetupIO for T {}
+
 #[async_trait]
 impl<I> SetupInputs for Input<I>
 where
@@ -178,6 +178,23 @@ where
         } else {
             Input::new_network().await
         };
+    }
+}
+
+impl<I, O> SetupIO for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs,
+{
+}
+
+impl<I, O> NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs,
+{
+    pub fn get_io_mut(&mut self) -> &mut dyn SetupIO {
+        self
     }
 }
 
@@ -219,7 +236,6 @@ where
 /// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_inputs {
-    // Special case for zero inputs
     (() $(,)?) => {
         #[async_trait]
         impl SetupInputs for () {
@@ -228,10 +244,10 @@ macro_rules! impl_setup_inputs {
 
         impl SetupInputsSync for () {
             fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
+
         }
     };
 
-    // General case for multiple inputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait]
@@ -273,14 +289,13 @@ macro_rules! impl_setup_inputs {
 /// **Macro to generate `SetupOutputs` implementations**
 #[macro_export]
 macro_rules! impl_setup_outputs {
-    // Special case for zero outputs
     (() $(,)?) => {
         impl SetupOutputsSync for () {
             fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
+
         }
     };
 
-    // General case for multiple outputs
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
         #[async_trait]
@@ -357,6 +372,26 @@ macro_rules! impl_setup_outputs_sync {
         }
         )+
     };
+}
+
+impl<I, O> SetupInputsSync for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs,
+{
+    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+        self.inputs.setup_input_sync(idx, local);
+    }
+}
+
+impl<I, O> SetupOutputsSync for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        self.outputs.setup_output_sync(idx, local);
+    }
 }
 
 // impl SetupInputsSync for () {

@@ -165,7 +165,7 @@ pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
 }
 
-pub trait SetupIO: SetupInputsSync + SetupOutputsSync {}
+pub trait SetupIO: SetupInputsSync + SetupOutputsSync + AsAnyImpl {}
 
 #[async_trait]
 impl<I> SetupInputs for Input<I>
@@ -181,17 +181,19 @@ where
     }
 }
 
+impl<T: SetupIO + 'static> AsAnyImpl for T {}
+
 impl<I, O> SetupIO for NodeIO<I, O>
 where
-    I: SetupInputsSync + SetupInputs,
-    O: SetupOutputsSync + SetupOutputs,
+    I: SetupInputsSync + SetupInputs + 'static,
+    O: SetupOutputsSync + SetupOutputs + 'static,
 {
 }
 
 impl<I, O> NodeIO<I, O>
 where
-    I: SetupInputsSync + SetupInputs,
-    O: SetupOutputsSync + SetupOutputs,
+    I: SetupInputsSync + SetupInputs + 'static,
+    O: SetupOutputsSync + SetupOutputs + 'static,
 {
     pub fn get_io_mut(&mut self) -> &mut dyn SetupIO {
         self

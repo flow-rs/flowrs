@@ -24,6 +24,12 @@ impl NetworkCommunicator {
             port: None,
         })
     }
+
+    pub fn await_unwrap_sync() -> Self {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        rt.block_on(Self::new())
+            .expect("Failed to create NetworkCommunicator asynchronously")
+    }
 }
 
 #[async_trait]

@@ -129,6 +129,11 @@ where
     pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
         self.edge.next()
     }
+
+    /// Set a new communicator
+    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+        self.edge = Edge::new(communicator);
+    }
 }
 
 impl<D> Output<D>
@@ -147,6 +152,11 @@ where
 
     pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
         self.edge.next()
+    }
+
+    /// Set a new communicator
+    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+        self.edge = Edge::new(communicator);
     }
 }
 

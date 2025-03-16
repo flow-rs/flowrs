@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::collections::hash_map::Drain;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -24,6 +25,7 @@ use crate::flow::execution_flow::ExecutionFlow;
 use crate::flow::flow_types::NodeId;
 use crate::node::{ExecutionNode, Node};
 use crate::nodes::connection::EdgeTrait;
+use crate::types::type_registry::{get_thread_communicator, TYPE_REGISTRY};
 use crate::{
     exec::node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
     flow::abstract_flow::AbstractFlow,
@@ -217,5 +219,64 @@ impl StandardExecutor {
         }
 
         println!("[Executor] Execution started.");
+    }
+
+    pub async fn connect_local(
+        &mut self,
+        sender_id: NodeId,
+        receiver_id: NodeId,
+        sender_out_idx: u128,
+        recv_in_idx: u128,
+    ) -> Result<()> {
+        // 1) Locate sender ExecutionNode
+        let sender_exec_node = self
+            .execution_nodes
+            .get(&sender_id)
+            .ok_or_else(|| anyhow::anyhow!("No ExecutionNode found for sender_id {}", sender_id))?;
+        // 2) Locate receiver ExecutionNode
+        let receiver_exec_node = self.execution_nodes.get(&receiver_id).ok_or_else(|| {
+            anyhow::anyhow!("No ExecutionNode found for receiver_id {}", receiver_id)
+        })?;
+
+        // Lock both
+        let mut sender_guard = sender_exec_node.lock().await;
+        let mut receiver_guard = receiver_exec_node.lock().await;
+
+        // 3) Tell the typed node to create local output communicator
+        sender_guard.setup_output(sender_out_idx, /*local=*/ true);
+
+        // 4) Tell the typed node to create local input communicator
+        receiver_guard.setup_input(recv_in_idx, /*local=*/ true);
+
+        Ok(())
+    }
+
+    /// Example placeholder that sets the NodeIO's output #out_idx to the given communicator
+    fn store_in_output<T>(
+        node: &mut dyn Node,
+        out_idx: u128,
+        comm: NodeCommunicator<T>,
+    ) -> anyhow::Result<()>
+    where
+        T: std::fmt::Debug + std::str::FromStr + Send + Sync + 'static,
+    {
+        // 1) If your node is e.g. AddNode<I1, I2, O>:
+        //    node.io.outputs.0.output = Output::new(comm)
+        // or do an internal cast or an interface if the Node trait has a “set_output_comm” method
+        // ...
+        Ok(())
+    }
+
+    /// Same idea for the input
+    fn store_in_input<T>(
+        node: &mut dyn Node,
+        in_idx: u128,
+        comm: NodeCommunicator<T>,
+    ) -> anyhow::Result<()>
+    where
+        T: std::fmt::Debug + std::str::FromStr + Send + Sync + 'static,
+    {
+        //  ...
+        Ok(())
     }
 }

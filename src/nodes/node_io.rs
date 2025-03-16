@@ -458,32 +458,21 @@ where
 }
 
 pub trait SetupInputCommunicator {
-    fn set_local_input_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone;
+    fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>);
 }
 
 pub trait SetupOutputCommunicator {
-    fn set_local_output_communicator<T>(&mut self, idx: usize, comm: ThreadCommunicator<T>)
-    where
-        T: 'static + Send + Sync + Debug + FromStr + Clone;
+    fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>);
 }
 
 impl<T> SetupInputCommunicator for TypedInput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn set_local_input_communicator<TC>(&mut self, _idx: usize, comm: ThreadCommunicator<TC>)
-    where
-        TC: 'static + Send + Sync + Debug + FromStr + Clone,
-    {
-        if let Some(input) = (self as &mut dyn AsAny)
-            .as_any_mut()
-            .downcast_mut::<TypedInput<TC>>()
-        {
-            input
-                .input
-                .set_communicator(NodeCommunicator::ThreadComm(comm));
+    fn set_local_input_communicator(&mut self, _idx: usize, comm: Box<dyn Any>) {
+        if let Ok(comm) = comm.downcast::<ThreadCommunicator<T>>() {
+            self.input
+                .set_communicator(NodeCommunicator::ThreadComm(*comm));
         } else {
             panic!("Type mismatch in set_local_input_communicator");
         }
@@ -494,17 +483,10 @@ impl<T> SetupOutputCommunicator for TypedOutput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn set_local_output_communicator<TC>(&mut self, _idx: usize, comm: ThreadCommunicator<TC>)
-    where
-        TC: 'static + Send + Sync + Debug + FromStr + Clone,
-    {
-        if let Some(output) = (self as &mut dyn AsAny)
-            .as_any_mut()
-            .downcast_mut::<TypedOutput<TC>>()
-        {
-            output
-                .output
-                .set_communicator(NodeCommunicator::ThreadComm(comm));
+    fn set_local_output_communicator(&mut self, _idx: usize, comm: Box<dyn Any>) {
+        if let Ok(comm) = comm.downcast::<ThreadCommunicator<T>>() {
+            self.output
+                .set_communicator(NodeCommunicator::ThreadComm(*comm));
         } else {
             panic!("Type mismatch in set_local_output_communicator");
         }

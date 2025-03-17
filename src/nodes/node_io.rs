@@ -737,15 +737,15 @@ where
     }
 }
 
-pub trait SetupIO: Send + Sync {
+pub trait SetupIO: Send + Sync + AsAny {
     fn get_input_count(&self) -> usize;
     fn get_output_count(&self) -> usize;
 }
 
 impl<I, O> SetupIO for NodeIO<I, O>
 where
-    I: SetupInputsSync + SetupInputs + Send + Sync,
-    O: SetupOutputsSync + SetupOutputs + Send + Sync,
+    I: SetupInputsSync + SetupInputs + Send + Sync + 'static,
+    O: SetupOutputsSync + SetupOutputs + Send + Sync + 'static,
 {
     fn get_input_count(&self) -> usize {
         self.inputs.get_input_count()

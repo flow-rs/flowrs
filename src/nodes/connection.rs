@@ -134,6 +134,13 @@ where
     pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
         self.edge = Edge::new(communicator);
     }
+
+    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+        match &mut self.edge.communicator {
+            NodeCommunicator::ThreadComm(comm) => Some(comm),
+            _ => None,
+        }
+    }
 }
 
 impl<D> Output<D>
@@ -157,6 +164,13 @@ where
     /// Set a new communicator
     pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
         self.edge = Edge::new(communicator);
+    }
+
+    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+        match &mut self.edge.communicator {
+            NodeCommunicator::ThreadComm(comm) => Some(comm),
+            _ => None,
+        }
     }
 }
 

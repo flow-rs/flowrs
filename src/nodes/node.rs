@@ -286,7 +286,7 @@ impl Node for ExecutionNode {
     }
 
     fn get_io_mut(&mut self) -> &mut dyn SetupIO {
-        self.node.get_io_mut()
+        self.node.get_io_mut() // Now correctly returns `&mut dyn SetupIO`
     }
 }
 

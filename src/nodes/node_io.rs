@@ -84,6 +84,10 @@ where
     fn setup_output_sync(&mut self, idx: u128, local: bool) {
         self.output.setup_output_sync(idx, local);
     }
+
+    fn get_output_count(&self) -> usize {
+        1 // Each `TypedOutput<T>` represents a single output
+    }
 }
 
 // /// **Recursive function to register each type in a tuple**
@@ -159,13 +163,13 @@ pub trait SetupOutputs {
 /// **Synchronous wrapper traits**
 pub trait SetupInputsSync {
     fn setup_input_sync(&mut self, idx: u128, local: bool);
+    fn get_input_count(&self) -> usize;
 }
 
 pub trait SetupOutputsSync {
     fn setup_output_sync(&mut self, idx: u128, local: bool);
+    fn get_output_count(&self) -> usize;
 }
-
-pub trait SetupIO: SetupInputsSync + SetupOutputsSync + AsAnyImpl + AsAny {}
 
 #[async_trait]
 impl<I> SetupInputs for Input<I>
@@ -181,42 +185,35 @@ where
     }
 }
 
-impl<I, O> SetupIO for NodeIO<I, O>
-where
-    I: SetupInputsSync + SetupInputs + 'static,
-    O: SetupOutputsSync + SetupOutputs + 'static,
-{
-}
-
 impl<I, O> NodeIO<I, O>
 where
     I: SetupInputsSync + SetupInputs + 'static,
     O: SetupOutputsSync + SetupOutputs + 'static,
 {
-    pub fn get_io_mut(&mut self) -> &mut dyn SetupIO {
+    pub fn get_io_mut(&mut self) -> &mut Self {
         self
     }
 }
 
-impl<I, O> SetupInputCommunicator for NodeIO<I, O>
-where
-    I: SetupInputsSync + SetupInputs + SetupInputCommunicator,
-    O: SetupOutputsSync + SetupOutputs,
-{
-    fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
-        self.inputs.set_local_input_communicator(idx, comm);
-    }
-}
+// impl<I, O> SetupInputCommunicator for NodeIO<I, O>
+// where
+//     I: SetupInputsSync + SetupInputs + SetupInputCommunicator,
+//     O: SetupOutputsSync + SetupOutputs,
+// {
+//     fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
+//         self.inputs.set_local_input_communicator(idx, comm);
+//     }
+// }
 
-impl<I, O> SetupOutputCommunicator for NodeIO<I, O>
-where
-    I: SetupInputsSync + SetupInputs,
-    O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator,
-{
-    fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
-        self.outputs.set_local_output_communicator(idx, comm);
-    }
-}
+// impl<I, O> SetupOutputCommunicator for NodeIO<I, O>
+// where
+//     I: SetupInputsSync + SetupInputs,
+//     O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator,
+// {
+//     fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
+//         self.outputs.set_local_output_communicator(idx, comm);
+//     }
+// }
 
 #[async_trait]
 impl<O> SetupOutputs for Output<O>
@@ -239,6 +236,10 @@ where
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_input(idx, local));
+    }
+
+    fn get_input_count(&self) -> usize {
+        1 // Single input
     }
 }
 
@@ -264,6 +265,9 @@ macro_rules! impl_setup_inputs {
 
         impl SetupInputsSync for () {
             fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
+            fn get_input_count(&self) -> usize {
+                0 // no input
+            }
 
         }
     };
@@ -301,6 +305,10 @@ macro_rules! impl_setup_inputs {
                     _ => panic!("Invalid input index {}", idx),
                 }
             }
+
+           fn get_input_count(&self) -> usize {
+                0 $(+ { let _ = &self.$idx; 1 })+ // Ensures correct summation
+            }
         }
         )+
     };
@@ -313,6 +321,9 @@ macro_rules! impl_setup_outputs {
         impl SetupOutputsSync for () {
             fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
 
+            fn get_output_count(&self) -> usize {
+                0 // No outputs
+            }
         }
     };
 
@@ -349,6 +360,10 @@ macro_rules! impl_setup_outputs {
                     _ => panic!("Invalid output index {}", idx),
                 }
             }
+
+            fn get_output_count(&self) -> usize {
+        0 $(+ { let _ = &self.$idx; 1 })+ // Ensures correct summation
+    }
         }
         )+
     };
@@ -402,6 +417,9 @@ where
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         self.inputs.setup_input_sync(idx, local);
     }
+    fn get_input_count(&self) -> usize {
+        self.inputs.get_input_count()
+    }
 }
 
 impl<I, O> SetupOutputsSync for NodeIO<I, O>
@@ -411,6 +429,10 @@ where
 {
     fn setup_output_sync(&mut self, idx: u128, local: bool) {
         self.outputs.setup_output_sync(idx, local);
+    }
+
+    fn get_output_count(&self) -> usize {
+        self.outputs.get_output_count()
     }
 }
 
@@ -456,6 +478,9 @@ where
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
     }
+    fn get_output_count(&self) -> usize {
+        1 // Single output
+    }
 }
 
 // // Implement for single TypedInput<T>
@@ -475,41 +500,84 @@ where
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         self.input.setup_input_sync(idx, local);
     }
+    fn get_input_count(&self) -> usize {
+        1 //single input
+    }
 }
 
-pub trait SetupInputCommunicator {
-    fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>);
+pub trait SetupInputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+    fn get_input_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>>;
 }
 
-pub trait SetupOutputCommunicator {
-    fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>);
+pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+    fn get_output_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>>;
 }
 
-impl<T> SetupInputCommunicator for TypedInput<T>
+impl<T> SetupInputCommunicator<T> for TypedInput<T>
 where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
 {
-    fn set_local_input_communicator(&mut self, _idx: usize, comm: Box<dyn Any>) {
-        if let Ok(comm) = comm.downcast::<ThreadCommunicator<T>>() {
-            self.input
-                .set_communicator(NodeCommunicator::ThreadComm(*comm));
+    fn get_input_communicator(&mut self, _idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        self.input.get_communicator_mut()
+    }
+}
+
+impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    Rest: SetupInputCommunicator<T>,
+{
+    fn get_input_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        if idx == 0 {
+            self.0.get_input_communicator(idx)
         } else {
-            panic!("Type mismatch in set_local_input_communicator");
+            self.1.get_input_communicator(idx - 1)
         }
     }
 }
 
-impl<T> SetupOutputCommunicator for TypedOutput<T>
+impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
 where
+    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+{
+    fn get_output_communicator(&mut self, _idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        self.output.get_communicator_mut()
+    }
+}
+
+impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    Rest: SetupOutputCommunicator<T>,
+{
+    fn get_output_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        if idx == 0 {
+            self.0.get_output_communicator(idx)
+        } else {
+            self.1.get_output_communicator(idx - 1)
+        }
+    }
+}
+
+impl<I, O, T> SetupInputCommunicator<T> for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs + SetupInputCommunicator<T>,
+    O: SetupOutputsSync + SetupOutputs,
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn set_local_output_communicator(&mut self, _idx: usize, comm: Box<dyn Any>) {
-        if let Ok(comm) = comm.downcast::<ThreadCommunicator<T>>() {
-            self.output
-                .set_communicator(NodeCommunicator::ThreadComm(*comm));
-        } else {
-            panic!("Type mismatch in set_local_output_communicator");
-        }
+    fn get_input_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        self.inputs.get_input_communicator(idx)
+    }
+}
+
+impl<I, O, T> SetupOutputCommunicator<T> for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator<T>,
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_output_communicator(&mut self, idx: usize) -> Option<&mut ThreadCommunicator<T>> {
+        self.outputs.get_output_communicator(idx)
     }
 }
 
@@ -644,6 +712,47 @@ where
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+impl<T> TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub fn get_thread_communicator(&mut self) -> &mut ThreadCommunicator<T> {
+        self.input
+            .get_communicator_mut()
+            .expect("ThreadCommunicator not found")
+    }
+}
+
+impl<T> TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub fn get_thread_communicator(&mut self) -> &mut ThreadCommunicator<T> {
+        self.output
+            .get_communicator_mut()
+            .expect("ThreadCommunicator not found")
+    }
+}
+
+pub trait SetupIO: Send + Sync {
+    fn get_input_count(&self) -> usize;
+    fn get_output_count(&self) -> usize;
+}
+
+impl<I, O> SetupIO for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs + Send + Sync,
+    O: SetupOutputsSync + SetupOutputs + Send + Sync,
+{
+    fn get_input_count(&self) -> usize {
+        self.inputs.get_input_count()
+    }
+
+    fn get_output_count(&self) -> usize {
+        self.outputs.get_output_count()
     }
 }
 

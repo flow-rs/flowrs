@@ -198,6 +198,26 @@ where
     }
 }
 
+impl<I, O> SetupInputCommunicator for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs + SetupInputCommunicator,
+    O: SetupOutputsSync + SetupOutputs,
+{
+    fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
+        self.inputs.set_local_input_communicator(idx, comm);
+    }
+}
+
+impl<I, O> SetupOutputCommunicator for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator,
+{
+    fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
+        self.outputs.set_local_output_communicator(idx, comm);
+    }
+}
+
 #[async_trait]
 impl<O> SetupOutputs for Output<O>
 where

@@ -12,6 +12,7 @@ pub struct ExecutionConfig {
 }
 
 /// The NodeConfig determines whether a node is local to this runtime, or remote
+#[derive(Debug)]
 pub enum NodeConfig {
     // not sure which type of address to use
     RemoteNodeConfig(RuntimeId),

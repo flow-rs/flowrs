@@ -266,44 +266,47 @@ where
                     return None;
                 }
 
-                let sender_id = match parts[0].parse() {
+                let sender_id = match parts[0].trim().parse() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse sender_id: {}", parts[0]);
+                        println!("[ERROR] Failed to parse sender_id: '{}'", parts[0].trim());
                         return None;
                     }
                 };
 
-                let receiver_id = match parts[1].parse() {
+                let receiver_id = match parts[1].trim().parse() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse receiver_id: {}", parts[1]);
+                        println!("[ERROR] Failed to parse receiver_id: '{}'", parts[1].trim());
                         return None;
                     }
                 };
 
-                let runtime_id = match parts[2].parse() {
+                let runtime_id = match parts[2].trim().parse() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse runtime_id: {}", parts[2]);
+                        println!("[ERROR] Failed to parse runtime_id: '{}'", parts[2].trim());
                         return None;
                     }
                 };
 
-                let runtime_ip = parts[3].to_string();
+                let runtime_ip = parts[3].trim().to_string();
 
                 let send_idx = match parts[4].parse() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse sender_out_idx: {}", parts[4]);
+                        println!(
+                            "[ERROR] Failed to parse sender_out_idx: {}",
+                            parts[4].trim()
+                        );
                         return None;
                     }
                 };
 
-                let recv_idx = match parts[5].parse() {
+                let recv_idx = match parts[5].trim().parse() {
                     Ok(val) => val,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse recv_in_idx: {}", parts[5]);
+                        println!("[ERROR] Failed to parse recv_in_idx: {}", parts[5].trim());
                         return None;
                     }
                 };

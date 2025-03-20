@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 /// The ExecutionConfig determines which nodes a specifc runtime is responsible for
+#[derive(Debug)]
 pub struct ExecutionConfig {
     pub runtime_id: RuntimeId,
     pub node_configs: HashMap<NodeId, NodeConfig>,

@@ -261,18 +261,66 @@ where
                 let stripped_msg = s.replacen(ORCHESTRATOR_REQUEST_NODE_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
 
-                if parts.len() == 6 {
-                    Some(Self::OrchestratorRequestNodeConnection(
-                        parts[0].parse().ok()?, // NodeId (sender)
-                        parts[1].parse().ok()?, // NodeId (receiver)
-                        parts[2].parse().ok()?, // RuntimeId
-                        parts[3].to_string(),   // Runtime IP Address
-                        parts[4].parse().ok()?, // Output index (sender)
-                        parts[5].parse().ok()?, // Input index (receiver)
-                    ))
-                } else {
-                    None
+                if parts.len() != 6 {
+                    println!("[ERROR] Invalid number of parts for OrchestratorRequestNodeConnection: {:?}", parts);
+                    return None;
                 }
+
+                let sender_id = match parts[0].parse() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("[ERROR] Failed to parse sender_id: {}", parts[0]);
+                        return None;
+                    }
+                };
+
+                let receiver_id = match parts[1].parse() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("[ERROR] Failed to parse receiver_id: {}", parts[1]);
+                        return None;
+                    }
+                };
+
+                let runtime_id = match parts[2].parse() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("[ERROR] Failed to parse runtime_id: {}", parts[2]);
+                        return None;
+                    }
+                };
+
+                let runtime_ip = parts[3].to_string();
+
+                let send_idx = match parts[4].parse() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("[ERROR] Failed to parse sender_out_idx: {}", parts[4]);
+                        return None;
+                    }
+                };
+
+                let recv_idx = match parts[5].parse() {
+                    Ok(val) => val,
+                    Err(_) => {
+                        println!("[ERROR] Failed to parse recv_in_idx: {}", parts[5]);
+                        return None;
+                    }
+                };
+
+                println!(
+        "[DEBUG] Parsed OrchestratorRequestNodeConnection: sender_id={}, receiver_id={}, runtime_id={}, runtime_ip={}, send_idx={}, recv_idx={}",
+        sender_id, receiver_id, runtime_id, runtime_ip, send_idx, recv_idx
+    );
+
+                Some(Self::OrchestratorRequestNodeConnection(
+                    sender_id,
+                    receiver_id,
+                    runtime_id,
+                    runtime_ip,
+                    send_idx,
+                    recv_idx,
+                ))
             }
             Some(REQUEST_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(REQUEST_PEER_CONNECTION, "", 1);

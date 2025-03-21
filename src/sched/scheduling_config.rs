@@ -5,6 +5,7 @@ use std::collections::HashMap;
 pub type RuntimeId = u128;
 
 /// The SchedulingConfig is created by the scheduler and contains the final mapping of nodes to runtimes.
+#[derive(Debug)]
 pub struct SchedulingConfig {
     // Nodes assigned to each runtime
     pub runtime_nodes: HashMap<RuntimeId, Vec<NodeId>>,

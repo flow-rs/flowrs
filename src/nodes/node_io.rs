@@ -8,7 +8,7 @@ use tokio::runtime::Runtime;
 use super::connection::EdgeTrait;
 use super::connection::Input;
 use super::connection::Output;
-use crate::comm::communication::NodeCommunicator;
+use crate::comm::communication::{Communicator, NodeCommunicator};
 
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
 pub struct NodeIO<I, O>
@@ -62,6 +62,49 @@ where
 {
     pub output: Output<O>,
 }
+
+pub trait SplittableCommunicator {
+    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>);
+}
+
+impl<T> SplittableCommunicator for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>) {
+        if let Some(existing_comm) = self.output.get_communicator_mut() {
+            let send_half = existing_comm.clone_send();
+            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+
+            (
+                Box::new(NodeCommunicator::ThreadComm(send_half)) as Box<dyn Any + Send>,
+                Box::new(NodeCommunicator::ThreadComm(recv_half)) as Box<dyn Any + Send>,
+            )
+        } else {
+            panic!("No communicator to split!");
+        }
+    }
+}
+
+impl<T> SplittableCommunicator for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>) {
+        if let Some(existing_comm) = self.input.get_communicator_mut() {
+            let send_half = existing_comm.clone_send();
+            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+
+            (
+                Box::new(NodeCommunicator::ThreadComm(send_half)) as Box<dyn Any + Send>,
+                Box::new(NodeCommunicator::ThreadComm(recv_half)) as Box<dyn Any + Send>,
+            )
+        } else {
+            panic!("No communicator to split!");
+        }
+    }
+}
+
 /// **Helper functions to register individual types within tuples**
 async fn register_tuple_inputs<T>()
 where

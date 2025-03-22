@@ -64,21 +64,25 @@ where
 }
 
 pub trait SplittableCommunicator: Send + Sync + AsAny {
-    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>);
+    fn split(&mut self) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>);
 }
 
 impl<T> SplittableCommunicator for TypedOutput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>) {
+    fn split(&mut self) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
         if let Some(existing_comm) = self.output.get_communicator_mut() {
             let send_half = existing_comm.clone_send();
             let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
 
             (
-                Box::new(NodeCommunicator::ThreadComm(send_half)) as Box<dyn Any + Send>,
-                Box::new(NodeCommunicator::ThreadComm(recv_half)) as Box<dyn Any + Send>,
+                Box::new(TypedOutput {
+                    output: Output::from_communicator(send_half),
+                }),
+                Box::new(TypedOutput {
+                    output: Output::from_communicator(recv_half),
+                }),
             )
         } else {
             panic!("No communicator to split!");
@@ -90,14 +94,16 @@ impl<T> SplittableCommunicator for TypedInput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>) {
+    fn split(&mut self) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
         if let Some(existing_comm) = self.input.get_communicator_mut() {
             let send_half = existing_comm.clone_send();
             let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
 
             (
-                Box::new(NodeCommunicator::ThreadComm(send_half)) as Box<dyn Any + Send>,
-                Box::new(NodeCommunicator::ThreadComm(recv_half)) as Box<dyn Any + Send>,
+                Box::new(TypedOutput::from_communicator(send_half))
+                    as Box<dyn SettableCommunicator>,
+                Box::new(TypedOutput::from_communicator(recv_half))
+                    as Box<dyn SettableCommunicator>,
             )
         } else {
             panic!("No communicator to split!");
@@ -797,6 +803,12 @@ where
             .get_communicator_mut()
             .expect("ThreadCommunicator not found")
     }
+
+    pub fn from_communicator(communicator: ThreadCommunicator<T>) -> Self {
+        TypedInput {
+            input: Input::from_communicator(communicator),
+        }
+    }
 }
 
 impl<T> TypedOutput<T>
@@ -807,6 +819,12 @@ where
         self.output
             .get_communicator_mut()
             .expect("ThreadCommunicator not found")
+    }
+
+    pub fn from_communicator(communicator: ThreadCommunicator<T>) -> Self {
+        TypedOutput {
+            output: Output::from_communicator(communicator),
+        }
     }
 }
 

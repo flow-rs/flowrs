@@ -141,6 +141,12 @@ where
             _ => None,
         }
     }
+
+    pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
+        Self {
+            edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
+        }
+    }
 }
 
 impl<D> Output<D>
@@ -170,6 +176,12 @@ where
         match &mut self.edge.communicator {
             NodeCommunicator::ThreadComm(comm) => Some(comm),
             _ => None,
+        }
+    }
+
+    pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
+        Self {
+            edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
         }
     }
 }

@@ -81,7 +81,7 @@ impl FlowNetwork {
         receiver_input_idx: NodeIOIndex,
     ) -> Option<TypeId> {
         let receiver_connections: HashSet<FlowNodeConnection> = self
-            .get_sender_connections(receiver_node)
+            .get_receiver_connections(receiver_node)
             .iter()
             .filter(|con| (*con).recv_in_idx == receiver_input_idx)
             .cloned()

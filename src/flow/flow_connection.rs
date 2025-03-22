@@ -1,7 +1,7 @@
 use super::flow_types::{NodeIOIndex, NodeId};
 
 /// Defines a single connection between two nodes from the flow
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Eq, Hash, PartialEq, Clone, Debug)]
 pub struct FlowNodeConnection {
     // Node ID of the sending Node
     pub sender_id: NodeId,

@@ -66,6 +66,7 @@ impl FlowNetwork {
             .collect();
 
         if sender_connections.len() != 1 {
+            println!("[DEBUG] found connections: {:?}", sender_connections);
             println!("[FLOW NETWORK ERROR] wrong amount of connections found!");
             None
         } else {
@@ -86,7 +87,10 @@ impl FlowNetwork {
             .cloned()
             .collect();
 
+        println!("[DEBUG] found connections: {:?}", receiver_connections);
+
         if receiver_connections.len() != 1 {
+            println!("[DEBUG] found connections: {:?}", receiver_connections);
             println!("[FLOW NETWORK ERROR] wrong amount of connections found!");
             None
         } else {

@@ -105,6 +105,36 @@ where
     }
 }
 
+pub trait SettableCommunicator: Send + Sync {
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);
+}
+
+impl<T> SettableCommunicator for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
+        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
+            self.input.set_communicator(*typed_comm);
+        } else {
+            panic!("Failed to cast communicator to the expected type");
+        }
+    }
+}
+
+impl<T> SettableCommunicator for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
+        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
+            self.output.set_communicator(*typed_comm);
+        } else {
+            panic!("Failed to cast communicator to the expected type");
+        }
+    }
+}
+
 /// **Helper functions to register individual types within tuples**
 async fn register_tuple_inputs<T>()
 where

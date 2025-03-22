@@ -63,7 +63,7 @@ where
     pub output: Output<O>,
 }
 
-pub trait SplittableCommunicator {
+pub trait SplittableCommunicator: Send + Sync + AsAny {
     fn split(&mut self) -> (Box<dyn Any + Send>, Box<dyn Any + Send>);
 }
 
@@ -105,7 +105,7 @@ where
     }
 }
 
-pub trait SettableCommunicator: Send + Sync {
+pub trait SettableCommunicator: Send + Sync + AsAny {
     fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);
 }
 

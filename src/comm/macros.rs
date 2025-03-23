@@ -66,6 +66,7 @@ lazy_static::lazy_static! {
     };
 }
 
+#[macro_export]
 macro_rules! register_local_connection {
     ($name:literal, $func:ident) => {
         LOCAL_CONNECTION_REGISTRY.lock().unwrap().insert(

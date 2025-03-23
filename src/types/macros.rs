@@ -30,33 +30,15 @@ macro_rules! generate_local_connection {
     };
 }
 
-#[macro_export]
 macro_rules! connect_nodes {
-    ($type:ty, $flow:ident, $sender_id:expr, $receiver_id:expr, $send_idx:expr, $recv_idx:expr) => {{
-        use flowrs::flow::flow_types::{NodeIOIndex, NodeId};
-        use flowrs::types::type_registry::TYPE_REGISTRY;
-        use std::any::{Any, TypeId};
+    ($type:ty, $flow:expr, $sender_id:expr, $receiver_id:expr, $sender_out_idx:expr, $recv_in_idx:expr) => {{
+        // Generate the local connection function for the given type
+        generate_local_connection!($type);
 
-        // Register the type ID and the connection function in the registry
-        let type_id = TypeId::of::<$type>();
+        // Register the connection function in the registry
+        TYPE_REGISTRY.lock().unwrap().register::<$type>(Box::new([<connect_nodes_ $type>]));
 
-        let connect_fn: fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any) =
-            |sender_id, receiver_id, send_idx, recv_idx, sender_io, receiver_io| {
-                generate_local_connection!(
-                    $type,
-                    sender_id,
-                    receiver_id,
-                    send_idx,
-                    recv_idx,
-                    sender_io,
-                    receiver_io
-                );
-            };
-
-        // Register the connection function in the type registry
-        TYPE_REGISTRY.lock().unwrap().register::<$type>(connect_fn);
-
-        // Add the connection to the abstract flow
-        $flow.connect_nodes::<$type>($sender_id, $receiver_id, $send_idx, $recv_idx)
+        // Create the abstract connection in the flow
+        $flow.connect_nodes::<$type>($sender_id, $receiver_id, $sender_out_idx, $recv_in_idx)
     }};
 }

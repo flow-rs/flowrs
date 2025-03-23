@@ -30,16 +30,19 @@ macro_rules! generate_local_connection {
     };
 }
 
+/// Macro to generate connection functions and handle registration in the type registry
 #[macro_export]
 macro_rules! connect_nodes {
     ($type:ty, $flow:expr, $sender_id:expr, $receiver_id:expr, $sender_out_idx:expr, $recv_in_idx:expr) => {{
-        // Generate the local connection function for the given type
-        generate_local_connection!($type);
+        paste::paste! {
+            // Generate the local connection function for the given type
+            generate_local_connection!($type);
 
-        // Register the connection function in the registry
-        TYPE_REGISTRY.lock().unwrap().register::<$type>(Box::new([<connect_nodes_ $type>]));
+            // Register the connection function in the registry
+            TYPE_REGISTRY.lock().unwrap().register::<$type>(Box::new([<connect_nodes_ $type>]));
 
-        // Create the abstract connection in the flow
-        $flow.connect_nodes::<$type>($sender_id, $receiver_id, $sender_out_idx, $recv_in_idx)
+            // Create the abstract connection in the flow
+            $flow.connect_nodes::<$type>($sender_id, $receiver_id, $sender_out_idx, $recv_in_idx)
+        }
     }};
 }

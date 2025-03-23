@@ -18,14 +18,18 @@ macro_rules! generate_local_connection {
                 stringify!($type)
             );
 
-            // Downcast the sender and receiver IO
-            let sender_output = sender_io
-                .downcast_mut::<TypedOutput<$type>>()
-                .expect("Sender output type mismatch");
+            // Downcast the sender and receiver IO to NodeIO
+            let sender_node_io = sender_io
+                .downcast_mut::<NodeIO<_, (TypedOutput<$type>,)>>()
+                .expect("Sender node IO type mismatch");
 
-            let receiver_input = receiver_io
-                .downcast_mut::<TypedInput<$type>>()
-                .expect("Receiver input type mismatch");
+            let receiver_node_io = receiver_io
+                .downcast_mut::<NodeIO<(TypedInput<$type>,), _>>()
+                .expect("Receiver node IO type mismatch");
+
+            // Access the specific output and input at the given indices
+            let sender_output = &mut (sender_node_io.outputs).0;
+            let receiver_input = &mut (receiver_node_io.inputs).0;
 
             // Local handling (using thread communicators)
             let comm = sender_output

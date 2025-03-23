@@ -1,31 +1,33 @@
 #[macro_export]
 macro_rules! generate_local_connection {
-    ($type:ty, $sender_id:expr, $receiver_id:expr, $send_idx:expr, $recv_idx:expr, $sender_io:expr, $receiver_io:expr) => {{
-        use flowrs::nodes::node_io::{SettableCommunicator, SplittableCommunicator};
-        use std::any::Any;
+    ($type:ty) => {
+        paste::item! {
+            pub fn [<connect_nodes_ $type>](sender_id: NodeId, receiver_id: NodeId, sender_out_idx: NodeIOIndex, recv_in_idx: NodeIOIndex, sender_io: &mut dyn Any, receiver_io: &mut dyn Any) {
+                println!("[generate_local_connection] Attempting to connect nodes with type: {:?}", std::any::TypeId::of::<$type>());
 
-        // Step 1: Downcast the sender and receiver IO to the correct types
-        let sender_io = $sender_io
-            .downcast_mut::<TypedOutput<$type>>()
-            .expect("[generate_local_connection] Sender IO type mismatch");
-        let receiver_io = $receiver_io
-            .downcast_mut::<TypedInput<$type>>()
-            .expect("[generate_local_connection] Receiver IO type mismatch");
+                // Retrieve the sender output
+                if let Some(typed_sender_io) = sender_io.downcast_mut::<TypedOutput<$type>>() {
+                    println!("[generate_local_connection] Successfully downcasted sender IO to TypedOutput<{}>", stringify!($type));
 
-        // Step 2: Get the communicator from the sender and split it
-        let (send_half, recv_half) = sender_io.split($send_idx);
+                    let (send_half, recv_half) = typed_sender_io.split(sender_out_idx);
 
-        // Step 3: Set the communicator halves on the sender and receiver
-        sender_io.set_any_communicator(Box::new(send_half) as Box<dyn Any + Send>);
-        receiver_io.set_any_communicator(Box::new(recv_half) as Box<dyn Any + Send>);
+                    // Set sender communicator
+                    typed_sender_io.set_any_communicator(Box::new(send_half) as Box<dyn Any + Send>);
 
-        println!(
-            "[DEBUG] Successfully connected local nodes {} -> {} with type {}",
-            $sender_id,
-            $receiver_id,
-            stringify!($type)
-        );
-    }};
+                    // Retrieve the receiver input
+                    if let Some(typed_receiver_io) = receiver_io.downcast_mut::<TypedInput<$type>>() {
+                        println!("[generate_local_connection] Successfully downcasted receiver IO to TypedInput<{}>", stringify!($type));
+                        typed_receiver_io.set_any_communicator(Box::new(recv_half) as Box<dyn Any + Send>);
+                        println!("[generate_local_connection] Successfully connected nodes: {} -> {}", sender_id, receiver_id);
+                    } else {
+                        panic!("[generate_local_connection] Receiver IO type mismatch");
+                    }
+                } else {
+                    panic!("[generate_local_connection] Sender IO type mismatch");
+                }
+            }
+        }
+    };
 }
 
 #[macro_export]

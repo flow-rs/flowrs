@@ -1,77 +1,59 @@
 #[macro_export]
 macro_rules! generate_local_connection {
-    ($fn_name:ident, $type:ty) => {
-        pub fn $fn_name(
-            sender_id: NodeId,
-            receiver_id: NodeId,
-            sender_out_idx: NodeIOIndex,
-            recv_in_idx: NodeIOIndex,
-            sender_io: &mut dyn Any,
-            receiver_io: &mut dyn Any,
-        ) {
-            println!(
-                "[Node RT] Connecting local nodes {} -> {} (Out {} -> In {}) with type {}",
-                sender_id,
-                receiver_id,
-                sender_out_idx,
-                recv_in_idx,
-                stringify!($type)
-            );
+    ($type:ty, $sender_id:expr, $receiver_id:expr, $send_idx:expr, $recv_idx:expr, $sender_io:expr, $receiver_io:expr) => {{
+        use flowrs::nodes::node_io::{SettableCommunicator, SplittableCommunicator};
+        use std::any::Any;
 
-            // Attempt to downcast to a generic SetupIO trait object
-            let sender_io = sender_io
-                .downcast_mut::<dyn SetupIO>()
-                .expect("Sender IO type mismatch");
+        // Step 1: Downcast the sender and receiver IO to the correct types
+        let sender_io = $sender_io
+            .downcast_mut::<TypedOutput<$type>>()
+            .expect("[generate_local_connection] Sender IO type mismatch");
+        let receiver_io = $receiver_io
+            .downcast_mut::<TypedInput<$type>>()
+            .expect("[generate_local_connection] Receiver IO type mismatch");
 
-            let receiver_io = receiver_io
-                .downcast_mut::<dyn SetupIO>()
-                .expect("Receiver IO type mismatch");
+        // Step 2: Get the communicator from the sender and split it
+        let (send_half, recv_half) = sender_io.split();
 
-            // Split the communicator from the sender side
-            let (send_half, recv_half) = sender_io
-                .split(sender_out_idx)
-                .expect("Failed to split communicator");
+        // Step 3: Set the communicator halves on the sender and receiver
+        sender_io.set_any_communicator(send_half);
+        receiver_io.set_any_communicator(recv_half);
 
-            // Set the communicator on the sender output
-            sender_io
-                .set_any_communicator(sender_out_idx, send_half)
-                .expect("Failed to set sender communicator");
-
-            // Set the communicator on the receiver input
-            receiver_io
-                .set_any_communicator(recv_in_idx, recv_half)
-                .expect("Failed to set receiver communicator");
-
-            println!(
-                "[Node RT] Successfully connected local nodes {} -> {} with type {}",
-                sender_id,
-                receiver_id,
-                stringify!($type)
-            );
-        }
-    };
+        println!(
+            "[DEBUG] Successfully connected local nodes {} -> {} with type {}",
+            $sender_id,
+            $receiver_id,
+            stringify!($type)
+        );
+    }};
 }
 
 #[macro_export]
 macro_rules! connect_nodes {
-    ($type:ty, $flow:expr, $sender_id:expr, $recv_id:expr, $sender_out_idx:expr, $recv_in_idx:expr) => {{
-        // Generate the connection function
-        generate_local_connection!(connect_fn, $type);
+    ($type:ty, $flow:ident, $sender_id:expr, $receiver_id:expr, $send_idx:expr, $recv_idx:expr) => {{
+        use flowrs::types::type_registry::TYPE_REGISTRY;
+        use std::any::{Any, TypeId};
 
-        // Register the function in the TypeRegistry
-        unsafe {
-            if let Some(mut reg) = TYPE_REGISTRY.lock().ok() {
-                reg.register::<$type>(connect_fn);
-                println!(
-                    "[DEBUG] Registered connection function for type: {}",
-                    stringify!($type)
+        // Register the type ID and the connection function in the registry
+        let type_id = TypeId::of::<$type>();
+
+        let connect_fn: fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any) =
+            |sender_id, receiver_id, send_idx, recv_idx, sender_io, receiver_io| {
+                generate_local_connection!(
+                    $type,
+                    sender_id,
+                    receiver_id,
+                    send_idx,
+                    recv_idx,
+                    sender_io,
+                    receiver_io
                 );
-            } else {
-                panic!("[ERROR] Failed to acquire lock on TYPE_REGISTRY");
-            }
-        }
+            };
 
-        // Add the abstract connection to the flow
-        $flow.connect_nodes::<$type>($sender_id, $recv_id, $sender_out_idx, $recv_in_idx)
+        // Insert the function into the registry
+        TYPE_REGISTRY.lock().unwrap().register(type_id, connect_fn);
+
+        // Add the connection to the abstract flow
+        $flow.connect_nodes::<$type>($sender_id, $receiver_id, $send_idx, $recv_idx)
     }};
 }

@@ -1,6 +1,5 @@
 use crate::comm::thread_communicator::{Splittable, ThreadCommunicator};
 use crate::flow::flow_types::NodeIOIndex;
-use crate::types::type_registry::{register_base_type, register_global};
 use async_trait::async_trait;
 use std::any::Any;
 use std::{fmt::Debug, str::FromStr};
@@ -23,21 +22,21 @@ where
 
 impl<I, O> NodeIO<I, O>
 where
-    I: SetupInputs + SetupInputsSync + RegisterBaseTypes + Send + Sync,
-    O: SetupOutputs + SetupOutputsSync + RegisterBaseTypes + Send + Sync,
+    I: SetupInputs + SetupInputsSync + Send + Sync,
+    O: SetupOutputs + SetupOutputsSync + Send + Sync,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
-        Self::register_io_types();
+        //Self::register_io_types();
         Self { inputs, outputs }
     }
 
     /// Register only base types `I` and `O`
-    fn register_io_types() {
-        tokio::spawn(async move {
-            I::register_types().await;
-            O::register_types().await;
-        });
-    }
+    // fn register_io_types() {
+    //     tokio::spawn(async move {
+    //         I::register_types().await;
+    //         O::register_types().await;
+    //     });
+    // }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
         let rt = Runtime::new().unwrap();
@@ -202,19 +201,19 @@ where
 }
 
 /// **Helper functions to register individual types within tuples**
-async fn register_tuple_inputs<T>()
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    register_base_type::<T>().await;
-}
+// async fn register_tuple_inputs<T>()
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     register_base_type::<T>().await;
+// }
 
-async fn register_tuple_outputs<T>()
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    register_base_type::<T>().await;
-}
+// async fn register_tuple_outputs<T>()
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     register_base_type::<T>().await;
+// }
 
 impl<T> SetupOutputsSync for TypedOutput<T>
 where
@@ -239,54 +238,54 @@ where
 // }
 
 /// **Helper trait to register base types from a tuple**
-#[async_trait]
-pub trait RegisterBaseTypes {
-    async fn register_types();
-}
+// #[async_trait]
+// pub trait RegisterBaseTypes {
+//     async fn register_types();
+// }
 
-/// **Base case for empty tuple (does nothing)**
-#[async_trait]
-impl RegisterBaseTypes for () {
-    async fn register_types() {}
-}
+// /// **Base case for empty tuple (does nothing)**
+// #[async_trait]
+// impl RegisterBaseTypes for () {
+//     async fn register_types() {}
+// }
 
-impl<T> RegisterBaseTypes for TypedInput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    #[must_use]
-    #[allow(
-        elided_named_lifetimes,
-        clippy::type_complexity,
-        clippy::type_repetition_in_bounds
-    )]
-    fn register_types<'async_trait>() -> ::core::pin::Pin<
-        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
-    > {
-        Box::pin(async move {
-            register_base_type::<T>().await;
-        })
-    }
-}
+// impl<T> RegisterBaseTypes for TypedInput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     #[must_use]
+//     #[allow(
+//         elided_named_lifetimes,
+//         clippy::type_complexity,
+//         clippy::type_repetition_in_bounds
+//     )]
+//     fn register_types<'async_trait>() -> ::core::pin::Pin<
+//         Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
+//     > {
+//         Box::pin(async move {
+//             register_base_type::<T>().await;
+//         })
+//     }
+// }
 
-impl<T> RegisterBaseTypes for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    #[must_use]
-    #[allow(
-        elided_named_lifetimes,
-        clippy::type_complexity,
-        clippy::type_repetition_in_bounds
-    )]
-    fn register_types<'async_trait>() -> ::core::pin::Pin<
-        Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
-    > {
-        Box::pin(async move {
-            register_base_type::<T>().await;
-        })
-    }
-}
+// impl<T> RegisterBaseTypes for TypedOutput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     #[must_use]
+//     #[allow(
+//         elided_named_lifetimes,
+//         clippy::type_complexity,
+//         clippy::type_repetition_in_bounds
+//     )]
+//     fn register_types<'async_trait>() -> ::core::pin::Pin<
+//         Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
+//     > {
+//         Box::pin(async move {
+//             register_base_type::<T>().await;
+//         })
+//     }
+// }
 
 /// **Traits for setting up inputs and outputs asynchronously**
 #[async_trait]
@@ -720,66 +719,67 @@ where
     }
 }
 
-#[macro_export]
-macro_rules! impl_register_base_types {
-    // **Base case: Single element tuples**
-    ($(($D:ident)),+ $(,)?) => {
-        $(
-        #[async_trait::async_trait]
-        impl<$D> RegisterBaseTypes for (TypedOutput<$D>,)
-        where
-            $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
-        {
-            async fn register_types() {
-                register_base_type::<$D>().await;
-            }
-        }
+// #[macro_export]
+// macro_rules! impl_register_base_types {
+//     // **Base case: Single element tuples**
+//     ($(($D:ident)),+ $(,)?) => {
+//         $(
+//         #[async_trait::async_trait]
+//         impl<$D> RegisterBaseTypes for (TypedOutput<$D>,)
+//         where
+//             $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
+//         {
+//             async fn register_types() {
+//                 register_base_type::<$D>().await;
+//             }
+//         }
 
-        #[async_trait::async_trait]
-        impl<$D> RegisterBaseTypes for (TypedInput<$D>,)
-        where
-            $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
-        {
-            async fn register_types() {
-                register_base_type::<$D>().await;
-            }
-        }
-        )+
-    };
+//         #[async_trait::async_trait]
+//         impl<$D> RegisterBaseTypes for (TypedInput<$D>,)
+//         where
+//             $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
+//         {
+//             async fn register_types() {
+//                 register_base_type::<$D>().await;
+//             }
+//         }
+//         )+
+//     };
 
-    // **Recursive case: Multiple elements**
-    ($(($($D:ident),+)),+ $(,)?) => {
-        $(
-        #[async_trait::async_trait]
-        impl<$($D),+> RegisterBaseTypes for ($(TypedOutput<$D>,)+)
-        where
-            $(
-                $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
-            ),+
-        {
-            async fn register_types() {
-                $(
-                    register_base_type::<$D>().await;
-                )+
-            }
-        }
+//     // **Recursive case: Multiple elements**
+//     ($(($($D:ident),+)),+ $(,)?) => {
+//         $(
+//         #[async_trait::async_trait]
+//         impl<$($D),+> RegisterBaseTypes for ($(TypedOutput<$D>,)+)
+//         where
+//             $(
+//                 $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
+//             ),+
+//         {
+//             async fn register_types() {
+//                 $(
+//                     register_base_type::<$D>().await;
+//                 )+
+//             }
+//         }
 
-        #[async_trait::async_trait]
-        impl<$($D),+> RegisterBaseTypes for ($(TypedInput<$D>,)+)
-        where
-            $(
-                $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
-            ),+
-        {
-            async fn register_types() {
-                $(
-                    register_base_type::<$D>().await;
-                )+
-            }
-        }
-        )+
-    };
-}
+//         #[async_trait::async_trait]
+//         impl<$($D),+> RegisterBaseTypes for ($(TypedInput<$D>,)+)
+//         where
+//             $(
+//                 $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
+//             ),+
+//         {
+//             async fn register_types() {
+//                 $(
+//                     register_base_type::<$D>().await;
+//                 )+
+//             }
+//         }
+//         )+
+//     };
+// }
+
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -933,13 +933,13 @@ impl_setup_outputs!(
     (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)
 );
 
-impl_register_base_types!(
-    (D0),
-    (D0, D1),
-    (D0, D1, D2),
-    (D0, D1, D2, D3),
-    (D0, D1, D2, D3, D4),
-    (D0, D1, D2, D3, D4, D5),
-    (D0, D1, D2, D3, D4, D5, D6),
-    (D0, D1, D2, D3, D4, D5, D6, D7)
-);
+// impl_register_base_types!(
+//     (D0),
+//     (D0, D1),
+//     (D0, D1, D2),
+//     (D0, D1, D2, D3),
+//     (D0, D1, D2, D3, D4),
+//     (D0, D1, D2, D3, D4, D5),
+//     (D0, D1, D2, D3, D4, D5, D6),
+//     (D0, D1, D2, D3, D4, D5, D6, D7)
+// );

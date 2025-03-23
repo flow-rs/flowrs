@@ -25,7 +25,7 @@ use crate::flow::execution_flow::ExecutionFlow;
 use crate::flow::flow_types::NodeId;
 use crate::node::{ExecutionNode, Node};
 use crate::nodes::connection::EdgeTrait;
-use crate::types::type_registry::{get_thread_communicator, TYPE_REGISTRY};
+use crate::types::type_registry::TYPE_REGISTRY;
 use crate::{
     exec::node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
     flow::abstract_flow::AbstractFlow,

@@ -1,12 +1,16 @@
+use std::{any::Any, collections::HashMap};
+
+use crate::flow::flow_types::{NodeIOIndex, NodeId};
+
 /// Macro to generate a connection function for local node connections
 #[macro_export]
 macro_rules! generate_local_connection {
     ($fn_name:ident, $type:ty) => {
         pub fn $fn_name(
-            sender_id: u128,
-            receiver_id: u128,
-            sender_out_idx: usize,
-            recv_in_idx: usize,
+            sender_id: NodeId,
+            receiver_id: NodeId,
+            sender_out_idx: NodeIOIndex,
+            recv_in_idx: NodeIOIndex,
             sender_io: &mut dyn Any,
             receiver_io: &mut dyn Any,
         ) {
@@ -56,9 +60,9 @@ macro_rules! generate_local_connection {
 
 // Macro to register connection functions and store them in a static hashmap
 lazy_static::lazy_static! {
-    static ref LOCAL_CONNECTION_REGISTRY: std::sync::Mutex<HashMap<String, fn(u128, u128, usize, usize, &mut dyn Any, &mut dyn Any)>> = {
-        let mut m = HashMap::new();
-        m
+    static ref LOCAL_CONNECTION_REGISTRY: std::sync::Mutex<HashMap<String, fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any)>> = {
+        let m = HashMap::new();
+        m.into()
     };
 }
 
@@ -66,7 +70,7 @@ macro_rules! register_local_connection {
     ($name:literal, $func:ident) => {
         LOCAL_CONNECTION_REGISTRY.lock().unwrap().insert(
             $name.to_string(),
-            $func as fn(u128, u128, usize, usize, &mut dyn Any, &mut dyn Any),
+            $func as fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any),
         );
     };
 }

@@ -13,11 +13,11 @@ macro_rules! generate_local_connection {
             .expect("[generate_local_connection] Receiver IO type mismatch");
 
         // Step 2: Get the communicator from the sender and split it
-        let (send_half, recv_half) = sender_io.split();
+        let (send_half, recv_half) = sender_io.split($send_idx);
 
         // Step 3: Set the communicator halves on the sender and receiver
-        sender_io.set_any_communicator(send_half);
-        receiver_io.set_any_communicator(recv_half);
+        sender_io.set_any_communicator(Box::new(send_half) as Box<dyn Any + Send>);
+        receiver_io.set_any_communicator(Box::new(recv_half) as Box<dyn Any + Send>);
 
         println!(
             "[DEBUG] Successfully connected local nodes {} -> {} with type {}",
@@ -31,6 +31,7 @@ macro_rules! generate_local_connection {
 #[macro_export]
 macro_rules! connect_nodes {
     ($type:ty, $flow:ident, $sender_id:expr, $receiver_id:expr, $send_idx:expr, $recv_idx:expr) => {{
+        use flowrs::flow::flow_types::{NodeIOIndex, NodeId};
         use flowrs::types::type_registry::TYPE_REGISTRY;
         use std::any::{Any, TypeId};
 
@@ -50,8 +51,8 @@ macro_rules! connect_nodes {
                 );
             };
 
-        // Insert the function into the registry
-        TYPE_REGISTRY.lock().unwrap().register(type_id, connect_fn);
+        // Register the connection function in the type registry
+        TYPE_REGISTRY.lock().unwrap().register::<$type>(connect_fn);
 
         // Add the connection to the abstract flow
         $flow.connect_nodes::<$type>($sender_id, $receiver_id, $send_idx, $recv_idx)

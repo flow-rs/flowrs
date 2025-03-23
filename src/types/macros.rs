@@ -11,7 +11,8 @@ macro_rules! generate_local_connection {
         ) {
             if let Some(sender_output) = sender_io.downcast_mut::<TypedOutput<$type>>() {
                 if let Some(receiver_input) = receiver_io.downcast_mut::<TypedInput<$type>>() {
-                    let (send_half, recv_half) = sender_output.split();
+                    // Pass the sender_out_idx to the split function
+                    let (send_half, recv_half) = sender_output.split(sender_out_idx);
                     receiver_input.set_any_communicator(Box::new(recv_half));
                     sender_output.set_any_communicator(Box::new(send_half));
 

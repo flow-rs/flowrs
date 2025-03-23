@@ -56,13 +56,13 @@ macro_rules! generate_local_connection {
 #[macro_export]
 macro_rules! connect_nodes {
     ($type:ty, $flow:expr, $sender_id:expr, $recv_id:expr, $sender_out_idx:expr, $recv_in_idx:expr) => {{
-        // Generate the connection function
-        generate_local_connection!(connect_fn, $type);
+        // Generate the connection function with a unique name
+        generate_local_connection!(concat_idents!(connect_fn_, $type), $type);
 
         // Register the function in the TypeRegistry
         unsafe {
             if let Some(mut reg) = TYPE_REGISTRY.lock().ok() {
-                reg.register::<$type>(connect_fn);
+                reg.register::<$type>(concat_idents!(connect_fn_, $type));
                 println!(
                     "[DEBUG] Registered connection function for type: {}",
                     stringify!($type)

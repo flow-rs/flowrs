@@ -223,7 +223,7 @@ where
         self.output.setup_output_sync(idx, local);
     }
 
-    fn get_output_count(&self) -> usize {
+    fn get_output_count(&self) -> NodeIOIndex {
         1 // Each `TypedOutput<T>` represents a single output
     }
 }
@@ -290,23 +290,23 @@ where
 /// **Traits for setting up inputs and outputs asynchronously**
 #[async_trait]
 pub trait SetupInputs {
-    async fn setup_input(&mut self, idx: u128, local: bool);
+    async fn setup_input(&mut self, idx: NodeIOIndex, local: bool);
 }
 
 #[async_trait]
 pub trait SetupOutputs {
-    async fn setup_output(&mut self, idx: u128, local: bool);
+    async fn setup_output(&mut self, idx: NodeIOIndex, local: bool);
 }
 
 /// **Synchronous wrapper traits**
 pub trait SetupInputsSync {
-    fn setup_input_sync(&mut self, idx: u128, local: bool);
-    fn get_input_count(&self) -> usize;
+    fn setup_input_sync(&mut self, idx: NodeIOIndex, local: bool);
+    fn get_input_count(&self) -> NodeIOIndex;
 }
 
 pub trait SetupOutputsSync {
-    fn setup_output_sync(&mut self, idx: u128, local: bool);
-    fn get_output_count(&self) -> usize;
+    fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool);
+    fn get_output_count(&self) -> NodeIOIndex;
 }
 
 #[async_trait]
@@ -314,7 +314,7 @@ impl<I> SetupInputs for Input<I>
 where
     I: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    async fn setup_input(&mut self, idx: u128, local: bool) {
+    async fn setup_input(&mut self, idx: NodeIOIndex, local: bool) {
         *self = if local {
             Input::new_local()
         } else {
@@ -376,7 +376,7 @@ where
         rt.block_on(self.setup_input(idx, local));
     }
 
-    fn get_input_count(&self) -> usize {
+    fn get_input_count(&self) -> NodeIOIndex {
         1 // Single input
     }
 }
@@ -398,12 +398,12 @@ macro_rules! impl_setup_inputs {
     (() $(,)?) => {
         #[async_trait]
         impl SetupInputs for () {
-            async fn setup_input(&mut self, _idx: u128, _local: bool) {}
+            async fn setup_input(&mut self, _idx: NodeIOIndex, _local: bool) {}
         }
 
         impl SetupInputsSync for () {
-            fn setup_input_sync(&mut self, _idx: u128, _local: bool) {}
-            fn get_input_count(&self) -> usize {
+            fn setup_input_sync(&mut self, _idx: NodeIOIndex, _local: bool) {}
+            fn get_input_count(&self) -> NodeIOIndex {
                 0 // no input
             }
 
@@ -419,7 +419,7 @@ macro_rules! impl_setup_inputs {
                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {
-            async fn setup_input(&mut self, idx: u128, local: bool) {
+            async fn setup_input(&mut self, idx: NodeIOIndex, local: bool) {
                 match idx {
                     $(
                         $idx => self.$idx.input.setup_input(idx, local).await,
@@ -435,7 +435,7 @@ macro_rules! impl_setup_inputs {
                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {
-            fn setup_input_sync(&mut self, idx: u128, local: bool) {
+            fn setup_input_sync(&mut self, idx: NodeIOIndex, local: bool) {
                 match idx {
                     $(
                         $idx => self.$idx.input.setup_input_sync(idx, local),
@@ -444,7 +444,7 @@ macro_rules! impl_setup_inputs {
                 }
             }
 
-           fn get_input_count(&self) -> usize {
+           fn get_input_count(&self) -> NodeIOIndex {
                 0 $(+ { let _ = &self.$idx; 1 })+ // Ensures correct summation
             }
         }
@@ -457,9 +457,9 @@ macro_rules! impl_setup_inputs {
 macro_rules! impl_setup_outputs {
     (() $(,)?) => {
         impl SetupOutputsSync for () {
-            fn setup_output_sync(&mut self, _idx: u128, _local: bool) {}
+            fn setup_output_sync(&mut self, _idx: NodeIOIndex, _local: bool) {}
 
-            fn get_output_count(&self) -> usize {
+            fn get_output_count(&self) -> NodeIOIndex {
                 0 // No outputs
             }
         }
@@ -474,7 +474,7 @@ macro_rules! impl_setup_outputs {
                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {
-            async fn setup_output(&mut self, idx: u128, local: bool) {
+            async fn setup_output(&mut self, idx: NodeIOIndex, local: bool) {
                 match idx {
                     $(
                         $idx => self.$idx.output.setup_output(idx, local).await,
@@ -499,7 +499,7 @@ macro_rules! impl_setup_outputs {
                 }
             }
 
-            fn get_output_count(&self) -> usize {
+            fn get_output_count(&self) -> NodeIOIndex {
         0 $(+ { let _ = &self.$idx; 1 })+ // Ensures correct summation
     }
         }
@@ -514,7 +514,7 @@ macro_rules! impl_setup_inputs_sync {
         where
             $($D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static),+
         {
-            fn setup_input_sync(&mut self, idx: u128, local: bool) {
+            fn setup_input_sync(&mut self, idx: NodeIOIndex, local: bool) {
                 match idx {
                     $(
                         $D => self.$D.input.setup_input_sync(idx, local),
@@ -534,7 +534,7 @@ macro_rules! impl_setup_outputs_sync {
         where
             $($D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static),+
         {
-            fn setup_output_sync(&mut self, idx: u128, local: bool) {
+            fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
                 match idx {
                     $(
                         $D => self.$D.input.setup_output_sync(idx, local),
@@ -552,10 +552,10 @@ where
     I: SetupInputsSync + SetupInputs,
     O: SetupOutputsSync + SetupOutputs,
 {
-    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+    fn setup_input_sync(&mut self, idx: NodeIOIndex, local: bool) {
         self.inputs.setup_input_sync(idx, local);
     }
-    fn get_input_count(&self) -> usize {
+    fn get_input_count(&self) -> NodeIOIndex {
         self.inputs.get_input_count()
     }
 }
@@ -565,11 +565,11 @@ where
     I: SetupInputsSync + SetupInputs,
     O: SetupOutputsSync + SetupOutputs,
 {
-    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+    fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
         self.outputs.setup_output_sync(idx, local);
     }
 
-    fn get_output_count(&self) -> usize {
+    fn get_output_count(&self) -> NodeIOIndex {
         self.outputs.get_output_count()
     }
 }
@@ -612,11 +612,11 @@ impl<D> SetupOutputsSync for Output<D>
 where
     D: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+    fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
     }
-    fn get_output_count(&self) -> usize {
+    fn get_output_count(&self) -> NodeIOIndex {
         1 // Single output
     }
 }
@@ -635,10 +635,10 @@ impl<T> SetupInputsSync for TypedInput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    fn setup_input_sync(&mut self, idx: u128, local: bool) {
+    fn setup_input_sync(&mut self, idx: NodeIOIndex, local: bool) {
         self.input.setup_input_sync(idx, local);
     }
-    fn get_input_count(&self) -> usize {
+    fn get_input_count(&self) -> NodeIOIndex {
         1 //single input
     }
 }
@@ -889,23 +889,109 @@ where
 }
 
 pub trait SetupIO: Send + Sync + AsAny {
-    fn get_input_count(&self) -> usize;
-    fn get_output_count(&self) -> usize;
+    fn get_input_count(&self) -> NodeIOIndex;
+    fn get_output_count(&self) -> NodeIOIndex;
+    fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
 }
 
 impl<I, O> SetupIO for NodeIO<I, O>
 where
     I: SetupInputsSync + SetupInputs + Send + Sync + 'static,
-    O: SetupOutputsSync + SetupOutputs + Send + Sync + 'static,
+    O: SetupOutputsSync + SetupOutputs + Send + Sync + TupleIO + 'static,
 {
-    fn get_input_count(&self) -> usize {
+    fn get_input_count(&self) -> NodeIOIndex {
         self.inputs.get_input_count()
     }
 
-    fn get_output_count(&self) -> usize {
-        self.outputs.get_output_count()
+    fn get_output_count(&self) -> NodeIOIndex {
+        self.outputs.get_count()
+    }
+
+    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {
+        self.outputs.get_communicator(idx)
     }
 }
+
+/// Helper trait for accessing tuple elements dynamically.
+pub trait TupleIO {
+    fn get_count(&self) -> NodeIOIndex;
+    fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
+}
+
+/// Macro to implement `TupleIO` for various tuple sizes.
+macro_rules! impl_tuple_io {
+    ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
+        $(
+        impl<$($D),+> TupleIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
+        where
+            $(
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            fn get_count(&self) -> NodeIOIndex {
+                0 $(+ { let _ = &self.$idx; 1 })+ // Count elements in the tuple
+            }
+
+            fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
+                match index {
+                    $(
+                        $idx => Some(&mut self.$idx.output as &mut dyn Any),
+                    )+
+                    _ => None,
+                }
+            }
+        }
+        )+
+    };
+}
+
+impl_tuple_io!((0 D0));
+impl_tuple_io!((0 D0, 1 D1));
+impl_tuple_io!((0 D0, 1 D1, 2 D2));
+impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3));
+impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4));
+impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5));
+impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6));
+impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7));
+
+// macro_rules! impl_setup_io {
+//     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
+//         $(
+//         impl<$($D),+> SetupIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
+//         where
+//             $(
+//                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+//             ),+
+//         {
+//             fn get_input_count(&self) -> NodeIOIndex {
+//                 0 // No inputs in outputs tuple
+//             }
+
+//             fn get_output_count(&self) -> NodeIOIndex {
+//                 0 $(+ { let _ = &(self.$idx); 1 })+ // Correct summation of output elements
+//             }
+
+//             fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
+//                 match index {
+//                     $(
+//                         $idx => Some(&mut (self.$idx).output as &mut dyn Any),
+//                     )+
+//                     _ => None,
+//                 }
+//             }
+//         }
+//         )+
+//     };
+// }
+
+// impl_setup_io!((0 D0));
+// impl_setup_io!((0 D0), (1 D1));
+// impl_setup_io!((0 D0), (1 D1), (2 D2));
+// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3));
+// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4));
+// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5));
+// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5), (6 D6));
+// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5), (6 D6), (7 D7));
 
 /// **Implement Input and Output setup macros**
 impl_setup_inputs!(());

@@ -60,7 +60,7 @@ macro_rules! generate_local_connection {
 
 // Macro to register connection functions and store them in a static hashmap
 lazy_static::lazy_static! {
-    static ref LOCAL_CONNECTION_REGISTRY: std::sync::Mutex<HashMap<String, fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any)>> = {
+    pub static ref LOCAL_CONNECTION_REGISTRY: std::sync::Mutex<HashMap<String, fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any)>> = {
         let m = HashMap::new();
         m.into()
     };

@@ -18,34 +18,29 @@ macro_rules! generate_local_connection {
                 stringify!($type)
             );
 
-            // Downcast the sender and receiver IO to NodeIO
-            let sender_node_io = sender_io
-                .downcast_mut::<NodeIO<_, (TypedOutput<$type>,)>>()
-                .expect("Sender node IO type mismatch");
+            // Attempt to downcast to a generic SetupIO trait object
+            let sender_io = sender_io
+                .downcast_mut::<dyn SetupIO>()
+                .expect("Sender IO type mismatch");
 
-            let receiver_node_io = receiver_io
-                .downcast_mut::<NodeIO<(TypedInput<$type>,), _>>()
-                .expect("Receiver node IO type mismatch");
+            let receiver_io = receiver_io
+                .downcast_mut::<dyn SetupIO>()
+                .expect("Receiver IO type mismatch");
 
-            // Access the specific output and input at the given indices
-            let sender_output = &mut (sender_node_io.outputs).0;
-            let receiver_input = &mut (receiver_node_io.inputs).0;
+            // Split the communicator from the sender side
+            let (send_half, recv_half) = sender_io
+                .split(sender_out_idx)
+                .expect("Failed to split communicator");
 
-            // Local handling (using thread communicators)
-            let comm = sender_output
-                .output
-                .get_communicator_mut()
-                .expect("No communicator found");
-            let send_half = comm.clone_send();
-            let recv_half = comm.move_recv().expect("Failed to move receiver");
+            // Set the communicator on the sender output
+            sender_io
+                .set_any_communicator(sender_out_idx, send_half)
+                .expect("Failed to set sender communicator");
 
-            // Assign communicators
-            sender_output
-                .output
-                .set_communicator(NodeCommunicator::ThreadComm(send_half));
-            receiver_input
-                .input
-                .set_communicator(NodeCommunicator::ThreadComm(recv_half));
+            // Set the communicator on the receiver input
+            receiver_io
+                .set_any_communicator(recv_in_idx, recv_half)
+                .expect("Failed to set receiver communicator");
 
             println!(
                 "[Node RT] Successfully connected local nodes {} -> {} with type {}",

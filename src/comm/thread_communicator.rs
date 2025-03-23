@@ -10,6 +10,8 @@ use tokio::{
     },
 };
 
+use std::fmt::Debug;
+
 use super::communication::Communicator;
 
 const BUFFER_SIZE: usize = 10;
@@ -172,6 +174,24 @@ where
         _port: Option<u16>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
+    }
+}
+
+pub trait Splittable: Send + Sync {
+    fn clone_send_any(&self) -> Box<dyn Send + Sync>;
+    fn move_recv_any(&mut self) -> Box<dyn Send + Sync>;
+}
+
+impl<T> Splittable for ThreadCommunicator<T>
+where
+    T: 'static + Send + Sync + Debug + Clone + FromStr,
+{
+    fn clone_send_any(&self) -> Box<dyn Send + Sync> {
+        Box::new(self.clone_send())
+    }
+
+    fn move_recv_any(&mut self) -> Box<dyn Send + Sync> {
+        Box::new(self.move_recv().expect("Failed to move receiver"))
     }
 }
 

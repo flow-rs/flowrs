@@ -30,6 +30,7 @@ macro_rules! generate_local_connection {
     };
 }
 
+#[macro_export]
 macro_rules! connect_nodes {
     ($type:ty, $flow:expr, $sender_id:expr, $receiver_id:expr, $sender_out_idx:expr, $recv_in_idx:expr) => {{
         // Generate the local connection function for the given type

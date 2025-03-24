@@ -891,12 +891,13 @@ where
 pub trait SetupIO: Send + Sync + AsAny {
     fn get_input_count(&self) -> NodeIOIndex;
     fn get_output_count(&self) -> NodeIOIndex;
+    fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
     fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
 }
 
 impl<I, O> SetupIO for NodeIO<I, O>
 where
-    I: SetupInputsSync + SetupInputs + Send + Sync + 'static,
+    I: SetupInputsSync + SetupInputs + Send + Sync + TupleIO + 'static,
     O: SetupOutputsSync + SetupOutputs + Send + Sync + TupleIO + 'static,
 {
     fn get_input_count(&self) -> NodeIOIndex {
@@ -905,6 +906,10 @@ where
 
     fn get_output_count(&self) -> NodeIOIndex {
         self.outputs.get_count()
+    }
+
+    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {
+        self.inputs.get_communicator(idx)
     }
 
     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {

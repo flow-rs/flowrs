@@ -925,6 +925,24 @@ pub trait TupleIO: Send + Sync {
     fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
 }
 
+impl TupleIO for () {
+    fn get_output_count(&self) -> NodeIOIndex {
+        0
+    }
+
+    fn get_input_count(&self) -> NodeIOIndex {
+        0
+    }
+
+    fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+        None
+    }
+
+    fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+        None
+    }
+}
+
 // // Implementing TupleIO for a single output
 // impl<T> TupleIO for (TypedOutput<T>,)
 // where

@@ -901,46 +901,130 @@ where
     O: SetupOutputsSync + SetupOutputs + Send + Sync + TupleIO + 'static,
 {
     fn get_input_count(&self) -> NodeIOIndex {
-        self.inputs.get_input_count()
+        TupleIO::get_input_count(&self.inputs)
     }
 
     fn get_output_count(&self) -> NodeIOIndex {
-        self.outputs.get_count()
+        TupleIO::get_output_count(&self.outputs)
     }
 
     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {
-        self.inputs.get_communicator(idx)
+        TupleIO::get_input_communicator(&mut self.inputs, idx)
     }
 
     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {
-        self.outputs.get_communicator(idx)
+        TupleIO::get_output_communicator(&mut self.outputs, idx)
     }
 }
 
 /// Helper trait for accessing tuple elements dynamically.
-pub trait TupleIO {
-    fn get_count(&self) -> NodeIOIndex;
-    fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
+pub trait TupleIO: Send + Sync {
+    fn get_output_count(&self) -> NodeIOIndex;
+    fn get_input_count(&self) -> NodeIOIndex;
+    fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
+    fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
 }
 
-/// Macro to implement `TupleIO` for various tuple sizes.
+// // Implementing TupleIO for a single output
+// impl<T> TupleIO for (TypedOutput<T>,)
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_output_count(&self) -> NodeIOIndex {
+//         1
+//     }
+
+//     fn get_input_count(&self) -> NodeIOIndex {
+//         0
+//     }
+
+//     fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+//         Some(&mut self.0.output as &mut dyn Any)
+//     }
+
+//     fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+//         None
+//     }
+// }
+
+// // Implementing TupleIO for a single input
+// impl<T> TupleIO for (TypedInput<T>,)
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_output_count(&self) -> NodeIOIndex {
+//         0
+//     }
+
+//     fn get_input_count(&self) -> NodeIOIndex {
+//         1
+//     }
+
+//     fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+//         None
+//     }
+
+//     fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+//         Some(&mut self.0.input as &mut dyn Any)
+//     }
+// }
+
+// Macro to implement TupleIO for multiple inputs and outputs
 macro_rules! impl_tuple_io {
     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
+        // Implementing TupleIO for multiple outputs
         impl<$($D),+> TupleIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
         where
             $(
                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
             ),+
         {
-            fn get_count(&self) -> NodeIOIndex {
-                0 $(+ { let _ = &self.$idx; 1 })+ // Count elements in the tuple
+            fn get_output_count(&self) -> NodeIOIndex {
+                0 $(+ { let _ = &self.$idx; 1 })+
             }
 
-            fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
+            fn get_input_count(&self) -> NodeIOIndex {
+                0
+            }
+
+            fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
                 match index {
                     $(
                         $idx => Some(&mut self.$idx.output as &mut dyn Any),
+                    )+
+                    _ => None,
+                }
+            }
+
+            fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+                None
+            }
+        }
+
+        // Implementing TupleIO for multiple inputs
+        impl<$($D),+> TupleIO for ($($crate::nodes::node_io::TypedInput<$D>,)+)
+        where
+            $(
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
+        {
+            fn get_output_count(&self) -> NodeIOIndex {
+                0
+            }
+
+            fn get_input_count(&self) -> NodeIOIndex {
+                0 $(+ { let _ = &self.$idx; 1 })+
+            }
+
+            fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
+                None
+            }
+
+            fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
+                match index {
+                    $(
+                        $idx => Some(&mut self.$idx.input as &mut dyn Any),
                     )+
                     _ => None,
                 }
@@ -949,6 +1033,33 @@ macro_rules! impl_tuple_io {
         )+
     };
 }
+
+// /// Macro to implement `TupleIO` for various tuple sizes.
+// macro_rules! impl_tuple_io {
+//     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
+//         $(
+//         impl<$($D),+> TupleIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
+//         where
+//             $(
+//                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+//             ),+
+//         {
+//             fn get_count(&self) -> NodeIOIndex {
+//                 0 $(+ { let _ = &self.$idx; 1 })+ // Count elements in the tuple
+//             }
+
+//             fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
+//                 match index {
+//                     $(
+//                         $idx => Some(&mut self.$idx.output as &mut dyn Any),
+//                     )+
+//                     _ => None,
+//                 }
+//             }
+//         }
+//         )+
+//     };
+// }
 
 impl_tuple_io!((0 D0));
 impl_tuple_io!((0 D0, 1 D1));

@@ -11,6 +11,8 @@ use super::connection::Output;
 use crate::comm::communication::{Communicator, NodeCommunicator};
 
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
+
+#[derive(Debug)]
 pub struct NodeIO<I, O>
 where
     I: SetupInputs,
@@ -49,6 +51,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct TypedInput<I>
 where
     I: 'static + Send + Sync + Debug + FromStr + Clone,
@@ -56,6 +59,7 @@ where
     pub input: Input<I>,
 }
 
+#[derive(Debug)]
 pub struct TypedOutput<O>
 where
     O: 'static + Send + Sync + Debug + FromStr + Clone,

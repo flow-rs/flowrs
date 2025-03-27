@@ -482,5 +482,3 @@ mod test {
 
 // /// A [`Node`] that implements the [`RuntimeConnectable`] trait.
 // pub trait RuntimeNode: Node + RuntimeConnectable {}
-
-// impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}

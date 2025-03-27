@@ -666,7 +666,7 @@ where
 
 impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
 where
-    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
     Rest: SetupInputCommunicator<T>,
 {
     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
@@ -680,7 +680,7 @@ where
 
 impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
 where
-    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
     fn get_output_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
         self.output.get_communicator_mut()
@@ -689,7 +689,7 @@ where
 
 impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
 where
-    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
     Rest: SetupOutputCommunicator<T>,
 {
     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {

@@ -5,7 +5,8 @@ use std::sync::Mutex;
 
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
 
-type ConnectionFn = fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn Any, &mut dyn Any);
+type ConnectionFn =
+    fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn SetupIO, &mut dyn SetupIO);
 
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,

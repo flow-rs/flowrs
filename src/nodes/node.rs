@@ -160,18 +160,18 @@ impl ExecutionNode {
 
                 // TODO: Implement logic to handle connection request.
             }
-            Message::AcceptPeerConnection(sender, receiver, port) => {
+            Message::AcceptPeerConnection(sender, receiver, out_idx, in_idx, port) => {
                 println!(
-                    "[ExecutionNode] Peer Connection Accepted: {} -> {} on Port {}",
-                    sender, receiver, port
+                    "[ExecutionNode] Peer Connection Accepted: {}(idx: {}) -> {}(idx: {}) on Port {}",
+                    sender, receiver,out_idx, in_idx, port
                 );
 
                 // TODO: Implement logic to finalize accepted connection.
             }
-            Message::RejectPeerConnection(sender, receiver, reason) => {
+            Message::RejectPeerConnection(sender, receiver, out_idx, in_idx, reason) => {
                 println!(
-                    "[ExecutionNode] Peer Connection Rejected: {} -> {} | Reason: {}",
-                    sender, receiver, reason
+                    "[ExecutionNode] Peer Connection Rejected: {}(idx: {}) -> {}(idx: {}) | Reason: {}",
+                    sender, receiver, out_idx, in_idx, reason
                 );
 
                 // TODO: Handle rejected connections appropriately.

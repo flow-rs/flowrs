@@ -2,7 +2,7 @@ use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use flowrs_package::flow_package::package::Type;
 use std::{error::Error, fmt, str::FromStr};
 
-use crate::flow::flow_types::NodeId;
+use crate::flow::flow_types::{NodeIOIndex, NodeId};
 use crate::sched::scheduling_config::RuntimeId;
 
 use super::{
@@ -48,11 +48,11 @@ where
     AcknowledgeNodeInitialization,
 
     // P2P Connection Coordination
-    OrchestratorRequestNodeConnection(NodeId, NodeId, RuntimeId, String, u128, u128),
-    RequestPeerConnection(NodeId, NodeId, u128, u128, Type),
-    AcceptPeerConnection(NodeId, NodeId, u16),
-    RejectPeerConnection(NodeId, NodeId, String),
-    AcknowledgeConnectionSetup(NodeId, NodeId, u16),
+    OrchestratorRequestNodeConnection(NodeId, NodeId, RuntimeId, String, NodeIOIndex, NodeIOIndex),
+    RequestPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, Type),
+    AcceptPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, u16),
+    RejectPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, String),
+    AcknowledgeConnectionSetup(NodeId, NodeId, NodeIOIndex, NodeIOIndex),
 
     // P2P Connection - IP Resolution
     RequestNodeRuntimeIP(NodeId),
@@ -159,17 +159,25 @@ where
                     serde_json::to_string(dtype).unwrap()
                 )
             }
-            Message::AcceptPeerConnection(n1, n2, recv_port) => {
-                write!(f, "{}{},{},{}", ACCEPT_PEER_CONNECTION, n1, n2, recv_port)
-            }
-            Message::RejectPeerConnection(n1, n2, reason) => {
-                write!(f, "{}{},{},{}", REJECT_PEER_CONNECTION, n1, n2, reason)
-            }
-            Message::AcknowledgeConnectionSetup(n1, n2, recv_port) => {
+            Message::AcceptPeerConnection(n1, n2, send_idx, recv_idx, port) => {
                 write!(
                     f,
-                    "{}{},{},{}",
-                    ACKNOWLEDGE_CONNECTION_SETUP, n1, n2, recv_port
+                    "{}{},{},{},{},{}",
+                    ACCEPT_PEER_CONNECTION, n1, n2, send_idx, recv_idx, port
+                )
+            }
+            Message::RejectPeerConnection(n1, n2, send_idx, recv_idx, reason) => {
+                write!(
+                    f,
+                    "{}{},{},{},{},{}",
+                    REJECT_PEER_CONNECTION, n1, n2, send_idx, recv_idx, reason
+                )
+            }
+            Message::AcknowledgeConnectionSetup(n1, n2, send_idx, recv_idx) => {
+                write!(
+                    f,
+                    "{}{},{},{},{}",
+                    ACKNOWLEDGE_CONNECTION_SETUP, n1, n2, send_idx, recv_idx
                 )
             }
             Message::RequestNodeRuntimeIP(node_id) => {
@@ -348,11 +356,13 @@ where
             Some(ACCEPT_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(ACCEPT_PEER_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
-                if parts.len() == 3 {
+                if parts.len() == 5 {
                     Some(Self::AcceptPeerConnection(
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
                         parts[2].parse().ok()?,
+                        parts[3].parse().ok()?,
+                        parts[4].parse().ok()?,
                     ))
                 } else {
                     None
@@ -361,11 +371,13 @@ where
             Some(REJECT_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(REJECT_PEER_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
-                if parts.len() == 3 {
+                if parts.len() == 5 {
                     Some(Self::RejectPeerConnection(
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
-                        parts[2].to_string(),
+                        parts[2].parse().ok()?,
+                        parts[3].parse().ok()?,
+                        parts[4].to_string(),
                     ))
                 } else {
                     None
@@ -374,11 +386,12 @@ where
             Some(ACKNOWLEDGE_CONNECTION_SETUP) => {
                 let stripped_msg = s.replacen(ACKNOWLEDGE_CONNECTION_SETUP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
-                if parts.len() == 3 {
+                if parts.len() == 4 {
                     Some(Self::AcknowledgeConnectionSetup(
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
                         parts[2].parse().ok()?,
+                        parts[3].parse().ok()?,
                     ))
                 } else {
                     None
@@ -541,29 +554,48 @@ mod tests {
             Some(Message::RequestPeerConnection(n1, n2, 0, 1, dtype.clone()))
         );
 
-        let msg_str = format!("{}{},{},{}", ACCEPT_PEER_CONNECTION, n1, n2, 5050);
+        let msg_str = format!(
+            "{}{},{},{},{},{}",
+            ACCEPT_PEER_CONNECTION, n1, n2, sender_out_idx, receiver_in_idx, 5050
+        );
         assert_eq!(
             Message::<String>::from_str(&msg_str),
-            Some(Message::AcceptPeerConnection(n1, n2, 5050))
+            Some(Message::AcceptPeerConnection(
+                n1,
+                n2,
+                sender_out_idx,
+                receiver_in_idx,
+                5050
+            ))
         );
 
         let msg_str = format!(
-            "{}{},{},{}",
-            REJECT_PEER_CONNECTION, n1, n2, "Invalid Connection"
+            "{}{},{},{},{},{}",
+            REJECT_PEER_CONNECTION, n1, n2, sender_out_idx, receiver_in_idx, "Invalid Connection"
         );
         assert_eq!(
             Message::<String>::from_str(&msg_str),
             Some(Message::RejectPeerConnection(
                 n1,
                 n2,
+                sender_out_idx,
+                receiver_in_idx,
                 "Invalid Connection".to_string()
             ))
         );
 
-        let msg_str = format!("{}{},{},{}", ACKNOWLEDGE_CONNECTION_SETUP, n1, n2, 5050);
+        let msg_str = format!(
+            "{}{},{},{},{}",
+            ACKNOWLEDGE_CONNECTION_SETUP, n1, n2, sender_out_idx, receiver_in_idx
+        );
         assert_eq!(
             Message::<String>::from_str(&msg_str),
-            Some(Message::AcknowledgeConnectionSetup(n1, n2, 5050))
+            Some(Message::AcknowledgeConnectionSetup(
+                n1,
+                n2,
+                sender_out_idx,
+                receiver_in_idx,
+            ))
         );
 
         let node_id: NodeId = 5;

@@ -385,7 +385,7 @@ where
             }
             Some(ACKNOWLEDGE_CONNECTION_SETUP) => {
                 let stripped_msg = s.replacen(ACKNOWLEDGE_CONNECTION_SETUP, "", 1);
-                let parts: Vec<&str> = stripped_msg.split(',').collect();
+                let parts: Vec<&str> = stripped_msg.split(',').map(|part| part.trim()).collect();
                 println!("[DEBUG] AcknowledgeConnectionSetup parts: {:?}", parts);
 
                 if parts.len() == 4 {
@@ -445,7 +445,6 @@ where
                     None
                 }
             }
-
             Some(REQUEST_NODE_RUNTIME_IP) => {
                 let stripped_msg = s.replacen(REQUEST_NODE_RUNTIME_IP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();

@@ -386,17 +386,66 @@ where
             Some(ACKNOWLEDGE_CONNECTION_SETUP) => {
                 let stripped_msg = s.replacen(ACKNOWLEDGE_CONNECTION_SETUP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
+                println!("[DEBUG] AcknowledgeConnectionSetup parts: {:?}", parts);
+
                 if parts.len() == 4 {
+                    let sender_id = parts[0].parse::<u128>();
+                    if sender_id.is_err() {
+                        println!(
+                            "[ERROR] Failed to parse sender_id ({}): {:?}",
+                            parts[0], sender_id
+                        );
+                    }
+
+                    let receiver_id = parts[1].parse::<u128>();
+                    if receiver_id.is_err() {
+                        println!(
+                            "[ERROR] Failed to parse receiver_id ({}): {:?}",
+                            parts[1], receiver_id
+                        );
+                    }
+
+                    let send_out_idx = parts[2].parse::<u128>();
+                    if send_out_idx.is_err() {
+                        println!(
+                            "[ERROR] Failed to parse send_out_idx ({}): {:?}",
+                            parts[2], send_out_idx
+                        );
+                    }
+
+                    let recv_in_idx = parts[3].parse::<u128>();
+                    if recv_in_idx.is_err() {
+                        println!(
+                            "[ERROR] Failed to parse recv_in_idx ({}): {:?}",
+                            parts[3], recv_in_idx
+                        );
+                    }
+
+                    // Check if any parsing failed
+                    if sender_id.is_err()
+                        || receiver_id.is_err()
+                        || send_out_idx.is_err()
+                        || recv_in_idx.is_err()
+                    {
+                        println!("[ERROR] One or more parsing errors occurred.");
+                        return None;
+                    }
+
                     Some(Self::AcknowledgeConnectionSetup(
-                        parts[0].parse().ok()?,
-                        parts[1].parse().ok()?,
-                        parts[2].parse().ok()?,
-                        parts[3].parse().ok()?,
+                        sender_id.unwrap(),
+                        receiver_id.unwrap(),
+                        send_out_idx.unwrap(),
+                        recv_in_idx.unwrap(),
                     ))
                 } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for AcknowledgeConnectionSetup: {:?}",
+                        parts
+                    );
                     None
                 }
             }
+
             Some(REQUEST_NODE_RUNTIME_IP) => {
                 let stripped_msg = s.replacen(REQUEST_NODE_RUNTIME_IP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();

@@ -22,6 +22,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     sender: Sender<Message<D>>,
     receiver: Option<Receiver<Message<D>>>,
@@ -32,6 +33,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     pub fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let (tx, rx) = channel(BUFFER_SIZE);
@@ -62,6 +64,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -73,6 +76,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     // two ThreadCommunicators are equal when the sender and receiver objects are identical
     fn eq(&self, other: &Self) -> bool {

@@ -18,6 +18,7 @@ pub trait Communicator<D>
 where
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     async fn send(&mut self, message: Message<D>) -> Result<(), Box<dyn Error + Send + Sync>>;
 
@@ -53,10 +54,12 @@ pub enum NodeCommunicator<D>
 where
     D: fmt::Debug,
     D: FromStr,
+    D: Send,
+    D: 'static,
 {
     ThreadComm(ThreadCommunicator<D>),
     //ProcessComm(ProcessCommunicator),
-    NetworkComm(NetworkCommunicator),
+    NetworkComm(NetworkCommunicator<D>),
 }
 
 pub const START_EXECUTION: &str = "[[MESSAGE]: StartExecution]";
@@ -82,6 +85,8 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send,
+    D: 'static,
 {
     //use aho_corasick crate to match string prefix, see https://stackoverflow.com/a/64322185
     fn aho_corasick_match<T: AsRef<[u8]>>(ac: &AhoCorasick, v: T) -> Option<&'static str> {
@@ -105,6 +110,8 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send,
+    D: 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -120,6 +127,8 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send,
+    D: 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -171,9 +180,7 @@ where
     {
         match self {
             NodeCommunicator::ThreadComm(comm) => NodeCommunicator::ThreadComm(comm.clone_send()),
-            NodeCommunicator::NetworkComm(comm) => NodeCommunicator::NetworkComm(
-                <NetworkCommunicator as Communicator<D>>::clone_send(comm),
-            ),
+            NodeCommunicator::NetworkComm(comm) => NodeCommunicator::NetworkComm(comm.clone_send()),
         }
     }
 
@@ -187,7 +194,7 @@ where
                 Ok(NodeCommunicator::ThreadComm(new_comm))
             }
             NodeCommunicator::NetworkComm(comm) => {
-                let new_comm = <NetworkCommunicator as Communicator<D>>::move_recv(comm)?;
+                let new_comm = comm.move_recv()?;
                 Ok(NodeCommunicator::NetworkComm(new_comm))
             }
         }
@@ -200,10 +207,7 @@ where
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_send(addr, port).await,
-            NodeCommunicator::NetworkComm(comm) => {
-                <NetworkCommunicator as Communicator<D>>::connect_send::<'_, '_>(comm, addr, port)
-                    .await
-            }
+            NodeCommunicator::NetworkComm(comm) => comm.connect_send(addr, port).await,
         }
     }
 
@@ -214,10 +218,7 @@ where
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_recv(addr, port).await,
-            NodeCommunicator::NetworkComm(comm) => {
-                <NetworkCommunicator as Communicator<D>>::connect_recv::<'_, '_>(comm, addr, port)
-                    .await
-            }
+            NodeCommunicator::NetworkComm(comm) => comm.connect_recv(addr, port).await,
         }
     }
 }
@@ -228,6 +229,8 @@ pub struct CommWrapper<D>
 where
     D: fmt::Debug,
     D: FromStr,
+    D: Send,
+    D: 'static,
 {
     pub communicator: NodeCommunicator<D>,
     pub node_type: Type,

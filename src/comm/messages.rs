@@ -33,6 +33,7 @@ pub enum Message<D>
 where
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     // Execution
     StartExecution,
@@ -111,6 +112,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -200,6 +202,7 @@ where
     //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self, f) // Just reuse the Debug implementation
@@ -209,9 +212,9 @@ where
 // Parsing Logic using Aho-Corasick
 impl<D> Message<D>
 where
-    //D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     fn aho_corasick_match<T: AsRef<[u8]>>(ac: &AhoCorasick, v: T) -> Option<&'static str> {
         ac.find(&v).map(|m| PATTERNS[m.pattern()])

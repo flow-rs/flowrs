@@ -337,6 +337,7 @@ pub enum SendError {
 pub enum ReceiveError<D>
 where
     D: Clone + fmt::Debug + FromStr,
+    D: Send + 'static,
 {
     #[error(transparent)]
     Other(#[from] anyhow::Error),
@@ -355,6 +356,7 @@ where
 impl<D> ToString for ReceiveError<D>
 where
     D: Clone + fmt::Debug + FromStr,
+    D: Send + 'static,
 {
     fn to_string(&self) -> String {
         format!("{:?}", self)
@@ -396,6 +398,7 @@ impl From<SendError> for UpdateError {
 impl<D> From<ReceiveError<D>> for UpdateError
 where
     D: Clone + fmt::Debug + FromStr,
+    D: Send + 'static,
 {
     fn from(value: ReceiveError<D>) -> Self {
         UpdateError::SendError {

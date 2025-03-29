@@ -10,18 +10,32 @@ use super::{communication::Communicator, messages::MessageError};
 use crate::comm::messages::Message;
 
 #[derive(Debug)]
-pub struct NetworkCommunicator {
+pub struct NetworkCommunicator<T>
+where
+    T: fmt::Debug,
+    T: FromStr,
+    T: Send,
+    T: 'static,
+{
     stream: Option<BufReader<TcpStream>>,
     addr: Option<String>,
     port: Option<u16>,
+    _phantom: std::marker::PhantomData<T>,
 }
 
-impl NetworkCommunicator {
+impl<T> NetworkCommunicator<T>
+where
+    T: fmt::Debug,
+    T: FromStr,
+    T: Send,
+    T: 'static,
+{
     pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Ok(NetworkCommunicator {
             stream: None,
             addr: None,
             port: None,
+            _phantom: std::marker::PhantomData,
         })
     }
 
@@ -33,7 +47,7 @@ impl NetworkCommunicator {
 }
 
 #[async_trait]
-impl<D> Communicator<D> for NetworkCommunicator
+impl<D> Communicator<D> for NetworkCommunicator<D>
 where
     //D: Clone,
     D: fmt::Debug,
@@ -232,21 +246,24 @@ where
     where
         Self: Sized,
     {
-        NetworkCommunicator {
+        NetworkCommunicator::<D> {
             stream: None,
             addr: self.addr.clone(),
             port: self.port.clone(),
+            _phantom: std::marker::PhantomData,
         }
     }
+
     fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,
     {
         if let Some(stream) = self.stream.take() {
-            Ok(NetworkCommunicator {
+            Ok(NetworkCommunicator::<D> {
                 stream: Some(stream),
                 addr: self.addr.clone(),
                 port: self.port.clone(),
+                _phantom: std::marker::PhantomData,
             })
         } else {
             Err("Can not move stream as it is None".into())
@@ -288,21 +305,33 @@ where
             //return Err("Received connection from wrong IP".into());
             //display warning message instead
             println!(
-            "[Node RT] WARN: Receiver accepted connection from {} while expected address was {}",
-            remote_addr, addr.unwrap()
-);
+                "[Node RT] WARN: Receiver accepted connection from {} while expected address was {}",
+                remote_addr, addr.unwrap()
+            );
         }
         Ok(())
     }
 }
 
-impl fmt::Display for NetworkCommunicator {
+impl<T> fmt::Display for NetworkCommunicator<T>
+where
+    T: fmt::Debug,
+    T: FromStr,
+    T: Send,
+    T: 'static,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
-impl PartialEq for NetworkCommunicator {
+impl<T> PartialEq for NetworkCommunicator<T>
+where
+    T: fmt::Debug,
+    T: FromStr,
+    T: Send,
+    T: 'static,
+{
     fn eq(&self, other: &Self) -> bool {
         self.addr == other.addr && self.port == other.port
     }
@@ -362,7 +391,9 @@ mod tests {
     async fn test_display_trait() {
         //let (addr, _guard) = run_test_server().await;
 
-        let comm = NetworkCommunicator::new().await.expect("should construct");
+        let comm = NetworkCommunicator::<String>::new()
+            .await
+            .expect("should construct");
         //tests Display trait
         assert_eq!(comm.to_string(), format!("{}", comm));
     }
@@ -372,12 +403,9 @@ mod tests {
         let (addr, _guard) = run_test_server().await;
 
         let mut comm = NetworkCommunicator::new().await.expect("should construct");
-        let connect_res = <NetworkCommunicator as Communicator<String>>::connect_send::<'_, '_>(
-            &mut comm,
-            Some(addr.ip().to_string()),
-            Some(addr.port()),
-        )
-        .await;
+        let connect_res = comm
+            .connect_send::<'_, '_>(Some(addr.ip().to_string()), Some(addr.port()))
+            .await;
         assert!(connect_res.is_ok());
 
         //Send something

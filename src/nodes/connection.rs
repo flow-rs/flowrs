@@ -16,6 +16,7 @@ where
     D: Clone,
     D: fmt::Debug,
     D: FromStr,
+    D: Send + 'static,
 {
     communicator: NodeCommunicator<D>,
 }

@@ -1,5 +1,6 @@
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use flowrs_package::flow_package::package::Type;
+use std::any::TypeId;
 use std::{error::Error, fmt, str::FromStr};
 
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
@@ -50,7 +51,7 @@ where
 
     // P2P Connection Coordination
     OrchestratorRequestNodeConnection(NodeId, NodeId, RuntimeId, String, NodeIOIndex, NodeIOIndex),
-    RequestPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, Type),
+    RequestPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, String),
     AcceptPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, u16),
     RejectPeerConnection(NodeId, NodeId, NodeIOIndex, NodeIOIndex, String),
     AcknowledgeConnectionSetup(NodeId, NodeId, NodeIOIndex, NodeIOIndex),
@@ -152,13 +153,8 @@ where
             Message::RequestPeerConnection(n1, n2, o_idx, i_idx, dtype) => {
                 write!(
                     f,
-                    "{}{},{},{},{},{}",
-                    REQUEST_PEER_CONNECTION,
-                    n1,
-                    n2,
-                    o_idx,
-                    i_idx,
-                    serde_json::to_string(dtype).unwrap()
+                    "{}{},{},{},{},{:?}",
+                    REQUEST_PEER_CONNECTION, n1, n2, o_idx, i_idx, dtype,
                 )
             }
             Message::AcceptPeerConnection(n1, n2, send_idx, recv_idx, port) => {
@@ -341,17 +337,17 @@ where
                 let parts: Vec<&str> = stripped_msg.splitn(5, ',').collect();
                 if parts.len() == 5 {
                     let dtype_str = parts[4].trim();
-                    let dtype: Type = match serde_json::from_str(dtype_str) {
-                        Ok(parsed) => parsed,
-                        Err(_) => return None,
-                    };
+                    // let dtype: Type = match serde_json::from_str(dtype_str) {
+                    //     Ok(parsed) => parsed,
+                    //     Err(_) => return None,
+                    // };
 
                     return Some(Self::RequestPeerConnection(
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
                         parts[2].parse().ok()?,
                         parts[3].parse().ok()?,
-                        dtype,
+                        parts[4].trim().parse().ok()?,
                     ));
                 }
                 None
@@ -598,11 +594,17 @@ mod tests {
             n2,
             0,
             1,
-            serde_json::to_string(&dtype).unwrap()
+            std::any::type_name::<u32>().to_string()
         );
         assert_eq!(
             Message::<String>::from_str(&msg_str),
-            Some(Message::RequestPeerConnection(n1, n2, 0, 1, dtype.clone()))
+            Some(Message::RequestPeerConnection(
+                n1,
+                n2,
+                0,
+                1,
+                std::any::type_name::<u32>().to_string()
+            ))
         );
 
         let msg_str = format!(

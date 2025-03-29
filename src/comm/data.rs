@@ -7,7 +7,7 @@ where
     D: fmt::Debug,
     D: FromStr,
 {
-    data: D,
+    pub data: D,
 }
 
 impl<D> DataWrapper<D>

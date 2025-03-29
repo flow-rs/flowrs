@@ -44,6 +44,10 @@ where
         rt.block_on(Self::new())
             .expect("Failed to create NetworkCommunicator asynchronously")
     }
+
+    pub fn dummy() -> Self {
+        panic!("This dummy communicator should never be used. It's only here to support `mem::replace` for downcasting.");
+    }
 }
 
 #[async_trait]

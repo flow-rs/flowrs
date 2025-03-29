@@ -64,11 +64,12 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 }
 
 type AnyCommunicator = Box<dyn CommunicatorBox + Send + Sync>;
-type CommunicatorFactory = fn() -> AnyCommunicator;
+pub type CommunicatorFactory = fn() -> BoxFuture<'static, Box<dyn CommunicatorBox>>;
 
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
+    name_to_id: HashMap<String, TypeId>,
 }
 
 impl TypeRegistry {
@@ -76,6 +77,7 @@ impl TypeRegistry {
         Self {
             connections: HashMap::new(),
             communicator_factories: HashMap::new(),
+            name_to_id: HashMap::new(),
         }
     }
 
@@ -92,6 +94,40 @@ impl TypeRegistry {
     /// Get the connection function based on type ID
     pub fn get(&self, type_id: TypeId) -> Option<&ConnectionFn> {
         self.connections.get(&type_id)
+    }
+
+    pub fn register_communicator<T>(&mut self)
+    where
+        T: 'static + Send + Sync + Debug + FromStr,
+        NetworkCommunicator<T>: Communicator<T> + CommunicatorBox,
+    {
+        let type_id = TypeId::of::<T>();
+        self.communicator_factories.insert(type_id, || {
+            async {
+                let comm = NetworkCommunicator::<T>::new()
+                    .await
+                    .expect("Failed to create communicator");
+                Box::new(comm) as Box<dyn CommunicatorBox>
+            }
+            .boxed()
+        });
+    }
+
+    pub async fn create_communicator_by_name(
+        &self,
+        type_name: &str,
+    ) -> Result<AnyCommunicator, String> {
+        let type_id = self
+            .name_to_id
+            .get(type_name)
+            .ok_or_else(|| format!("[TypeRegistry] Unknown type name: {}", type_name))?;
+
+        let factory = self
+            .communicator_factories
+            .get(type_id)
+            .ok_or_else(|| format!("No communicator factory for type: {}", type_name))?;
+
+        Ok(factory().await)
     }
 }
 

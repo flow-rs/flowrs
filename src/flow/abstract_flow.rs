@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::any::TypeId;
 use std::collections::hash_map::Drain as MapDrain;
 use std::collections::hash_map::Iter as MapIter;
@@ -53,13 +54,14 @@ impl AbstractFlow {
 
         // Get TypeId using the generic type parameter
         let type_id = TypeId::of::<T>();
+        let type_name = type_name::<T>().to_string();
 
-        self.network.add_connection(connection, type_id);
+        self.network.add_connection(connection, type_name, type_id);
         Ok(())
     }
 
     /// Retrieve a connection & its type
-    pub fn get_connection_type(&self, connection: &FlowNodeConnection) -> Option<TypeId> {
+    pub fn get_connection_type(&self, connection: &FlowNodeConnection) -> Option<(String, TypeId)> {
         self.network.get_connection_type(connection)
     }
 
@@ -67,7 +69,7 @@ impl AbstractFlow {
         &self,
         sender_id: NodeId,
         sender_out_idx: NodeIOIndex,
-    ) -> Option<TypeId> {
+    ) -> Option<(String, TypeId)> {
         self.network.get_output_type(sender_id, sender_out_idx)
     }
 
@@ -75,7 +77,7 @@ impl AbstractFlow {
         &self,
         receiver_id: NodeId,
         receiver_in_idx: NodeIOIndex,
-    ) -> Option<TypeId> {
+    ) -> Option<(String, TypeId)> {
         self.network.get_input_type(receiver_id, receiver_in_idx)
     }
 

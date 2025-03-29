@@ -14,7 +14,7 @@ use super::{
 /// Defines all node connections inside the flow
 pub struct FlowNetwork {
     pub connections: HashSet<FlowNodeConnection>,
-    pub connection_types: HashMap<FlowNodeConnection, TypeId>,
+    pub connection_types: HashMap<FlowNodeConnection, (String, TypeId)>,
 }
 
 impl FlowNetwork {
@@ -25,11 +25,18 @@ impl FlowNetwork {
         }
     }
 
-    pub fn add_connection(&mut self, connection: FlowNodeConnection, type_id: TypeId) {
+    pub fn add_connection(
+        &mut self,
+        connection: FlowNodeConnection,
+        type_name: String,
+        type_id: TypeId,
+    ) {
         self.connections.insert(connection.clone());
-        self.connection_types.insert(connection, type_id);
+        self.connection_types
+            .insert(connection, (type_name, type_id));
     }
-    pub fn get_connection_type(&self, connection: &FlowNodeConnection) -> Option<TypeId> {
+
+    pub fn get_connection_type(&self, connection: &FlowNodeConnection) -> Option<(String, TypeId)> {
         self.connection_types.get(connection).cloned()
     }
 
@@ -57,7 +64,7 @@ impl FlowNetwork {
         &self,
         sender_node: NodeId,
         sender_output_idx: NodeIOIndex,
-    ) -> Option<TypeId> {
+    ) -> Option<(String, TypeId)> {
         let sender_connections: HashSet<FlowNodeConnection> = self
             .get_sender_connections(sender_node)
             .iter()
@@ -79,7 +86,7 @@ impl FlowNetwork {
         &self,
         receiver_node: NodeId,
         receiver_input_idx: NodeIOIndex,
-    ) -> Option<TypeId> {
+    ) -> Option<(String, TypeId)> {
         let receiver_connections: HashSet<FlowNodeConnection> = self
             .get_receiver_connections(receiver_node)
             .iter()

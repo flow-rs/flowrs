@@ -147,11 +147,11 @@ impl ExecutionFlow {
             send_out_idx: sender_out_idx,
             recv_in_idx: recv_in_idx,
         };
-        let type_id = self
+        let (type_name, type_id) = self
             .network
             .get_connection_type(&connection)
             .expect("must be known");
-        self.network.add_connection(connection, type_id);
+        self.network.add_connection(connection, type_name, type_id);
 
         Ok(())
     }
@@ -162,11 +162,11 @@ impl ExecutionFlow {
 
     pub fn set_connections(&mut self, connections: SetDrain<FlowNodeConnection>) {
         connections.for_each(|connection| {
-            let type_id = self
+            let (type_name, type_id) = self
                 .network
                 .get_connection_type(&connection)
                 .expect("TypeId must be known before setting connections.");
-            self.network.add_connection(connection, type_id);
+            self.network.add_connection(connection, type_name, type_id);
         });
     }
 

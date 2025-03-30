@@ -3,7 +3,9 @@ use crate::comm::communication::NodeCommunicator;
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
 use crate::comm::network_communicator::NetworkCommunicator;
+use crate::nodes::node_io::SettableCommunicator;
 use crate::nodes::node_io::SetupIO;
+use crate::nodes::node_io::TypedInput;
 use async_trait::async_trait;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -19,6 +21,13 @@ use crate::flow::flow_types::{NodeIOIndex, NodeId};
 
 type ConnectionFn =
     fn(NodeId, NodeId, NodeIOIndex, NodeIOIndex, &mut dyn SetupIO, &mut dyn SetupIO);
+type AnyCommunicator = Box<dyn CommunicatorBox + Send + Sync>;
+pub type CommunicatorFactory = fn() -> BoxFuture<'static, Box<dyn CommunicatorBox>>;
+type InputSetterFn = fn(
+    node_io: &mut dyn SetupIO,
+    index: NodeIOIndex,
+    communicator: Box<dyn Any + Send>,
+) -> Result<(), String>;
 
 #[async_trait]
 pub trait CommunicatorBox: Send + Sync {
@@ -75,13 +84,11 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
     }
 }
 
-type AnyCommunicator = Box<dyn CommunicatorBox + Send + Sync>;
-pub type CommunicatorFactory = fn() -> BoxFuture<'static, Box<dyn CommunicatorBox>>;
-
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
     name_to_id: HashMap<String, TypeId>,
+    input_setters: HashMap<TypeId, InputSetterFn>,
 }
 
 impl TypeRegistry {
@@ -90,6 +97,7 @@ impl TypeRegistry {
             connections: HashMap::new(),
             communicator_factories: HashMap::new(),
             name_to_id: HashMap::new(),
+            input_setters: HashMap::new(),
         }
     }
 
@@ -108,11 +116,12 @@ impl TypeRegistry {
         self.connections.get(&type_id)
     }
 
-    pub fn register_communicator<T>(&mut self)
+    pub fn register_communicator<T>(&mut self, type_name: &str)
     where
-        T: 'static + Send + Sync + Debug + FromStr,
-        NetworkCommunicator<T>: Communicator<T> + CommunicatorBox,
+        T: 'static + Send + Sync + Debug + FromStr + Clone,
     {
+        let type_id = TypeId::of::<T>();
+
         let type_id = TypeId::of::<T>();
         self.communicator_factories.insert(type_id, || {
             async {
@@ -123,6 +132,22 @@ impl TypeRegistry {
             }
             .boxed()
         });
+
+        self.input_setters
+            .insert(type_id, |node_io, idx, communicator| {
+                if let Some(any_input) = node_io.get_input_communicator(idx) {
+                    if let Some(input) = any_input.downcast_mut::<TypedInput<T>>() {
+                        input.set_any_communicator(communicator);
+                        Ok(())
+                    } else {
+                        Err("Failed to downcast to TypedInput".to_string())
+                    }
+                } else {
+                    Err(format!("No input found at index {}", idx))
+                }
+            });
+
+        self.name_to_id.insert(type_name.to_string(), type_id);
     }
 
     pub async fn create_communicator_by_name(
@@ -140,6 +165,26 @@ impl TypeRegistry {
             .ok_or_else(|| format!("No communicator factory for type: {}", type_name))?;
 
         Ok(factory().await)
+    }
+
+    pub fn set_input_comm(
+        &self,
+        type_name: &str,
+        node_io: &mut dyn SetupIO,
+        input_idx: NodeIOIndex,
+        communicator: Box<dyn Any + Send>,
+    ) -> Result<(), String> {
+        let type_id = self
+            .name_to_id
+            .get(type_name)
+            .ok_or_else(|| format!("Unknown type name: {}", type_name))?;
+
+        let setter = self
+            .input_setters
+            .get(type_id)
+            .ok_or_else(|| format!("No input setter for type: {}", type_name))?;
+
+        setter(node_io, input_idx, communicator)
     }
 }
 

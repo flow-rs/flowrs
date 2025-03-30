@@ -6,6 +6,7 @@ use crate::comm::network_communicator::NetworkCommunicator;
 use crate::nodes::node_io::SettableCommunicator;
 use crate::nodes::node_io::SetupIO;
 use crate::nodes::node_io::TypedInput;
+use crate::nodes::node_io::TypedOutput;
 use async_trait::async_trait;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -14,6 +15,8 @@ use lazy_static::lazy_static;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::future::Future;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Mutex;
 
@@ -28,6 +31,13 @@ type InputSetterFn = fn(
     index: NodeIOIndex,
     communicator: Box<dyn Any + Send>,
 ) -> Result<(), String>;
+type OutputSetterWithConnectFn =
+    for<'a> fn(
+        &'a mut dyn SetupIO,
+        NodeIOIndex,
+        String,
+        u16,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
 
 #[async_trait]
 pub trait CommunicatorBox: Send + Sync {
@@ -89,6 +99,7 @@ pub struct TypeRegistry {
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
     name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
+    output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
 }
 
 impl TypeRegistry {
@@ -98,6 +109,7 @@ impl TypeRegistry {
             communicator_factories: HashMap::new(),
             name_to_id: HashMap::new(),
             input_setters: HashMap::new(),
+            output_setters_with_connect: HashMap::new(),
         }
     }
 
@@ -133,6 +145,7 @@ impl TypeRegistry {
             .boxed()
         });
 
+        // Register Input Setters
         self.input_setters
             .insert(type_id, |node_io, idx, communicator| {
                 if let Some(any_input) = node_io.get_input_communicator(idx) {
@@ -148,6 +161,32 @@ impl TypeRegistry {
             });
 
         self.name_to_id.insert(type_name.to_string(), type_id);
+        // Register Ourput setters
+        self.output_setters_with_connect
+            .insert(type_id, |node_io, idx, ip, port| {
+                Box::pin(async move {
+                    if let Some(output_any) = node_io.get_output_communicator(idx) {
+                        if let Some(output) = output_any.downcast_mut::<TypedOutput<T>>() {
+                            let mut comm = NetworkCommunicator::<T>::new()
+                                .await
+                                .map_err(|e| format!("Failed to create communicator: {}", e))?;
+
+                            Communicator::connect_send(&mut comm, Some(ip), Some(port))
+                                .await
+                                .map_err(|e| format!("Failed to connect: {}", e))?;
+
+                            output.set_any_communicator(Box::new(NodeCommunicator::NetworkComm(
+                                comm,
+                            )));
+                            Ok(())
+                        } else {
+                            Err("Could not downcast to TypedOutput".to_string())
+                        }
+                    } else {
+                        Err("No output found at index".to_string())
+                    }
+                })
+            });
     }
 
     pub async fn create_communicator_by_name(
@@ -165,6 +204,27 @@ impl TypeRegistry {
             .ok_or_else(|| format!("No communicator factory for type: {}", type_name))?;
 
         Ok(factory().await)
+    }
+
+    pub async fn set_output_comm_with_connection(
+        &self,
+        type_name: &str,
+        node_io: &mut dyn SetupIO,
+        idx: NodeIOIndex,
+        receiver_ip: String,
+        port: u16,
+    ) -> Result<(), String> {
+        let type_id = self
+            .name_to_id
+            .get(type_name)
+            .ok_or_else(|| format!("Unknown type name: {}", type_name))?;
+
+        let setter = self
+            .output_setters_with_connect
+            .get(type_id)
+            .ok_or_else(|| format!("No output setter for type: {}", type_name))?;
+
+        setter(node_io, idx, receiver_ip, port).await
     }
 
     pub fn set_input_comm(

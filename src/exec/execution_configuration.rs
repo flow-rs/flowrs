@@ -6,14 +6,14 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 /// The ExecutionConfig determines which nodes a specifc runtime is responsible for
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExecutionConfig {
     pub runtime_id: RuntimeId,
     pub node_configs: HashMap<NodeId, NodeConfig>,
 }
 
 /// The NodeConfig determines whether a node is local to this runtime, or remote
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeConfig {
     // not sure which type of address to use
     RemoteNodeConfig(RuntimeId),

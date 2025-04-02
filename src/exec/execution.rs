@@ -110,14 +110,14 @@ impl StandardExecutor {
     /// **Creates Execution Nodes for each local node in the flow.**
     pub async fn initialize_nodes(
         &mut self,
-        abstract_flow: &mut AbstractFlow,
+        abstract_flow: Arc<Mutex<AbstractFlow>>,
         execution_config: &ExecutionConfig,
     ) -> Result<(), ExecutionError> {
         println!("[Executor] Initializing local nodes...");
 
         let mut initialized_nodes = HashMap::new();
 
-        for (node_id, node) in abstract_flow.move_nodes() {
+        for (node_id, node) in abstract_flow.lock().await.move_nodes() {
             match execution_config.node_configs.get(&node_id) {
                 Some(NodeConfig::LocalNodeConfig) => {
                     let execution_node = Arc::new(Mutex::new(

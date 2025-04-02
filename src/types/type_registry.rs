@@ -18,7 +18,7 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
 

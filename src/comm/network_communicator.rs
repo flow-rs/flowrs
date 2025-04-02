@@ -48,6 +48,29 @@ where
     pub fn dummy() -> Self {
         panic!("This dummy communicator should never be used. It's only here to support `mem::replace` for downcasting.");
     }
+
+    pub async fn listen_single_message_on_fixed_port(
+        port: u16,
+    ) -> Result<Message<String>, Box<dyn std::error::Error + Send + Sync>> {
+        let listener = TcpListener::bind(("0.0.0.0", port)).await?;
+        let (mut socket, addr) = listener.accept().await?;
+        println!("[NetworkCommunicator] Accepted R2R message from {}", addr);
+
+        let mut line = String::new();
+        let mut buffer = [0; 1];
+        let mut buf_reader = BufReader::new(&mut socket);
+
+        if buf_reader.get_ref().peek(&mut buffer).await? > 0 {
+            buf_reader.read_line(&mut line).await?;
+            if let Ok(parsed_msg) = Message::from_str(&line) {
+                return Ok(parsed_msg);
+            } else {
+                return Err("Failed to parse message".into());
+            }
+        }
+
+        Err("No data available from peer".into())
+    }
 }
 
 #[async_trait]

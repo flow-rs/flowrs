@@ -62,7 +62,7 @@ where
 
         if buf_reader.get_ref().peek(&mut buffer).await? > 0 {
             buf_reader.read_line(&mut line).await?;
-            if let Ok(parsed_msg) = Message::from_str(&line) {
+            if let Some(parsed_msg) = Message::from_str(&line) {
                 return Ok(parsed_msg);
             } else {
                 return Err("Failed to parse message".into());

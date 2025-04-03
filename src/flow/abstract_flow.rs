@@ -85,6 +85,10 @@ impl AbstractFlow {
         self.network.get_connections()
     }
 
+    pub fn get_connection_amount(&self) -> usize {
+        self.network.connections.len()
+    }
+
     /// destructive move
     pub fn move_connections(&mut self) -> SetDrain<'_, FlowNodeConnection> {
         self.network.connections.drain()

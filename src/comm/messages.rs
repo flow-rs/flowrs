@@ -217,64 +217,74 @@ where
     }
 
     pub fn from_str(s: &str) -> Option<Self> {
+        let s = s.trim(); // Trim newline and whitespace at beginning and end
         let ac = AhoCorasickBuilder::new()
             .match_kind(MatchKind::LeftmostLongest)
             .build(PATTERNS)
             .unwrap();
 
         match Self::aho_corasick_match(&ac, s) {
-            // Execution Commands
             Some(START_EXECUTION) => Some(Self::StartExecution),
             Some(STOP_EXECUTION) => Some(Self::StopExecution),
 
-            // Connection Setup
             Some(SETUP_COMMUNICATION_PREFIX) => {
-                let comm_start = s.find(SETUP_COMMUNICATION_COMM)? + SETUP_COMMUNICATION_COMM.len();
+                let comm_start = s.find(SETUP_COMMUNICATION_COMM)?;
+                let comm_start = comm_start + SETUP_COMMUNICATION_COMM.len();
                 let comm_end = s.find(SETUP_COMMUNICATION_TYPE)?;
                 let comm_string = s[comm_start..comm_end].to_string();
+
                 let communicator_option = NodeCommunicator::from_str(&comm_string);
                 if communicator_option.is_none() {
+                    println!(
+                        "[ERROR] Could not parse communicator from '{}'",
+                        comm_string
+                    );
                     return None;
                 }
+
                 let communicator = communicator_option.unwrap();
+
                 let node_type_start = comm_end + SETUP_COMMUNICATION_TYPE.len();
                 let node_type_end = s.rfind(']')?;
                 let node_type_string = s[node_type_start..node_type_end].to_string();
-                println!("{}", node_type_string);
+                println!("[DEBUG] Deserializing node type: {}", node_type_string);
                 let node_type: Type =
                     serde_json::from_str(&node_type_string).expect("should deserialize");
+
                 Some(Self::SetupCommunication(CommWrapper {
-                    communicator: communicator,
-                    node_type: node_type,
+                    communicator,
+                    node_type,
                 }))
             }
+
             Some(SETUP_COMMUNICATION_PORT_PREFIX) => {
                 let port_string = s
                     .replacen(SETUP_COMMUNICATION_PORT_PREFIX, "", 1)
                     .trim()
                     .to_string();
-                println!("[DEBUG] Extracted Port String: '{}'", port_string.clone());
+                println!("[DEBUG] Extracted Port String: '{}'", port_string);
                 let port = port_string.parse::<u16>().ok()?;
                 Some(Self::SetupCommunicationPort(port))
             }
-            Some(ACKNOWLEDGE_CONNECTION) => Some(Self::AcknowledgeConnection),
 
-            // Node Initialization
+            Some(ACKNOWLEDGE_CONNECTION) => Some(Self::AcknowledgeConnection),
             Some(INITIALIZE_LOCAL_NODES) => Some(Self::InitializeLocalNodes),
             Some(ACKNOWLEDGE_NODE_INITIALIZATION) => Some(Self::AcknowledgeNodeInitialization),
 
-            // P2P Connection Coordination
             Some(ORCHESTRATOR_REQUEST_NODE_CONNECTION) => {
                 let stripped_msg = s.replacen(ORCHESTRATOR_REQUEST_NODE_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
 
                 if parts.len() != 6 {
-                    println!("[ERROR] Invalid number of parts for OrchestratorRequestNodeConnection: {:?}", parts);
+                    println!(
+                    "[ERROR] Invalid number of parts for OrchestratorRequestNodeConnection: {:?}",
+                    parts
+                );
                     return None;
                 }
 
                 let sender_id = match parts[0].trim().parse() {
-                    Ok(val) => val,
+                    Ok(v) => v,
                     Err(_) => {
                         println!("[ERROR] Failed to parse sender_id: '{}'", parts[0].trim());
                         return None;
@@ -282,7 +292,7 @@ where
                 };
 
                 let receiver_id = match parts[1].trim().parse() {
-                    Ok(val) => val,
+                    Ok(v) => v,
                     Err(_) => {
                         println!("[ERROR] Failed to parse receiver_id: '{}'", parts[1].trim());
                         return None;
@@ -290,7 +300,7 @@ where
                 };
 
                 let runtime_id = match parts[2].trim().parse() {
-                    Ok(val) => val,
+                    Ok(v) => v,
                     Err(_) => {
                         println!("[ERROR] Failed to parse runtime_id: '{}'", parts[2].trim());
                         return None;
@@ -299,29 +309,26 @@ where
 
                 let runtime_ip = parts[3].trim().to_string();
 
-                let send_idx = match parts[4].parse() {
-                    Ok(val) => val,
+                let send_idx = match parts[4].trim().parse() {
+                    Ok(v) => v,
                     Err(_) => {
-                        println!(
-                            "[ERROR] Failed to parse sender_out_idx: {}",
-                            parts[4].trim()
-                        );
+                        println!("[ERROR] Failed to parse send_idx: '{}'", parts[4].trim());
                         return None;
                     }
                 };
 
                 let recv_idx = match parts[5].trim().parse() {
-                    Ok(val) => val,
+                    Ok(v) => v,
                     Err(_) => {
-                        println!("[ERROR] Failed to parse recv_in_idx: {}", parts[5].trim());
+                        println!("[ERROR] Failed to parse recv_idx: '{}'", parts[5].trim());
                         return None;
                     }
                 };
 
                 println!(
-        "[DEBUG] Parsed OrchestratorRequestNodeConnection: sender_id={}, receiver_id={}, runtime_id={}, runtime_ip={}, send_idx={}, recv_idx={}",
-        sender_id, receiver_id, runtime_id, runtime_ip, send_idx, recv_idx
-    );
+                "[DEBUG] Parsed OrchestratorRequestNodeConnection: sender_id={}, receiver_id={}, runtime_id={}, runtime_ip={}, send_idx={}, recv_idx={}",
+                sender_id, receiver_id, runtime_id, runtime_ip, send_idx, recv_idx
+            );
 
                 Some(Self::OrchestratorRequestNodeConnection(
                     sender_id,
@@ -332,29 +339,32 @@ where
                     recv_idx,
                 ))
             }
+
             Some(REQUEST_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(REQUEST_PEER_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.splitn(5, ',').collect();
-                if parts.len() == 5 {
-                    let dtype_str = parts[4].trim();
-                    // let dtype: Type = match serde_json::from_str(dtype_str) {
-                    //     Ok(parsed) => parsed,
-                    //     Err(_) => return None,
-                    // };
 
-                    return Some(Self::RequestPeerConnection(
+                if parts.len() == 5 {
+                    Some(Self::RequestPeerConnection(
                         parts[0].parse().ok()?,
                         parts[1].parse().ok()?,
                         parts[2].parse().ok()?,
                         parts[3].parse().ok()?,
                         parts[4].trim().parse().ok()?,
-                    ));
+                    ))
+                } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for RequestPeerConnection: {:?}",
+                        parts
+                    );
+                    None
                 }
-                None
             }
+
             Some(ACCEPT_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(ACCEPT_PEER_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
+
                 if parts.len() == 5 {
                     Some(Self::AcceptPeerConnection(
                         parts[0].parse().ok()?,
@@ -364,12 +374,18 @@ where
                         parts[4].parse().ok()?,
                     ))
                 } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for AcceptPeerConnection: {:?}",
+                        parts
+                    );
                     None
                 }
             }
+
             Some(REJECT_PEER_CONNECTION) => {
                 let stripped_msg = s.replacen(REJECT_PEER_CONNECTION, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
+
                 if parts.len() == 5 {
                     Some(Self::RejectPeerConnection(
                         parts[0].parse().ok()?,
@@ -379,54 +395,34 @@ where
                         parts[4].to_string(),
                     ))
                 } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for RejectPeerConnection: {:?}",
+                        parts
+                    );
                     None
                 }
             }
+
             Some(ACKNOWLEDGE_CONNECTION_SETUP) => {
                 let stripped_msg = s.replacen(ACKNOWLEDGE_CONNECTION_SETUP, "", 1);
-                let parts: Vec<&str> = stripped_msg.split(',').map(|part| part.trim()).collect();
+                let parts: Vec<&str> = stripped_msg.split(',').map(str::trim).collect();
                 println!("[DEBUG] AcknowledgeConnectionSetup parts: {:?}", parts);
 
                 if parts.len() == 4 {
                     let sender_id = parts[0].parse::<u128>();
-                    if sender_id.is_err() {
-                        println!(
-                            "[ERROR] Failed to parse sender_id ({}): {:?}",
-                            parts[0], sender_id
-                        );
-                    }
-
                     let receiver_id = parts[1].parse::<u128>();
-                    if receiver_id.is_err() {
-                        println!(
-                            "[ERROR] Failed to parse receiver_id ({}): {:?}",
-                            parts[1], receiver_id
-                        );
-                    }
-
                     let send_out_idx = parts[2].parse::<u128>();
-                    if send_out_idx.is_err() {
-                        println!(
-                            "[ERROR] Failed to parse send_out_idx ({}): {:?}",
-                            parts[2], send_out_idx
-                        );
-                    }
-
                     let recv_in_idx = parts[3].parse::<u128>();
-                    if recv_in_idx.is_err() {
-                        println!(
-                            "[ERROR] Failed to parse recv_in_idx ({}): {:?}",
-                            parts[3], recv_in_idx
-                        );
-                    }
 
-                    // Check if any parsing failed
                     if sender_id.is_err()
                         || receiver_id.is_err()
                         || send_out_idx.is_err()
                         || recv_in_idx.is_err()
                     {
-                        println!("[ERROR] One or more parsing errors occurred.");
+                        println!(
+                        "[ERROR] One or more parsing errors occurred: sender={:?}, receiver={:?}, out_idx={:?}, in_idx={:?}",
+                        sender_id, receiver_id, send_out_idx, recv_in_idx
+                    );
                         return None;
                     }
 
@@ -444,15 +440,21 @@ where
                     None
                 }
             }
+
             Some(REQUEST_NODE_RUNTIME_IP) => {
                 let stripped_msg = s.replacen(REQUEST_NODE_RUNTIME_IP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
                 if parts.len() == 1 {
                     Some(Self::RequestNodeRuntimeIP(parts[0].parse().ok()?))
                 } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for RequestNodeRuntimeIP: {:?}",
+                        parts
+                    );
                     None
                 }
             }
+
             Some(RESPOND_NODE_RUNTIME_IP) => {
                 let stripped_msg = s.replacen(RESPOND_NODE_RUNTIME_IP, "", 1);
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
@@ -462,22 +464,28 @@ where
                         parts[1].to_string(),
                     ))
                 } else {
+                    println!(
+                        "[ERROR] Invalid number of parts for RespondNodeRuntimeIP: {:?}",
+                        parts
+                    );
                     None
                 }
             }
 
-            // Debugging & Data Transfer
             Some("[[MESSAGE]: [DEBUG]>]") => {
                 Some(Self::Debug(s.replacen("[[MESSAGE]: [DEBUG]>]", "", 1)))
             }
+
             Some("[[MESSAGE]: [DATA]>]") => {
                 DataWrapper::parse(s.replacen("[[MESSAGE]: [DATA]>]", "", 1))
                     .ok()
                     .map(Self::Data)
             }
 
-            // Default case: unknown message
-            _ => None,
+            _ => {
+                println!("[ERROR] Unknown message pattern for: '{}'", s);
+                None
+            }
         }
     }
 }

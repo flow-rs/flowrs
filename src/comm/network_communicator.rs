@@ -414,7 +414,7 @@ mod tests {
         assert!(recv_res.is_ok());
         let received_msg: Message<String> = recv_res.unwrap();
         match received_msg {
-            Message::Debug(data) => assert_eq!(data, test_data),
+            Message::Debug(data) => assert_eq!(data, test_data.trim()),
             _ => panic!("Received message is not of type Debug"),
         }
     }

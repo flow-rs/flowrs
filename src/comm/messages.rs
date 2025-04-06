@@ -668,4 +668,12 @@ mod tests {
             Some(Message::RespondNodeRuntimeIP(node_id, node_ip.clone()))
         );
     }
+
+    #[test]
+    fn test_parsing() {
+        let msg_str = "[[MESSAGE]: RequestNodeRuntimeIP]>2\n".trim();
+        let res = Message::<String>::from_str(&msg_str);
+        println!("{:?}", res);
+        assert_eq!(res.is_some(), true)
+    }
 }

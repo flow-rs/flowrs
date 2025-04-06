@@ -229,7 +229,7 @@ where
             println!("[DEBUG] Peeked {} bytes", available);
             if available > 0 {
                 stream.read_line(&mut line).await?;
-                println!("[DEBUG] Received line: {:?}", line);
+                println!("[DEBUG] Received line: {:?}", line.trim());
                 return Ok(Message::from_str(&line));
             }
         }

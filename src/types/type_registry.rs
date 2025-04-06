@@ -160,7 +160,10 @@ impl TypeRegistry {
                 }
             });
 
+        let length_before = self.name_to_id.len();
         self.name_to_id.insert(type_name.to_string(), type_id);
+        let length_after = self.name_to_id.len();
+        println!("[TYPE_REGISTRY] Inserting type name {} into name_to_id map. Length before: {}, Length After: {}", type_name.to_string(), length_before, length_after);
         // Register Ourput setters
         self.output_setters_with_connect
             .insert(type_id, |node_io, idx, ip, port| {

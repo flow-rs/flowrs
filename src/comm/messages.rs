@@ -179,10 +179,10 @@ where
                 )
             }
             Message::RequestNodeRuntimeIP(node_id) => {
-                write!(f, "{}{}", REQUEST_NODE_RUNTIME_IP, node_id)
+                write!(f, "{}>{}", REQUEST_NODE_RUNTIME_IP, node_id)
             }
             Message::RespondNodeRuntimeIP(node_id, ip) => {
-                write!(f, "{}{},{}", RESPOND_NODE_RUNTIME_IP, node_id, ip)
+                write!(f, "{}>{},{}", RESPOND_NODE_RUNTIME_IP, node_id, ip)
             }
 
             // Debugging & Data Transfer

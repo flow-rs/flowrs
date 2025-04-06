@@ -97,7 +97,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
-    name_to_id: HashMap<String, TypeId>,
+    pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
     output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
 }
@@ -132,8 +132,6 @@ impl TypeRegistry {
     where
         T: 'static + Send + Sync + Debug + FromStr + Clone,
     {
-        let type_id = TypeId::of::<T>();
-
         let type_id = TypeId::of::<T>();
         self.communicator_factories.insert(type_id, || {
             async {

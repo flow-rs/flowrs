@@ -47,7 +47,7 @@ pub trait CommunicatorBox: Send + Sync {
     async fn send_boxed(&mut self, message: Box<dyn Any + Send>) -> Result<(), String>;
 
     async fn connect_send(&mut self, addr: &str, port: u16) -> Result<(), String>;
-    async fn connect_receive(&mut self, port: u16) -> Result<(), String>;
+    async fn connect_receive(&mut self, addr: &str, port: u16) -> Result<(), String>;
     fn into_node_communicator(self: Box<Self>) -> Result<Box<dyn Any + Send>, String>;
 }
 
@@ -77,8 +77,8 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
             .map_err(|e| e.to_string())
     }
 
-    async fn connect_receive(&mut self, port: u16) -> Result<(), String> {
-        Communicator::<T>::connect_recv(self, Some(port.to_string()), None)
+    async fn connect_receive(&mut self, addr: &str, port: u16) -> Result<(), String> {
+        Communicator::<T>::connect_recv(self, Some(addr.to_string()), Some(port))
             .await
             .map_err(|e| e.to_string())
     }

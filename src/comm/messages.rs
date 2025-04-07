@@ -153,7 +153,7 @@ where
             Message::RequestPeerConnection(n1, n2, o_idx, i_idx, dtype) => {
                 write!(
                     f,
-                    "{}{},{},{},{},{:?}",
+                    "{}{},{},{},{},{}",
                     REQUEST_PEER_CONNECTION, n1, n2, o_idx, i_idx, dtype,
                 )
             }
@@ -683,5 +683,27 @@ mod tests {
         let res = Message::<String>::from_str(&msg_str);
         println!("{:?}", res);
         assert_eq!(res.is_some(), true)
+    }
+
+    #[test]
+    fn test_request_peer_connection_message_roundtrip() {
+        let original_msg = Message::<String>::RequestPeerConnection(1, 2, 0, 1, "u32".to_string());
+
+        let formatted = format!("{:?}", original_msg);
+        assert_eq!(formatted, "[[MESSAGE]: RequestPeerConnection]>1,2,0,1,u32");
+
+        let parsed = Message::from_str(&formatted).expect("Parsing should succeed");
+        assert_eq!(parsed, original_msg);
+    }
+
+    #[test]
+    fn test_request_peer_connection_message_with_quotes_is_different() {
+        let message_with_quotes = "[[MESSAGE]: RequestPeerConnection]>1,2,0,1,\"u32\"";
+        let message_without_quotes = "[[MESSAGE]: RequestPeerConnection]>1,2,0,1,u32";
+
+        let parsed_quoted = Message::<String>::from_str(message_with_quotes).unwrap();
+        let parsed_clean = Message::<String>::from_str(message_without_quotes).unwrap();
+
+        assert_ne!(parsed_quoted, parsed_clean, "Messages should not be equal");
     }
 }

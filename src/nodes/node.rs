@@ -257,7 +257,13 @@ impl Node for ExecutionNode {
             self.execution_state = ExecutionState::Ready;
             Ok(())
         } else {
-            Err(ReadyError::from("Node is not in an initialized state"))
+            Err(ReadyError::from(
+                format!(
+                    "Node is not in an initialized state: {}",
+                    self.execution_state,
+                )
+                .as_str(),
+            ))
         }
     }
 

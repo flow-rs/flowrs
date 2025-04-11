@@ -83,14 +83,12 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
             .map_err(|e| e.to_string())
     }
 
-    fn into_node_communicator(mut self: Box<Self>) -> Result<Box<dyn Any + Send>, String> {
-        if let Some(concrete) = self.as_any_mut().downcast_mut::<NetworkCommunicator<T>>() {
-            // Move out the communicator (consume it) by replacing with a dummy (requires Option wrapping)
-            let moved = std::mem::replace(concrete, NetworkCommunicator::dummy());
-            Ok(Box::new(NodeCommunicator::NetworkComm(moved)))
-        } else {
-            Err("Failed to downcast to NetworkCommunicator<T>".to_string())
-        }
+    fn into_node_communicator(self: Box<Self>) -> Result<Box<dyn Any + Send>, String> {
+        let boxed = self
+            .downcast::<NetworkCommunicator<T>>()
+            .map_err(|_| "Failed to downcast to NetworkCommunicator<T>".to_string())?;
+
+        Ok(Box::new(NodeCommunicator::NetworkComm(*boxed)))
     }
 }
 

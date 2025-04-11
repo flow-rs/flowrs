@@ -1046,7 +1046,7 @@ macro_rules! impl_tuple_io {
             fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
                 match index {
                     $(
-                        $idx => Some(&mut self.$idx.input as &mut dyn Any),
+                        $idx => Some(&mut self.$idx as &mut dyn Any),
                     )+
                     _ => None,
                 }

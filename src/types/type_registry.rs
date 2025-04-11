@@ -84,11 +84,14 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
     }
 
     fn into_node_communicator(self: Box<Self>) -> Result<Box<dyn Any + Send>, String> {
-        let boxed = self
-            .downcast::<NetworkCommunicator<T>>()
-            .map_err(|_| "Failed to downcast to NetworkCommunicator<T>".to_string())?;
+        // First cast self into a Box<dyn Any>
+        let boxed_any = self as Box<dyn Any>;
 
-        Ok(Box::new(NodeCommunicator::NetworkComm(*boxed)))
+        // Then downcast that into the concrete type
+        match boxed_any.downcast::<NetworkCommunicator<T>>() {
+            Ok(concrete) => Ok(Box::new(NodeCommunicator::NetworkComm(*concrete))),
+            Err(_) => Err("Failed to downcast to NetworkCommunicator<T>".to_string()),
+        }
     }
 }
 

@@ -212,7 +212,7 @@ impl StandardExecutor {
                 println!("[Executor] Running node {}...", node_id);
 
                 let mut node = execution_node.lock().await;
-                if let Err(e) = node.on_update() {
+                if let Err(e) = node.on_update_async().await {
                     println!("[Executor] Error executing node {}: {:?}", node_id, e);
                 }
             });

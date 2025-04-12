@@ -1,4 +1,5 @@
 //use anyhow::Result;
+use anyhow::anyhow;
 use std::{
     any::Any,
     collections::HashMap,
@@ -182,54 +183,57 @@ impl ExecutionNode {
             }
         }
     }
-}
 
-impl Node for ExecutionNode {
-    fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
-        self.execution_mode = mode.clone();
-        mode
-    }
-
-    fn on_update(&mut self) -> Result<(), UpdateError> {
+    pub async fn on_update_async(&mut self) -> Result<(), UpdateError> {
         match self.execution_state {
             ExecutionState::Ready => {
                 self.execution_state = ExecutionState::Running;
                 let mut res = Ok(());
 
                 loop {
-                    // Check for incoming control messages
-                    match Handle::current().block_on(self.control_edge.try_message()) {
-                        Ok(Some(message)) => self.on_message(message),
-                        Ok(None) => (), // No control messages, do nothing
-                        Err(err) => {
-                            return Err(UpdateError::RecvError {
-                                message: err.to_string(),
-                            })
-                        }
-                    }
-
-                    // Shut down Execution if Stop-Message was received
+                    // 🧠 Check for shutdown before running node logic
                     if self.execution_state == ExecutionState::Shutdown {
                         self.on_shutdown();
                         break;
                     }
 
-                    let execution_res = self.node.on_update();
-
-                    match self.execution_mode {
-                        ExecutionMode::Synchronized => {
-                            self.execution_state = ExecutionState::Ready;
-                            res = execution_res;
-                            break;
+                    // 👇 use `tokio::select!` if control_edge might block
+                    tokio::select! {
+                        // Control message is available
+                        ctrl_msg = self.control_edge.try_message() => {
+                            match ctrl_msg {
+                                Ok(Some(message)) => self.on_message(message),
+                                Ok(None) => {}, // no control message
+                                Err(err) => {
+                                    return Err(UpdateError::RecvError {
+                                        message: err.to_string(),
+                                    })
+                                }
+                            }
                         }
-                        ExecutionMode::Continuous => {
-                            res = execution_res;
-                            continue;
+
+                        // Run the node update logic immediately otherwise
+                        _ = tokio::task::yield_now() => {
+                            let execution_res = self.node.on_update();
+
+                            match self.execution_mode {
+                                ExecutionMode::Synchronized => {
+                                    self.execution_state = ExecutionState::Ready;
+                                    res = execution_res;
+                                    break;
+                                }
+                                ExecutionMode::Continuous => {
+                                    res = execution_res;
+                                    continue;
+                                }
+                            }
                         }
                     }
                 }
+
                 res
             }
+
             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
                 message: "The node is Sleeping".to_string(),
             }),
@@ -241,6 +245,19 @@ impl Node for ExecutionNode {
             }),
             ExecutionState::Shutdown => Ok(()),
         }
+    }
+}
+
+impl Node for ExecutionNode {
+    fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
+        self.execution_mode = mode.clone();
+        mode
+    }
+
+    fn on_update(&mut self) -> Result<(), UpdateError> {
+        Err(UpdateError::Other(anyhow!(
+            "ExecutionNode requires async context.".to_string(),
+        )))
     }
 
     fn get_execution_mode(&self) -> ExecutionMode {

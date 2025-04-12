@@ -385,6 +385,13 @@ where
     }
 }
 
+#[async_trait]
+impl SetupOutputs for () {
+    async fn setup_output(&mut self, _idx: NodeIOIndex, _local: bool) {
+        // nothing to set up
+    }
+}
+
 // impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
 // where
 //     T: 'static + Send + Sync + Debug + FromStr + Clone,
@@ -532,19 +539,25 @@ macro_rules! impl_setup_inputs_sync {
 }
 
 macro_rules! impl_setup_outputs_sync {
-    ($(($($D:ident),+)),+ $(,)?) => {
+    ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
         $(
-        impl<$($D),+> SetupOutputsSync for ($(TypedOutput<$D>,)+)
+        impl<$($D),+> SetupOutputsSync for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
         where
-            $($D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static),+
+            $(
+                $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
+            ),+
         {
-            fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
+            fn setup_output_sync(&mut self, idx: u128, local: bool) {
                 match idx {
                     $(
-                        $D => self.$D.input.setup_output_sync(idx, local),
+                        $idx => self.$idx.output.setup_output_sync(idx, local),
                     )+
-                    _ => (),
+                    _ => panic!("Invalid output index {}", idx),
                 }
+            }
+
+            fn get_output_count(&self) -> NodeIOIndex {
+                0 $(+ { let _ = &self.$idx; 1 })+
             }
         }
         )+

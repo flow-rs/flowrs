@@ -191,13 +191,15 @@ impl ExecutionNode {
                 let mut res = Ok(());
 
                 loop {
-                    // 🧠 Check for shutdown before running node logic
+                    // Check for shutdown before running node logic
                     if self.execution_state == ExecutionState::Shutdown {
-                        self.on_shutdown();
+                        if let Err(e) = self.on_shutdown() {
+                            println!("[WARN] Shutdown failed: {}", e);
+                        }
                         break;
                     }
 
-                    // 👇 use `tokio::select!` if control_edge might block
+                    // use `tokio::select!` if control_edge might block
                     tokio::select! {
                         // Control message is available
                         ctrl_msg = self.control_edge.try_message() => {

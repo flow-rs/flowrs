@@ -9,6 +9,7 @@ use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::node::{Node, ReceiveError, SendError};
 use async_trait::async_trait;
 use futures::executor::block_on;
+use tokio::runtime::Handle;
 
 #[derive(Debug)]
 pub struct Edge<D>
@@ -45,17 +46,17 @@ where
     }
 
     // Receive a single data point over the edge
-    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
-        let res = match &mut self.communicator {
-            NodeCommunicator::ThreadComm(communicator) => block_on(communicator.receive()),
-            NodeCommunicator::NetworkComm(communicator) => block_on(communicator.receive()),
+    pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+        let fut = match &mut self.communicator {
+            NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
+            NodeCommunicator::NetworkComm(comm) => comm.try_receive(),
         };
-        match res {
-            Ok(msg) => match msg {
-                Message::Data(data_wrapper) => Ok(data_wrapper.get_data()),
-                _ => Err(ReceiveError::ControlMessage(msg)),
-            },
-            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(format!("{}", err)))),
+
+        match Handle::current().block_on(fut) {
+            Ok(Some(Message::Data(data))) => Ok(Some(data.get_data())),
+            Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
+            Ok(None) => Ok(None), // No message yet — this is non-blocking behavior
+            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(err.to_string()))),
         }
     }
 
@@ -127,7 +128,7 @@ where
         self.edge.send(data)
     }
 
-    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
+    pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         self.edge.next()
     }
 
@@ -164,7 +165,7 @@ where
         self.edge.send(data)
     }
 
-    pub fn next(&mut self) -> Result<D, ReceiveError<D>> {
+    pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         self.edge.next()
     }
 
@@ -309,7 +310,7 @@ mod test {
 
         // Assert result
         assert!(res.is_ok());
-        let msg = res.unwrap();
+        let msg = res.unwrap().unwrap();
         assert_eq!(msg, test_data);
     }
 }

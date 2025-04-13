@@ -367,6 +367,7 @@ where
     #[error(transparent)]
     Other(#[from] anyhow::Error),
     ControlMessage(Message<D>),
+    NoMessageAvailable,
 }
 
 // impl<D> fmt::Display for ReceiveError<D>

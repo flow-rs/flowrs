@@ -2,15 +2,14 @@ use std::{error::Error, fmt, str::FromStr};
 
 use crate::comm::messages::Message;
 use async_trait::async_trait;
+use std::fmt::Debug;
 use tokio::{
     io,
     sync::{
         broadcast::error::RecvError,
-        mpsc::{channel, Receiver, Sender},
+        mpsc::{channel, error::TryRecvError, Receiver, Sender},
     },
 };
-
-use std::fmt::Debug;
 
 use super::communication::Communicator;
 
@@ -127,17 +126,17 @@ where
     async fn try_receive(
         &mut self,
     ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
-        // temporarily take the receiver from self
         let mut receiver = self
             .receiver
             .take()
             .expect("This communicator can only send but not receive");
-        // use the receiver
-        let result = receiver
-            .try_recv()
-            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
-            .map(|res| Some(res));
-        // put back the reveicer into self
+
+        let result = match receiver.try_recv() {
+            Ok(msg) => Ok(Some(msg)),
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+        };
+
         self.receiver = Some(receiver);
         result
     }

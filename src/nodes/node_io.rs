@@ -5,9 +5,9 @@ use std::any::Any;
 use std::{fmt::Debug, str::FromStr};
 use tokio::runtime::Runtime;
 
-use super::connection::EdgeTrait;
 use super::connection::Input;
 use super::connection::Output;
+use super::connection::{Edge, EdgeTrait};
 use crate::comm::communication::{Communicator, NodeCommunicator};
 
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
@@ -290,6 +290,22 @@ where
 //         })
 //     }
 // }
+
+/// Try to get mutable access to an Edge<D> by index
+pub fn get_input_edge_mut<D: 'static>(
+    io: &mut dyn SetupIO,
+    idx: NodeIOIndex,
+) -> Option<&mut Edge<D>>
+where
+    D: Clone,
+    D: Debug,
+    D: FromStr,
+    D: Send + 'static,
+{
+    io.get_input_communicator(idx)
+        .and_then(|any| any.downcast_mut::<Input<D>>())
+        .map(|input| input.edge_mut())
+}
 
 /// **Traits for setting up inputs and outputs asynchronously**
 #[async_trait]

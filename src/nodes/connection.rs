@@ -20,6 +20,7 @@ where
     D: Send + 'static,
 {
     communicator: NodeCommunicator<D>,
+    buffer: Option<D>,
 }
 
 impl<D> Edge<D>
@@ -30,7 +31,39 @@ where
     D: Send + 'static,
 {
     pub fn new(communicator: NodeCommunicator<D>) -> Self {
-        Self { communicator }
+        Self {
+            communicator,
+            buffer: None,
+        }
+    }
+
+    pub fn set_buffer(&mut self, val: Option<D>) {
+        self.buffer = val;
+    }
+
+    pub fn has_data(&self) -> bool {
+        self.buffer.is_some()
+    }
+
+    pub fn take(&mut self) -> Option<D> {
+        self.buffer.take()
+    }
+
+    /// Polls the underlying communicator once and updates the internal buffer accordingly.
+    pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
+        match self.try_message().await {
+            Ok(Some(Message::Data(data))) => {
+                self.set_buffer(Some(data.get_data()));
+                Ok(())
+            }
+            Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
+            Ok(None) => {
+                // No message yet, explicitly store `None`
+                self.set_buffer(None);
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
     }
 
     // Send a single data point over the edge
@@ -148,6 +181,10 @@ where
         Self {
             edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
         }
+    }
+
+    pub fn edge_mut(&mut self) -> &mut Edge<D> {
+        &mut self.edge
     }
 }
 

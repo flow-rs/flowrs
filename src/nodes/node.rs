@@ -15,7 +15,10 @@ use crate::{
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
 };
 
-use super::{connection::Edge, node_io::SetupIO};
+use super::{
+    connection::Edge,
+    node_io::{get_input_edge_mut, SetupIO},
+};
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -144,6 +147,59 @@ impl ExecutionNode {
         }
     }
 
+    // fn get_input_count(&self) -> u128 {
+    //     self.node.get_input_count() // assume this is implemented per node
+    // }
+
+    // fn get_input_edge(&mut self, idx: usize) -> Option<&mut dyn Any> {
+    //     self.node.get_input(idx);
+    // }
+
+    // async fn probe_inputs(&mut self) {
+    //     for idx in 0..self.get_input_count() {
+    //         if let Some(any_edge) = self.get_input_edge(idx) {
+    //             if let Some(edge) = any_edge.downcast_mut::<Edge<_>>() {
+    //                 match edge.try_message().await {
+    //                     Ok(Some(Message::Data(data))) => edge.set_buffer(Some(data.get_data())),
+    //                     Ok(Some(_ctrl)) => {} // Control message — ignore for now
+    //                     Ok(None) => edge.set_buffer(None), // explicitly set None
+    //                     Err(e) => {
+    //                         println!("[WARN] Failed to receive message on input {idx}: {}", e);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    // async fn poll_and_buffer_all(&mut self) -> Result<(), UpdateError> {
+    //     let io = self.node.get_io_mut();
+    //     let input_count = io.get_input_count();
+
+    //     for idx in 0..input_count {
+    //         // NOTE: get_input_edge_mut is already defined in node_io.rs
+    //         if let Some(edge_any) = get_input_edge_mut(io, idx) {
+    //             if let Err(e) = edge_any.poll_and_buffer().await {
+    //                 match e {
+    //                     ReceiveError::ControlMessage(msg) => {
+    //                         return Err(UpdateError::ControlMessage(msg));
+    //                     }
+    //                     ReceiveError::Other(err) => {
+    //                         return Err(UpdateError::RecvError {
+    //                             message: err.to_string(),
+    //                         });
+    //                     }
+    //                     ReceiveError::NoMessageAvailable => {
+    //                         // This is expected in a non-blocking poll; just skip
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
     pub fn on_message(&mut self, msg: Message<String>) {
         match msg {
             // Handle Peer Connection Messages
@@ -199,12 +255,10 @@ impl ExecutionNode {
                         break;
                     }
 
-                    // Check for control message
+                    // Check control edge for messages
                     match self.control_edge.try_message().await {
-                        Ok(Some(msg)) => {
-                            self.on_message(msg);
-                        }
-                        Ok(None) => {} // no control message
+                        Ok(Some(msg)) => return Err(UpdateError::ControlMessage(msg)),
+                        Ok(None) => {} // No control message
                         Err(err) => {
                             return Err(UpdateError::RecvError {
                                 message: err.to_string(),
@@ -212,7 +266,11 @@ impl ExecutionNode {
                         }
                     }
 
-                    // Call node update
+                    // Pre-buffer all input edges
+                    let io = self.node.get_io_mut();
+                    poll_all_inputs(io).await?;
+
+                    // Call node update logic
                     result = self.node.on_update();
 
                     match self.execution_mode {
@@ -221,7 +279,6 @@ impl ExecutionNode {
                             break;
                         }
                         ExecutionMode::Continuous => {
-                            // Optionally yield to let other tasks progress
                             tokio::task::yield_now().await;
                             continue;
                         }
@@ -234,12 +291,15 @@ impl ExecutionNode {
             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
                 message: "The node is Sleeping".to_string(),
             }),
+
             ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
                 message: "The node is Running".to_string(),
             }),
+
             ExecutionState::Initialized => Err(UpdateError::NotReadyError {
                 message: "The node is not ready".to_string(),
             }),
+
             ExecutionState::Shutdown => Ok(()),
         }
     }
@@ -404,6 +464,9 @@ pub enum UpdateError {
     #[error("AlreadyRunningError error. Message: {message:?}")]
     AlreadyRunningError { message: String },
 
+    #[error("Received control message on data edge: {0:?}")]
+    ControlMessage(Message<String>),
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -426,4 +489,14 @@ where
             message: value.to_string(),
         }
     }
+}
+
+pub async fn poll_all_inputs(io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>> {
+    let count = io.get_input_count();
+    for idx in 0..count {
+        if let Some(edge_any) = get_input_edge_mut::<String>(io, idx) {
+            edge_any.poll_and_buffer().await?;
+        }
+    }
+    Ok(())
 }

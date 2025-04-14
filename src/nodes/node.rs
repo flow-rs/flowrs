@@ -5,23 +5,17 @@ use std::{
     collections::HashMap,
     fmt,
     str::FromStr,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc,
-    },
+    sync::mpsc::{channel, Receiver, Sender},
 };
 use thiserror::Error;
-use tokio::{runtime::Handle, sync::Mutex};
+use tokio::time::Duration;
 
 use crate::{
     comm::messages::Message,
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
 };
 
-use super::{
-    connection::Edge,
-    node_io::{SetupIO, SetupInputsSync, SetupOutputsSync},
-};
+use super::{connection::Edge, node_io::SetupIO};
 
 /// A node can take a shared reference to a [`Context`] instance.
 /// There exists a single context for all nodes that can be accessed via mutex.
@@ -185,6 +179,10 @@ impl ExecutionNode {
     }
 
     pub async fn on_update_async(&mut self) -> Result<(), UpdateError> {
+        println!(
+            "[ExecutionNode] Entered on_update_async() with mode: {:?}, state: {:?}",
+            self.execution_mode, self.execution_state
+        );
         match self.execution_state {
             ExecutionState::Ready => {
                 self.execution_state = ExecutionState::Running;
@@ -214,8 +212,8 @@ impl ExecutionNode {
                             }
                         }
 
-                        // Run the node update logic immediately otherwise
-                        _ = tokio::task::yield_now() => {
+                        // use timeout to ensure on_update() is not starved
+                        _ = tokio::time::sleep(Duration::from_millis(10)) => {
                             let execution_res = self.node.on_update();
 
                             match self.execution_mode {

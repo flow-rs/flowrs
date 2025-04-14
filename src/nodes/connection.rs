@@ -114,7 +114,7 @@ pub struct Input<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
-    edge: Edge<D>,
+    pub edge: Edge<D>,
 }
 
 #[derive(Debug)]
@@ -122,7 +122,7 @@ pub struct Output<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
-    edge: Edge<D>,
+    pub edge: Edge<D>,
 }
 
 // /// A node's input implemented as an [Edge] type.

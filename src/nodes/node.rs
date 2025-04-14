@@ -255,22 +255,30 @@ impl ExecutionNode {
                         break;
                     }
 
-                    // Check control edge for messages
+                    // Check for control message
                     match self.control_edge.try_message().await {
-                        Ok(Some(msg)) => return Err(UpdateError::ControlMessage(msg)),
-                        Ok(None) => {} // No control message
-                        Err(err) => {
-                            return Err(UpdateError::RecvError {
-                                message: err.to_string(),
-                            });
+                        Ok(Some(msg)) => {
+                            self.on_message(msg);
                         }
+                        Ok(None) => {} // no control message
+                        Err(e) => match e {
+                            ReceiveError::ControlMessage(msg) => {
+                                return Err(UpdateError::ControlMessage(msg));
+                            }
+                            ReceiveError::Other(e) => {
+                                return Err(UpdateError::RecvError {
+                                    message: e.to_string(),
+                                });
+                            }
+                            ReceiveError::NoMessageAvailable => {} // not an error
+                        },
                     }
 
-                    // Pre-buffer all input edges
+                    // Poll all inputs and fill buffers
                     let io = self.node.get_io_mut();
                     poll_all_inputs(io).await?;
 
-                    // Call node update logic
+                    // Run the actual node logic (sync call that uses buffered inputs)
                     result = self.node.on_update();
 
                     match self.execution_mode {
@@ -291,15 +299,12 @@ impl ExecutionNode {
             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
                 message: "The node is Sleeping".to_string(),
             }),
-
             ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
                 message: "The node is Running".to_string(),
             }),
-
             ExecutionState::Initialized => Err(UpdateError::NotReadyError {
                 message: "The node is not ready".to_string(),
             }),
-
             ExecutionState::Shutdown => Ok(()),
         }
     }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ExecutionState {
     Ready,
     Sleeping,

@@ -179,17 +179,19 @@ impl ExecutionNode {
     }
 
     pub async fn on_update_async(&mut self) -> Result<(), UpdateError> {
-        println!(
-            "[ExecutionNode] Entered on_update_async() with mode: {:?}, state: {:?}",
-            self.execution_mode, self.execution_state
-        );
         match self.execution_state {
             ExecutionState::Ready => {
                 self.execution_state = ExecutionState::Running;
-                let mut res = Ok(());
+
+                println!(
+                    "[ExecutionNode] Entered on_update_async() with mode: {:?}, state: {:?}",
+                    self.execution_mode, self.execution_state
+                );
+
+                let mut result = Ok(());
 
                 loop {
-                    // Check for shutdown before running node logic
+                    // Check for shutdown
                     if self.execution_state == ExecutionState::Shutdown {
                         if let Err(e) = self.on_shutdown() {
                             println!("[WARN] Shutdown failed: {}", e);
@@ -197,41 +199,36 @@ impl ExecutionNode {
                         break;
                     }
 
-                    // use `tokio::select!` if control_edge might block
-                    tokio::select! {
-                        // Control message is available
-                        ctrl_msg = self.control_edge.try_message() => {
-                            match ctrl_msg {
-                                Ok(Some(message)) => self.on_message(message),
-                                Ok(None) => {}, // no control message
-                                Err(err) => {
-                                    return Err(UpdateError::RecvError {
-                                        message: err.to_string(),
-                                    })
-                                }
-                            }
+                    // Check for control message
+                    match self.control_edge.try_message().await {
+                        Ok(Some(msg)) => {
+                            self.on_message(msg);
                         }
+                        Ok(None) => {} // no control message
+                        Err(err) => {
+                            return Err(UpdateError::RecvError {
+                                message: err.to_string(),
+                            });
+                        }
+                    }
 
-                        // use timeout to ensure on_update() is not starved
-                        _ = tokio::time::sleep(Duration::from_millis(10)) => {
-                            let execution_res = self.node.on_update();
+                    // Call node update
+                    result = self.node.on_update();
 
-                            match self.execution_mode {
-                                ExecutionMode::Synchronized => {
-                                    self.execution_state = ExecutionState::Ready;
-                                    res = execution_res;
-                                    break;
-                                }
-                                ExecutionMode::Continuous => {
-                                    res = execution_res;
-                                    continue;
-                                }
-                            }
+                    match self.execution_mode {
+                        ExecutionMode::Synchronized => {
+                            self.execution_state = ExecutionState::Ready;
+                            break;
+                        }
+                        ExecutionMode::Continuous => {
+                            // Optionally yield to let other tasks progress
+                            tokio::task::yield_now().await;
+                            continue;
                         }
                     }
                 }
 
-                res
+                result
             }
 
             ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {

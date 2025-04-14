@@ -20,7 +20,7 @@ where
     D: Send + 'static,
 {
     communicator: NodeCommunicator<D>,
-    buffer: Option<D>,
+    pub buffer: Option<D>,
 }
 
 impl<D> Edge<D>

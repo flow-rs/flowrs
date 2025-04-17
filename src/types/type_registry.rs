@@ -110,7 +110,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
-    poll_fns: HashMap<TypeId, Arc<Mutex<Box<dyn Any + Send>>>>,
+    pub poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
     pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
     output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
@@ -177,6 +177,7 @@ impl TypeRegistry {
         self.name_to_id.insert(type_name.to_string(), type_id);
         let length_after = self.name_to_id.len();
         println!("[TYPE_REGISTRY] Inserting type name {} into name_to_id map. Length before: {}, Length After: {}", type_name.to_string(), length_before, length_after);
+
         // Register Ourput setters
         self.output_setters_with_connect
             .insert(type_id, |node_io, idx, ip, port| {
@@ -284,18 +285,29 @@ impl TypeRegistry {
             })
         });
 
-        self.poll_fns.insert(
-            type_id,
-            Arc::new(Mutex::new(Box::new(func) as Box<dyn Any + Send>)),
-        );
+        self.poll_fns
+            .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
     }
 
     /// Get a mutable reference to a polling function for a given type
-    pub fn get_poll_fn<T>(&mut self) -> Option<Arc<Mutex<Box<dyn Any + Send>>>>
-    where
-        T: 'static + Send + Clone + Debug + FromStr,
-    {
-        self.poll_fns.get(&TypeId::of::<T>()).cloned()
+    pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
+        self.poll_fns.get_mut(type_id)
+    }
+}
+
+#[async_trait]
+pub trait PollFnErased: Send {
+    async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>>;
+}
+
+#[async_trait]
+impl<T> PollFnErased for PollFn<T>
+where
+    T: 'static + Send + Clone + Debug + FromStr,
+{
+    async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>> {
+        let result = (self)(io).await;
+        result.map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))
     }
 }
 

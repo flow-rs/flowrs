@@ -286,6 +286,16 @@ impl TypeRegistry {
         self.poll_fns
             .insert(type_id, Box::new(func) as Box<dyn Any + Send>);
     }
+
+    /// Get a mutable reference to a polling function for a given type
+    pub fn get_poll_fn<T>(&mut self) -> Option<&mut PollFn<T>>
+    where
+        T: 'static + Send + Clone + Debug + FromStr,
+    {
+        self.poll_fns
+            .get_mut(&TypeId::of::<T>())?
+            .downcast_mut::<PollFn<T>>()
+    }
 }
 
 lazy_static! {

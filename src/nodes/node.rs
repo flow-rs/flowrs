@@ -358,6 +358,23 @@ impl ExecutionNode {
             ExecutionState::Shutdown => Ok(()),
         }
     }
+
+    pub async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
+        let mut registry = POLL_REGISTRY.lock().await;
+
+        for (idx, type_id) in self.input_type_ids.iter() {
+            if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
+                poll_fn.poll_indexed(self.node.get_io_mut(), *idx).await?;
+            } else {
+                println!(
+                    "[WARN] No poll function registered for input index {} (type_id = {:?})",
+                    idx, type_id
+                );
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Node for ExecutionNode {

@@ -1,5 +1,6 @@
 use crate::comm::thread_communicator::{Splittable, ThreadCommunicator};
 use crate::flow::flow_types::NodeIOIndex;
+use crate::types::type_registry::POLL_REGISTRY;
 use async_trait::async_trait;
 use std::any::Any;
 use std::{fmt::Debug, str::FromStr};
@@ -922,16 +923,16 @@ where
     }
 }
 
-#[async_trait]
+//#[async_trait]
 pub trait SetupIO: Send + Sync + AsAny {
     fn get_input_count(&self) -> NodeIOIndex;
     fn get_output_count(&self) -> NodeIOIndex;
     fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
     fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
-    async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>>;
+    //async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>>;
 }
 
-#[async_trait]
+//#[async_trait]
 impl<I, O> SetupIO for NodeIO<I, O>
 where
     I: SetupInputsSync + SetupInputs + Send + Sync + TupleIO + 'static,
@@ -953,22 +954,23 @@ where
         TupleIO::get_output_communicator(&mut self.outputs, idx)
     }
 
-    async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
-        for idx in 0..SetupIO::get_input_count(self) {
-            if let Some(any_edge) = self.get_input_communicator(idx) {
-                // This is safe *if* edges are always Edge<T> for same T across node
-                if let Some(edge) = any_edge.downcast_mut::<Edge<_>>() {
-                    edge.poll_and_buffer().await?;
-                } else {
-                    println!(
-                        "[WARN] Could not downcast edge at index {} during polling.",
-                        idx
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
+    // async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
+    //     let mut registry = POLL_REGISTRY.lock().await;
+
+    //     for (idx, type_id) in self.input_type_ids.iter() {
+    //         if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
+    //             // Poll this specific input index
+    //             poll_fn.poll_indexed(self, *idx).await?;
+    //         } else {
+    //             println!(
+    //                 "[WARN] No poll function registered for input index {} (type_id = {:?})",
+    //                 idx, type_id
+    //             );
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
 }
 
 /// Helper trait for accessing tuple elements dynamically.

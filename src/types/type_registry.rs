@@ -264,30 +264,30 @@ impl TypeRegistry {
         setter(node_io, input_idx, communicator)
     }
 
-    pub fn register_poll_functions<T>(&mut self)
-    where
-        T: 'static + Send + Clone + Debug + FromStr,
-    {
-        let type_id = TypeId::of::<T>();
+    // pub fn register_poll_functions<T>(&mut self)
+    // where
+    //     T: 'static + Send + Clone + Debug + FromStr,
+    // {
+    //     let type_id = TypeId::of::<T>();
 
-        let func: PollFn<T> = Box::new(|io: &mut dyn SetupIO| {
-            Box::pin(async move {
-                for idx in 0..io.get_input_count() {
-                    if let Some(edge_any) = io.get_input_communicator(idx) {
-                        let edge = edge_any
-                            .downcast_mut::<Edge<T>>()
-                            .ok_or_else(|| ReceiveError::<T>::Other(anyhow!("Downcast failed")))?;
+    //     let func: PollFn<T> = Box::new(|io: &mut dyn SetupIO| {
+    //         Box::pin(async move {
+    //             for idx in 0..io.get_input_count() {
+    //                 if let Some(edge_any) = io.get_input_communicator(idx) {
+    //                     let edge = edge_any
+    //                         .downcast_mut::<Edge<T>>()
+    //                         .ok_or_else(|| ReceiveError::<T>::Other(anyhow!("Downcast failed")))?;
 
-                        edge.poll_and_buffer().await?;
-                    }
-                }
-                Ok(())
-            })
-        });
+    //                     edge.poll_and_buffer().await?;
+    //                 }
+    //             }
+    //             Ok(())
+    //         })
+    //     });
 
-        //self.poll_fns
-        //    .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
-    }
+    //     //self.poll_fns
+    //     //    .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
+    // }
 
     // Get a mutable reference to a polling function for a given type
     // pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
@@ -298,6 +298,12 @@ impl TypeRegistry {
 #[async_trait]
 pub trait PollFnErased: Send {
     async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>>;
+
+    async fn poll_indexed(
+        &mut self,
+        io: &mut dyn SetupIO,
+        idx: NodeIOIndex,
+    ) -> Result<(), ReceiveError<String>>;
 }
 
 #[async_trait]
@@ -309,8 +315,36 @@ where
         let result = (self)(io).await;
         result.map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))
     }
-}
 
+    async fn poll_indexed(
+        &mut self,
+        io: &mut dyn SetupIO,
+        idx: NodeIOIndex,
+    ) -> Result<(), ReceiveError<String>> {
+        if let Some(edge_any) = io.get_input_communicator(idx) {
+            if let Some(edge) = edge_any.downcast_mut::<Edge<T>>() {
+                edge.poll_and_buffer().await.map_err(|e| {
+                    ReceiveError::Other(anyhow::anyhow!(
+                        "[PollFnErased] Polling failed for Edge<{}>: {:?}",
+                        std::any::type_name::<T>(),
+                        e
+                    ))
+                })
+            } else {
+                Err(ReceiveError::Other(anyhow::anyhow!(
+                    "[PollFnErased] Failed to downcast input at index {} to Edge<{}>",
+                    idx,
+                    std::any::type_name::<T>()
+                )))
+            }
+        } else {
+            Err(ReceiveError::Other(anyhow::anyhow!(
+                "[PollFnErased] No input communicator at index {}",
+                idx
+            )))
+        }
+    }
+}
 pub struct PollRegistry {
     poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
 }
@@ -333,6 +367,10 @@ impl PollRegistry {
     }
 
     pub fn get_mut(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
+        self.poll_fns.get_mut(type_id)
+    }
+
+    pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
         self.poll_fns.get_mut(type_id)
     }
 }

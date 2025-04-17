@@ -118,6 +118,8 @@ impl StandardExecutor {
         let mut initialized_nodes = HashMap::new();
 
         for (node_id, node) in abstract_flow.lock().await.move_nodes() {
+            let abstract_flow_guard = abstract_flow.lock().await;
+
             match execution_config.node_configs.get(&node_id) {
                 Some(NodeConfig::LocalNodeConfig) => {
                     let execution_node = Arc::new(Mutex::new(
@@ -125,18 +127,21 @@ impl StandardExecutor {
                             node,
                             node_id,
                             self.execution_mode.clone(),
+                            &abstract_flow_guard,
                         )
                         .await?,
                     ));
                     initialized_nodes.insert(node_id, execution_node);
                     println!("[Executor] Node {} initialized.", node_id);
                 }
+
                 Some(NodeConfig::RemoteNodeConfig(runtime_id)) => {
                     println!(
                         "[Executor] Skipping remote node {} (belongs to runtime {})",
                         node_id, runtime_id
                     );
                 }
+
                 None => {
                     return Err(ExecutionError::NodeSetupFailed {
                         message: format!("Node {} was not found in ExecutionConfig", node_id),
@@ -166,20 +171,45 @@ impl StandardExecutor {
         node: Box<dyn Node>,
         node_id: NodeId,
         execution_mode: ExecutionMode,
+        abstract_flow: &AbstractFlow,
     ) -> Result<ExecutionNode, ExecutionError> {
-        match ThreadCommunicator::<String>::new() {
-            Ok(thread_comm) => {
-                let node_comm = NodeCommunicator::ThreadComm(thread_comm);
-                let control_edge = Edge::<String>::new(node_comm);
-                Ok(ExecutionNode::new(node, execution_mode, control_edge))
-            }
-            Err(err) => Err(ExecutionError::NodeSetupFailed {
+        // Create the control communicator
+        let thread_comm =
+            ThreadCommunicator::<String>::new().map_err(|err| ExecutionError::NodeSetupFailed {
                 message: format!(
                     "Failed to create thread communicator for node {}: {}",
                     node_id, err
                 ),
-            }),
+            })?;
+
+        let node_comm = NodeCommunicator::ThreadComm(thread_comm);
+        let control_edge = Edge::<String>::new(node_comm);
+
+        // Gather input type IDs for this node from the abstract flow
+        let mut input_type_ids = HashMap::new();
+        for conn in abstract_flow.get_connections() {
+            if conn.receiver_id == node_id {
+                match abstract_flow.get_connection_type(conn) {
+                    Some(type_id) => {
+                        if let Some((_, type_id)) = abstract_flow.get_connection_type(conn) {
+                            input_type_ids.insert(conn.recv_in_idx, type_id);
+                        }
+                    }
+                    None => {
+                        return Err(ExecutionError::NodeSetupFailed {
+                            message: format!("Missing type ID for input of node {}", node_id),
+                        });
+                    }
+                }
+            }
         }
+
+        Ok(ExecutionNode::new(
+            node,
+            execution_mode,
+            control_edge,
+            input_type_ids,
+        ))
     }
 
     /// **Ensure all nodes are in ready state before execution**

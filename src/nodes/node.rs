@@ -1,7 +1,7 @@
 //use anyhow::Result;
 use anyhow::anyhow;
 use std::{
-    any::Any,
+    any::{Any, TypeId},
     collections::HashMap,
     fmt,
     str::FromStr,
@@ -13,6 +13,7 @@ use tokio::time::{sleep, Duration};
 use crate::{
     comm::messages::Message,
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
+    flow::flow_types::NodeIOIndex,
 };
 
 use super::{
@@ -131,6 +132,7 @@ pub struct ExecutionNode {
     execution_state: ExecutionState,
     pub node: Box<dyn Node>,
     control_edge: Edge<String>,
+    input_type_ids: HashMap<NodeIOIndex, TypeId>,
 }
 
 impl ExecutionNode {
@@ -138,12 +140,14 @@ impl ExecutionNode {
         node: Box<dyn Node + Send + Sync>,
         execution_mode: ExecutionMode,
         control_edge: Edge<String>,
+        input_type_ids: HashMap<NodeIOIndex, TypeId>,
     ) -> Self {
         ExecutionNode {
             node,
-            execution_mode: execution_mode,
+            execution_mode,
             execution_state: ExecutionState::Initialized,
-            control_edge: control_edge,
+            control_edge,
+            input_type_ids,
         }
     }
 

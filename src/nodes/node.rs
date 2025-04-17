@@ -14,7 +14,7 @@ use crate::{
     comm::messages::Message,
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
     flow::flow_types::NodeIOIndex,
-    types::type_registry::{PollFn, TYPE_REGISTRY},
+    types::type_registry::{PollFn, POLL_REGISTRY, TYPE_REGISTRY},
 };
 
 use super::{
@@ -295,10 +295,10 @@ impl ExecutionNode {
                     // Poll all inputs dynamically
                     println!("[ExecutionNode] Polling all inputs...");
                     let io = self.node.get_io_mut();
-                    let mut registry = TYPE_REGISTRY.lock().await;
+                    let mut registry = POLL_REGISTRY.lock().await;
 
                     for (idx, type_id) in &self.input_type_ids {
-                        if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
+                        if let Some(poll_fn) = registry.get_mut(&type_id) {
                             match poll_fn.poll(io).await {
                                 Ok(_) => (),
                                 Err(ReceiveError::ControlMessage(msg)) => {

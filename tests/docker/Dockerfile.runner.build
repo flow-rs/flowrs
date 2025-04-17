@@ -1,15 +1,38 @@
-FROM rust:latest
+FROM rust:latest AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy the flow-project source code from the build-repo
+# Copy dependency files first for caching
+COPY /flowrs-build/Cargo.toml .
+COPY /flowrs-build/Cargo.lock .
+
+# Fetch dependencies and cache the layer
+RUN cargo fetch
+
+# Copy the rest of the source code
 COPY /flowrs-build /app
 
-#CMD ["ls", "/app"]
-
 # Compile the Rust project for Linux
-RUN cargo build --release
+RUN cargo update
+RUN cargo build --release --config 'profile.release.debug=true'
 
-# Expose the compiled dynamic library
-CMD ["cp", "/app/target/release/runner_main", "/output/runner_main"]
+# Debug: Ensure the file is built
+RUN ls -lah /app/target/release
+
+# === Second Stage ===
+FROM debian:bullseye-slim
+WORKDIR /output
+
+# Ensure the target directory exists
+RUN mkdir -p /output
+
+# Copy the built binary from the builder stage
+COPY --from=builder /app/target/release/runner_main /output/runner_main
+
+# Debug: Verify the file was copied
+RUN ls -lah /output
+
+# No-op, final runtime has no action by default
+#CMD ["true"]
+CMD ["/output/runner_main"]

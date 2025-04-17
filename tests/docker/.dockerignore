@@ -1,0 +1,8 @@
+# Ignore unnecessary files
+**/.git
+**/target
+**/node_modules
+**/*.log
+**/*.tmp
+Dockerfile.*
+docker-compose.yml

@@ -1,6 +1,7 @@
 FROM rust:latest
 WORKDIR /app
 COPY ./output/runner_main ./runner_main
-COPY ./output/libflow_project_01.so ./libflow_project_01
+COPY ./output/libflow_project.so ./libflow_project
+ENV RUST_BACKTRACE=1
 RUN chmod +x ./runner_main
 ENTRYPOINT ["./runner_main"]

@@ -1,6 +1,7 @@
 # Start the distributed test environment
 Write-Host "Starting distributed test environment..."
-docker-compose -f .\docker\docker-compose.yml up orchestrator nodert1 nodert2 --abort-on-container-exit
+docker-compose -f ./docker/docker-compose.yml up orchestrator nodert1 nodert2 --abort-on-container-exit
+ 
 
 # Collect logs from the containers
 Write-Host "Collecting logs..."

@@ -110,7 +110,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
-    pub poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
+    //pub poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
     pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
     output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
@@ -124,7 +124,7 @@ impl TypeRegistry {
             name_to_id: HashMap::new(),
             input_setters: HashMap::new(),
             output_setters_with_connect: HashMap::new(),
-            poll_fns: HashMap::new(),
+            //poll_fns: HashMap::new(),
         }
     }
 
@@ -285,14 +285,14 @@ impl TypeRegistry {
             })
         });
 
-        self.poll_fns
-            .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
+        //self.poll_fns
+        //    .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
     }
 
-    /// Get a mutable reference to a polling function for a given type
-    pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
-        self.poll_fns.get_mut(type_id)
-    }
+    // Get a mutable reference to a polling function for a given type
+    // pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
+    //     self.poll_fns.get_mut(type_id)
+    // }
 }
 
 #[async_trait]
@@ -309,6 +309,36 @@ where
         let result = (self)(io).await;
         result.map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))
     }
+}
+
+pub struct PollRegistry {
+    poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
+}
+
+impl PollRegistry {
+    pub fn new() -> Self {
+        Self {
+            poll_fns: HashMap::new(),
+        }
+    }
+
+    pub fn register_poll_fn<T>(&mut self, poll_fn: PollFn<T>)
+    where
+        T: 'static + Send + Clone + Debug + FromStr,
+    {
+        self.poll_fns.insert(
+            TypeId::of::<T>(),
+            Box::new(poll_fn) as Box<dyn PollFnErased>,
+        );
+    }
+
+    pub fn get_mut(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
+        self.poll_fns.get_mut(type_id)
+    }
+}
+
+lazy_static! {
+    pub static ref POLL_REGISTRY: Mutex<PollRegistry> = Mutex::new(PollRegistry::new());
 }
 
 lazy_static! {

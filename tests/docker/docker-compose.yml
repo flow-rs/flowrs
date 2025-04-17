@@ -3,51 +3,66 @@ services:
     build:
       context: ../../../
       dockerfile: /flowrs/tests/docker/Dockerfile.runner.build
+    environment:
+      - RUST_BACKTRACE=1
     volumes:
-      - ./output:/output   # Store the compiled runner in the output folder
+      - ./docker/output1:/output   # Store the compiled runner in the output folder
     
   build-library:
     build:
       context: ../../../
       dockerfile: /flowrs/tests/docker/Dockerfile.lib.build
+    environment:
+      - RUST_BACKTRACE=1
     volumes:
-      - ./output:/output   # Store the compiled library in the output folder
+      - ./docker/output1:/output   # Store the compiled library in the output folder
+
+  base-runtime:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile.test
+    volumes:
+      - ./docker/output:/output
+    networks:
+      - test-net
+    environment:
+      - LD_LIBRARY_PATH=/output
+      - RUST_BACKTRACE=1
+    entrypoint: /bin/true  # No-op container for sharing base image
 
   orchestrator:
-    build:
-      context: ../
-      dockerfile: ./docker/Dockerfile.test
+    image: docker-base-runtime
     command: ["--role", "orchestrator", "--flow", "/output/libflow_project.so"]
-    volumes:
-      - ./output:/output
-    environment:
-      - LD_LIBRARY_PATH=/output
+    # depends_on:
+    #   - nodert1
+    #   - nodert2
     networks:
       - test-net
+    # ports: 
+    #   - "5000:5000"
+    #   - "4999:4999"
+    environment:
+    - RUST_BACKTRACE=1
 
   nodert1:
-    build:
-      context: ../
-      dockerfile: ./docker/Dockerfile.test
-    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so"]
-    volumes:
-      - ./output:/output
-    environment:
-      - LD_LIBRARY_PATH=/output
+    image: docker-base-runtime
+    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so", "--runtime-id", "1"]
     networks:
       - test-net
+    # ports: 
+    #   - "5001:5000"
+    environment:
+    - RUST_BACKTRACE=1
 
   nodert2:
-    build:
-      context: ../
-      dockerfile: ./docker/Dockerfile.test
-    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so"]
-    volumes:
-      - ./output:/output
-    environment:
-      - LD_LIBRARY_PATH=/output
+    image: docker-base-runtime
+    command: ["--role", "node-runtime", "--flow", "/output/libflow_project.so", "--runtime-id", "2"]
     networks:
       - test-net
+    # ports: 
+    #   - "5002:5000"
+    environment:
+    - RUST_BACKTRACE=1
 
 networks:
   test-net:

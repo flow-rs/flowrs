@@ -1,7 +1,14 @@
-FROM rust:latest
+FROM rust:latest AS builder
 
 # Set working directory
 WORKDIR /app
+
+# Copy dependency files first for caching
+COPY ../flowrs-build/flow-projects/flow_project_01/Cargo.toml .
+COPY ../flowrs-build/flow-projects/flow_project_01/Cargo.lock .
+
+# Fetch dependencies and cache the layer
+RUN cargo fetch
 
 # Copy the flow-project source code from the build-repo
 COPY ../flowrs-build/flow-projects/flow_project_01 /app
@@ -9,5 +16,20 @@ COPY ../flowrs-build/flow-projects/flow_project_01 /app
 # Compile the Rust project for Linux
 RUN cargo build --release
 
-# Expose the compiled dynamic library
-CMD ["cp", "/app/target/release/libflow_project_01.so", "/output/libflow_project.so"]
+# separation for improved performance
+FROM debian:bullseye-slim
+WORKDIR /output
+
+# Ensure the target directory exists
+RUN mkdir -p /output
+
+# expose the compiled library
+COPY --from=builder /app/target/release/libflow_project* /output/libflow_project.so
+#RUN ls -lah /output && sleep 20
+RUN sleep 5
+#COPY --from=builder /app/target/release/libflow_project.so /output/libflow_project.so
+#COPY --from=builder /app/libflow_project.so /output/libflow_project.so
+
+# No-op, final runtime has no action by default
+#RUN cp /app/target/release/libflow_project_01.so /output/libflow_project.so
+CMD ["true"]

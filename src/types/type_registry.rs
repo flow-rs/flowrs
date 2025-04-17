@@ -3,10 +3,13 @@ use crate::comm::communication::NodeCommunicator;
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
 use crate::comm::network_communicator::NetworkCommunicator;
+use crate::connection::Edge;
+use crate::node::ReceiveError;
 use crate::nodes::node_io::SettableCommunicator;
 use crate::nodes::node_io::SetupIO;
 use crate::nodes::node_io::TypedInput;
 use crate::nodes::node_io::TypedOutput;
+use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::FutureExt;
 use futures::TryFutureExt;
@@ -38,6 +41,14 @@ type OutputSetterWithConnectFn =
         String,
         u16,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
+pub type PollResult = Result<(), ReceiveError<String>>;
+pub type PollFn<T> = Box<
+    dyn for<'a> FnMut(
+            &'a mut dyn SetupIO,
+        )
+            -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<T>>> + Send + 'a>>
+        + Send,
+>;
 
 #[async_trait]
 pub trait CommunicatorBox: Send + Sync {
@@ -98,6 +109,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
+    poll_fns: HashMap<TypeId, Box<dyn Any + Send>>,
     pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
     output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
@@ -111,6 +123,7 @@ impl TypeRegistry {
             name_to_id: HashMap::new(),
             input_setters: HashMap::new(),
             output_setters_with_connect: HashMap::new(),
+            poll_fns: HashMap::new(),
         }
     }
 
@@ -247,6 +260,31 @@ impl TypeRegistry {
             .ok_or_else(|| format!("No input setter for type: {}", type_name))?;
 
         setter(node_io, input_idx, communicator)
+    }
+
+    pub fn register_poll_functions<T>(&mut self)
+    where
+        T: 'static + Send + Clone + Debug + FromStr,
+    {
+        let type_id = TypeId::of::<T>();
+
+        let func: PollFn<T> = Box::new(|io: &mut dyn SetupIO| {
+            Box::pin(async move {
+                for idx in 0..io.get_input_count() {
+                    if let Some(edge_any) = io.get_input_communicator(idx) {
+                        let edge = edge_any
+                            .downcast_mut::<Edge<T>>()
+                            .ok_or_else(|| ReceiveError::<T>::Other(anyhow!("Downcast failed")))?;
+
+                        edge.poll_and_buffer().await?;
+                    }
+                }
+                Ok(())
+            })
+        });
+
+        self.poll_fns
+            .insert(type_id, Box::new(func) as Box<dyn Any + Send>);
     }
 }
 

@@ -240,7 +240,7 @@ impl ExecutionNode {
                 self.execution_state = ExecutionState::Running;
 
                 println!(
-                    "[ExecutionNode] ▶ Entered on_update_async() | Mode: {:?}, State: {:?}",
+                    "[ExecutionNode] Entered on_update_async() | Mode: {:?}, State: {:?}",
                     self.execution_mode, self.execution_state
                 );
 
@@ -248,15 +248,15 @@ impl ExecutionNode {
 
                 loop {
                     println!(
-                        "\n[ExecutionNode] 🔁 Loop tick for node... State: {:?}",
+                        "\n[ExecutionNode] Loop tick for node... State: {:?}",
                         self.execution_state
                     );
 
                     // Shutdown check
                     if self.execution_state == ExecutionState::Shutdown {
-                        println!("[ExecutionNode] ⏹ Shutdown triggered.");
+                        println!("[ExecutionNode] Shutdown triggered.");
                         if let Err(e) = self.on_shutdown() {
-                            println!("[WARN] ⚠️ Shutdown failed: {}", e);
+                            println!("[WARN] Shutdown failed: {}", e);
                         }
                         break;
                     }
@@ -264,60 +264,48 @@ impl ExecutionNode {
                     // Control message check
                     match self.control_edge.try_message().await {
                         Ok(Some(msg)) => {
-                            println!("[ExecutionNode] 📩 Control message received: {:?}", msg);
+                            println!("[ExecutionNode] Control message received: {:?}", msg);
                             self.on_message(msg);
                         }
                         Ok(None) => {
-                            println!("[ExecutionNode] ℹ No control message available.");
+                            println!("[ExecutionNode] No control message available.");
                         }
                         Err(e) => match e {
                             ReceiveError::ControlMessage(msg) => {
-                                println!("[ExecutionNode] ⚠ Control message error: {:?}", msg);
+                                println!("[ExecutionNode] Control message error: {:?}", msg);
                                 return Err(UpdateError::ControlMessage(msg));
                             }
                             ReceiveError::Other(e) => {
-                                println!("[ExecutionNode] ❌ Receive error: {}", e);
+                                println!("[ExecutionNode] Receive error: {}", e);
                                 return Err(UpdateError::RecvError {
                                     message: e.to_string(),
                                 });
                             }
                             ReceiveError::NoMessageAvailable => {
-                                println!("[ExecutionNode] ℹ No control message available.");
+                                println!("[ExecutionNode] No control message available.");
                             }
                         },
                     }
 
-                    // Poll all inputs
-                    println!("[ExecutionNode] 🔍 Polling all inputs...");
+                    // Poll all inputs using the SetupIO trait
+                    println!("[ExecutionNode] Polling all inputs...");
                     let io = self.node.get_io_mut();
-
-                    let input_count = io.get_input_count();
-                    for idx in 0..input_count {
-                        println!("[ExecutionNode]   ↪ Polling input index {idx}...");
-                        match get_input_edge_mut::<String>(io, idx) {
-                            Some(edge) => {
-                                match edge.poll_and_buffer().await {
-                                    Ok(()) => {
-                                        if edge.has_data() {
-                                            println!(
-                                                "[ExecutionNode]   ✅ Input[{idx}] has data: {:?}",
-                                                edge.buffer
-                                            );
-                                        } else {
-                                            println!("[ExecutionNode]   ⚠ Input[{idx}] has no data (None)");
-                                        }
-                                    }
-                                    Err(ReceiveError::ControlMessage(msg)) => {
-                                        println!("[ExecutionNode]   ⚠ Control message on input[{idx}]: {:?}", msg);
-                                    }
-                                    Err(e) => {
-                                        println!("[ExecutionNode]   ❌ Error polling input[{idx}]: {e:?}");
-                                    }
-                                }
-                            }
-                            None => {
-                                println!("[ExecutionNode]   ❓ No edge found at input[{idx}]");
-                            }
+                    match io.poll_inputs().await {
+                        Ok(_) => {
+                            println!("[ExecutionNode] Input polling completed.");
+                        }
+                        Err(ReceiveError::ControlMessage(msg)) => {
+                            println!(
+                                "[ExecutionNode] ⚠ Control message during input polling: {:?}",
+                                msg
+                            );
+                            return Err(UpdateError::ControlMessage(msg));
+                        }
+                        Err(e) => {
+                            println!("[ExecutionNode] Error polling inputs: {:?}", e);
+                            return Err(UpdateError::RecvError {
+                                message: e.to_string(),
+                            });
                         }
                     }
 
@@ -326,18 +314,18 @@ impl ExecutionNode {
                     result = self.node.on_update();
 
                     match result {
-                        Ok(_) => println!("[ExecutionNode] ✅ Node logic executed successfully."),
-                        Err(ref e) => println!("[ExecutionNode] ❌ Node logic error: {:?}", e),
+                        Ok(_) => println!("[ExecutionNode] Node logic executed successfully."),
+                        Err(ref e) => println!("[ExecutionNode] Node logic error: {:?}", e),
                     }
 
                     match self.execution_mode {
                         ExecutionMode::Synchronized => {
-                            println!("[ExecutionNode] ⏹ Exiting loop (Synchronized mode)");
+                            println!("[ExecutionNode] Exiting loop (Synchronized mode)");
                             self.execution_state = ExecutionState::Ready;
                             break;
                         }
                         ExecutionMode::Continuous => {
-                            println!("[ExecutionNode] 🔄 Looping again after delay...");
+                            println!("[ExecutionNode] Looping again after delay...");
                             sleep(Duration::from_secs(1)).await;
                             continue;
                         }

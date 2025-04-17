@@ -8,6 +8,7 @@ use tokio::runtime::Runtime;
 use super::connection::Input;
 use super::connection::Output;
 use super::connection::{Edge, EdgeTrait};
+use super::node::ReceiveError;
 use crate::comm::communication::{Communicator, NodeCommunicator};
 
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
@@ -921,13 +922,16 @@ where
     }
 }
 
+#[async_trait]
 pub trait SetupIO: Send + Sync + AsAny {
     fn get_input_count(&self) -> NodeIOIndex;
     fn get_output_count(&self) -> NodeIOIndex;
     fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
     fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
+    async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>>;
 }
 
+#[async_trait]
 impl<I, O> SetupIO for NodeIO<I, O>
 where
     I: SetupInputsSync + SetupInputs + Send + Sync + TupleIO + 'static,
@@ -947,6 +951,23 @@ where
 
     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut dyn Any> {
         TupleIO::get_output_communicator(&mut self.outputs, idx)
+    }
+
+    async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
+        for idx in 0..SetupIO::get_input_count(self) {
+            if let Some(any_edge) = self.get_input_communicator(idx) {
+                // This is safe *if* edges are always Edge<T> for same T across node
+                if let Some(edge) = any_edge.downcast_mut::<Edge<_>>() {
+                    edge.poll_and_buffer().await?;
+                } else {
+                    println!(
+                        "[WARN] Could not downcast edge at index {} during polling.",
+                        idx
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 }
 

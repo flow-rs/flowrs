@@ -118,7 +118,7 @@ impl StandardExecutor {
         let mut initialized_nodes = HashMap::new();
 
         for (node_id, node) in abstract_flow.lock().await.move_nodes() {
-            let abstract_flow_guard = abstract_flow.lock().await;
+            //let abstract_flow_guard = abstract_flow.lock().await;
 
             match execution_config.node_configs.get(&node_id) {
                 Some(NodeConfig::LocalNodeConfig) => {
@@ -127,7 +127,7 @@ impl StandardExecutor {
                             node,
                             node_id,
                             self.execution_mode.clone(),
-                            &abstract_flow_guard,
+                            Arc::clone(&abstract_flow),
                         )
                         .await?,
                     ));
@@ -171,7 +171,7 @@ impl StandardExecutor {
         node: Box<dyn Node>,
         node_id: NodeId,
         execution_mode: ExecutionMode,
-        abstract_flow: &AbstractFlow,
+        abstract_flow: Arc<Mutex<AbstractFlow>>,
     ) -> Result<ExecutionNode, ExecutionError> {
         // Create the control communicator
         let thread_comm =
@@ -187,11 +187,12 @@ impl StandardExecutor {
 
         // Gather input type IDs for this node from the abstract flow
         let mut input_type_ids = HashMap::new();
-        for conn in abstract_flow.get_connections() {
+        let abstract_flow_guard = abstract_flow.lock().await;
+        for conn in abstract_flow_guard.get_connections() {
             if conn.receiver_id == node_id {
-                match abstract_flow.get_connection_type(conn) {
+                match abstract_flow_guard.get_connection_type(conn) {
                     Some(type_id) => {
-                        if let Some((_, type_id)) = abstract_flow.get_connection_type(conn) {
+                        if let Some((_, type_id)) = abstract_flow_guard.get_connection_type(conn) {
                             input_type_ids.insert(conn.recv_in_idx, type_id);
                         }
                     }
@@ -203,6 +204,7 @@ impl StandardExecutor {
                 }
             }
         }
+        drop(abstract_flow_guard);
 
         Ok(ExecutionNode::new(
             node,

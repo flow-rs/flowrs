@@ -22,7 +22,7 @@ use crate::comm::network_communicator::NetworkCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::connection::Edge;
 use crate::flow::execution_flow::ExecutionFlow;
-use crate::flow::flow_types::NodeId;
+use crate::flow::flow_types::{NodeIOIndex, NodeId};
 use crate::node::{ExecutionNode, Node};
 use crate::nodes::connection::EdgeTrait;
 use crate::types::type_registry::TYPE_REGISTRY;
@@ -117,22 +117,66 @@ impl StandardExecutor {
 
         let mut initialized_nodes = HashMap::new();
 
-        for (node_id, node) in abstract_flow.lock().await.move_nodes() {
-            //let abstract_flow_guard = abstract_flow.lock().await;
+        // Lock the flow and drain the nodes into a temporary vector
+        let drained_nodes = {
+            let mut flow_guard = abstract_flow.lock().await;
+            flow_guard.move_nodes().collect::<Vec<_>>() // collect drops the drain (mutable borrow)
+        };
 
+        // Re-lock for read access now that the mutable borrow is gone
+        let flow_guard = abstract_flow.lock().await;
+
+        println!(
+            "[Executor] Retrieved {} nodes from flow",
+            drained_nodes.len()
+        );
+
+        for (node_id, node) in drained_nodes {
             match execution_config.node_configs.get(&node_id) {
                 Some(NodeConfig::LocalNodeConfig) => {
-                    let execution_node = Arc::new(Mutex::new(
-                        self.create_local_execution_node(
-                            node,
-                            node_id,
-                            self.execution_mode.clone(),
-                            Arc::clone(&abstract_flow),
-                        )
-                        .await?,
-                    ));
-                    initialized_nodes.insert(node_id, execution_node);
-                    println!("[Executor] Node {} initialized.", node_id);
+                    println!("[Executor] Creating execution node for ID: {}", node_id);
+
+                    // Collect input type IDs for this node
+                    let mut input_type_ids = HashMap::new();
+                    for conn in flow_guard.get_connections() {
+                        if conn.receiver_id == node_id {
+                            if let Some((_, type_id)) = flow_guard.get_connection_type(conn) {
+                                input_type_ids.insert(conn.recv_in_idx, type_id);
+                            } else {
+                                return Err(ExecutionError::NodeSetupFailed {
+                                    message: format!(
+                                        "Missing type ID for input of node {}",
+                                        node_id
+                                    ),
+                                });
+                            }
+                        }
+                    }
+
+                    // Create the node (now synchronous, no await)
+                    match self.create_local_execution_node(
+                        node,
+                        node_id,
+                        self.execution_mode.clone(),
+                        input_type_ids,
+                    ) {
+                        Ok(execution_node) => {
+                            let execution_node = Arc::new(Mutex::new(execution_node));
+                            initialized_nodes.insert(node_id, execution_node);
+                            println!("[Executor] Node {} initialized.", node_id);
+                        }
+
+                        Err(e) => {
+                            println!(
+                                "[ERROR] Failed to initialize node {}: {}",
+                                node_id,
+                                e.to_string()
+                            );
+                            return Err(ExecutionError::NodeSetupFailed {
+                                message: format!("Node {} setup failed: {}", node_id, e),
+                            });
+                        }
+                    }
                 }
 
                 Some(NodeConfig::RemoteNodeConfig(runtime_id)) => {
@@ -157,6 +201,7 @@ impl StandardExecutor {
         }
 
         self.execution_nodes = initialized_nodes;
+
         println!(
             "[Executor] Successfully initialized {} local nodes.",
             self.execution_nodes.len()
@@ -166,14 +211,13 @@ impl StandardExecutor {
     }
 
     /// **Handles Local Node Creation**
-    async fn create_local_execution_node(
+    fn create_local_execution_node(
         &self,
         node: Box<dyn Node>,
         node_id: NodeId,
         execution_mode: ExecutionMode,
-        abstract_flow: Arc<Mutex<AbstractFlow>>,
+        input_type_ids: HashMap<NodeIOIndex, TypeId>,
     ) -> Result<ExecutionNode, ExecutionError> {
-        // Create the control communicator
         let thread_comm =
             ThreadCommunicator::<String>::new().map_err(|err| ExecutionError::NodeSetupFailed {
                 message: format!(
@@ -185,27 +229,6 @@ impl StandardExecutor {
         let node_comm = NodeCommunicator::ThreadComm(thread_comm);
         let control_edge = Edge::<String>::new(node_comm);
 
-        // Gather input type IDs for this node from the abstract flow
-        let mut input_type_ids = HashMap::new();
-        let abstract_flow_guard = abstract_flow.lock().await;
-        for conn in abstract_flow_guard.get_connections() {
-            if conn.receiver_id == node_id {
-                match abstract_flow_guard.get_connection_type(conn) {
-                    Some(type_id) => {
-                        if let Some((_, type_id)) = abstract_flow_guard.get_connection_type(conn) {
-                            input_type_ids.insert(conn.recv_in_idx, type_id);
-                        }
-                    }
-                    None => {
-                        return Err(ExecutionError::NodeSetupFailed {
-                            message: format!("Missing type ID for input of node {}", node_id),
-                        });
-                    }
-                }
-            }
-        }
-        drop(abstract_flow_guard);
-
         Ok(ExecutionNode::new(
             node,
             execution_mode,
@@ -213,7 +236,6 @@ impl StandardExecutor {
             input_type_ids,
         ))
     }
-
     /// **Ensure all nodes are in ready state before execution**
     pub async fn ready_nodes(&self) -> Result<(), anyhow::Error> {
         println!("[Executor] Ensuring all nodes are in ready state...");

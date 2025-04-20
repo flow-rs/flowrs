@@ -323,26 +323,20 @@ where
         index: NodeIOIndex,
     ) -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<String>>> + Send + 'a>> {
         Box::pin(async move {
-            eprintln!("[DEBUG] [poll_indexed] entered future");
+            // Step 1: Retrieve the communicator (as dyn Any)
+            let comm = io
+                .get_input_communicator(index)
+                .ok_or_else(|| anyhow!("Missing input communicator"))?;
 
-            let comm = io.get_input_communicator(index).ok_or_else(|| {
-                eprintln!(
-                    "[DEBUG] [poll_indexed] no communicator found for index {:?}",
-                    index
-                );
-                anyhow!("Missing input communicator")
-            })?;
+            // Step 2: Get the type info before mutably borrowing comm
+            let actual_type_id = (*comm).type_id();
 
-            eprintln!(
-                "[DEBUG] Attempting downcast. Expected: TypedInput<{}>, but got: {:?}",
-                std::any::type_name::<T>(),
-                (*comm).type_id()
-            );
-
+            // Step 3: Attempt downcast to correct input type
             let typed_input = comm.downcast_mut::<TypedInput<T>>().ok_or_else(|| {
                 eprintln!(
-                    "[DEBUG] Downcast failed! Type was actually: {:?}",
-                    (*comm).type_id()
+                    "[DEBUG] Downcast failed! Expected: TypedInput<{}>, but got type ID: {:?}",
+                    std::any::type_name::<T>(),
+                    actual_type_id,
                 );
                 anyhow!(
                     "Downcast to TypedInput<{}> failed",
@@ -350,12 +344,14 @@ where
                 )
             })?;
 
+            // Step 4: Poll and buffer
             typed_input
                 .input
                 .edge
                 .poll_and_buffer()
                 .await
                 .map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))?;
+
             Ok(())
         })
     }

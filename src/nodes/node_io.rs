@@ -688,7 +688,7 @@ pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + C
 
 impl<T> SetupInputCommunicator<T> for TypedInput<T>
 where
-    T: 'static + Send + Sync + Debug + FromStr + Clone, // 🔥 Add these bounds
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
 {
     fn get_input_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
         self.input.get_communicator_mut()

@@ -5,6 +5,7 @@ use crate::comm::messages::Message;
 use crate::comm::network_communicator::NetworkCommunicator;
 use crate::connection::Edge;
 use crate::node::ReceiveError;
+use crate::nodes::node_io::NodeIO;
 use crate::nodes::node_io::SettableCommunicator;
 use crate::nodes::node_io::SetupIO;
 use crate::nodes::node_io::TypedInput;
@@ -299,52 +300,53 @@ impl TypeRegistry {
 pub trait PollFnErased: Send {
     async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>>;
 
-    async fn poll_indexed(
+    fn poll_indexed<'a>(
         &mut self,
-        io: &mut dyn SetupIO,
-        idx: NodeIOIndex,
-    ) -> Result<(), ReceiveError<String>>;
+        io: &'a mut dyn SetupIO,
+        index: NodeIOIndex,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<String>>> + Send + 'a>>;
 }
 
 #[async_trait]
 impl<T> PollFnErased for PollFn<T>
 where
-    T: 'static + Send + Clone + Debug + FromStr,
+    T: 'static + Send + Clone + Debug + FromStr + Sync,
 {
     async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>> {
         let result = (self)(io).await;
-        result.map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))
+        result.map_err(|e| ReceiveError::Other(anyhow!("{:?}", e)))
     }
 
-    async fn poll_indexed(
+    fn poll_indexed<'a>(
         &mut self,
-        io: &mut dyn SetupIO,
-        idx: NodeIOIndex,
-    ) -> Result<(), ReceiveError<String>> {
-        if let Some(edge_any) = io.get_input_communicator(idx) {
-            if let Some(edge) = edge_any.downcast_mut::<Edge<T>>() {
-                edge.poll_and_buffer().await.map_err(|e| {
-                    ReceiveError::Other(anyhow::anyhow!(
-                        "[PollFnErased] Polling failed for Edge<{}>: {:?}",
-                        std::any::type_name::<T>(),
-                        e
-                    ))
-                })
-            } else {
-                Err(ReceiveError::Other(anyhow::anyhow!(
-                    "[PollFnErased] Failed to downcast input at index {} to Edge<{}>",
-                    idx,
+        io: &'a mut dyn SetupIO,
+        index: NodeIOIndex,
+    ) -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<String>>> + Send + 'a>> {
+        Box::pin(async move {
+            // 👇 Downcast to correct NodeIO
+            let comm = io
+                .get_input_communicator(index)
+                .ok_or_else(|| anyhow!("Missing input communicator"))?;
+
+            // 👇 Downcast edge
+            let typed_input = comm.downcast_mut::<TypedInput<T>>().ok_or_else(|| {
+                anyhow!(
+                    "Downcast to TypedInput<{}> failed",
                     std::any::type_name::<T>()
-                )))
-            }
-        } else {
-            Err(ReceiveError::Other(anyhow::anyhow!(
-                "[PollFnErased] No input communicator at index {}",
-                idx
-            )))
-        }
+                )
+            })?;
+
+            typed_input
+                .input
+                .edge
+                .poll_and_buffer()
+                .await
+                .map_err(|e| ReceiveError::Other(anyhow::anyhow!("{:?}", e)))?;
+            Ok(())
+        })
     }
 }
+
 pub struct PollRegistry {
     poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
 }
@@ -358,7 +360,7 @@ impl PollRegistry {
 
     pub fn register_poll_fn<T>(&mut self, poll_fn: PollFn<T>)
     where
-        T: 'static + Send + Clone + Debug + FromStr,
+        T: 'static + Send + Sync + Clone + Debug + FromStr,
     {
         self.poll_fns.insert(
             TypeId::of::<T>(),

@@ -323,13 +323,27 @@ where
         index: NodeIOIndex,
     ) -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<String>>> + Send + 'a>> {
         Box::pin(async move {
-            // 👇 Downcast to correct NodeIO
-            let comm = io
-                .get_input_communicator(index)
-                .ok_or_else(|| anyhow!("Missing input communicator"))?;
+            eprintln!("[DEBUG] [poll_indexed] entered future");
 
-            // 👇 Downcast edge
+            let comm = io.get_input_communicator(index).ok_or_else(|| {
+                eprintln!(
+                    "[DEBUG] [poll_indexed] no communicator found for index {:?}",
+                    index
+                );
+                anyhow!("Missing input communicator")
+            })?;
+
+            eprintln!(
+                "[DEBUG] Attempting downcast. Expected: TypedInput<{}>, but got: {:?}",
+                std::any::type_name::<T>(),
+                (*comm).type_id()
+            );
+
             let typed_input = comm.downcast_mut::<TypedInput<T>>().ok_or_else(|| {
+                eprintln!(
+                    "[DEBUG] Downcast failed! Type was actually: {:?}",
+                    (*comm).type_id()
+                );
                 anyhow!(
                     "Downcast to TypedInput<{}> failed",
                     std::any::type_name::<T>()

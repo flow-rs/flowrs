@@ -9,9 +9,10 @@ use tokio::sync::Mutex;
 use crate::comm::communication::NodeCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::connection::Edge;
+use crate::exec::execution_node::ExecutionNode;
 use crate::flow::abstract_flow::AbstractFlow;
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
-use crate::node::{ExecutionNode, Node};
+use crate::node::Node;
 use crate::scheduler::Scheduler;
 
 use super::execution_configuration::{ExecutionConfig, NodeConfig};
@@ -217,7 +218,7 @@ impl StandardExecutor {
 
         for (node_id, execution_node) in &self.execution_nodes {
             let node_id = *node_id;
-            let execution_node = Arc::clone(execution_node);
+            let execution_node: Arc<Mutex<ExecutionNode>> = Arc::clone(execution_node);
             tokio::spawn(async move {
                 println!("[Executor] Running node {}...", node_id);
 

@@ -12,7 +12,10 @@ use tokio::time::{sleep, Duration};
 
 use crate::{
     comm::messages::Message,
-    exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
+    exec::{
+        execution_directive::NodeExecutionDirective, execution_mode::ExecutionMode,
+        execution_state::ExecutionState,
+    },
     flow::flow_types::NodeIOIndex,
     types::type_registry::POLL_REGISTRY,
 };
@@ -115,12 +118,13 @@ pub trait Node: Send + Sync {
         Ok(())
     }
 
-    // /// Some nodes might have a long-running task in their [`Node::on_update`] method.
-    // /// In this case, this method can return an [`UpdateController`] instance which can
-    // /// be used for cancelling the update.
-    // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
-    //     None
-    // }
+    /// Default directive behavior: wait for all inputs.
+    fn on_update_directive(&mut self) -> Result<NodeExecutionDirective, UpdateError> {
+        let count = self.get_input_count();
+        let required_inputs = (0..count).map(|i| i.into()).collect();
+
+        Ok(NodeExecutionDirective::WaitForInputs(required_inputs))
+    }
 
     fn get_input_count(&self) -> u128;
     fn get_output_count(&self) -> u128;
@@ -128,339 +132,6 @@ pub trait Node: Send + Sync {
     fn setup_output(&mut self, idx: u128, local: bool);
     fn get_io_mut(&mut self) -> &mut dyn SetupIO;
 }
-pub struct ExecutionNode {
-    execution_mode: ExecutionMode,
-    execution_state: ExecutionState,
-    pub node: Box<dyn Node>,
-    control_edge: Edge<String>,
-    input_type_ids: HashMap<NodeIOIndex, TypeId>,
-}
-
-impl ExecutionNode {
-    pub fn new(
-        node: Box<dyn Node + Send + Sync>,
-        execution_mode: ExecutionMode,
-        control_edge: Edge<String>,
-        input_type_ids: HashMap<NodeIOIndex, TypeId>,
-    ) -> Self {
-        ExecutionNode {
-            node,
-            execution_mode,
-            execution_state: ExecutionState::Initialized,
-            control_edge,
-            input_type_ids,
-        }
-    }
-
-    // fn get_input_count(&self) -> u128 {
-    //     self.node.get_input_count() // assume this is implemented per node
-    // }
-
-    // fn get_input_edge(&mut self, idx: usize) -> Option<&mut dyn Any> {
-    //     self.node.get_input(idx);
-    // }
-
-    // async fn probe_inputs(&mut self) {
-    //     for idx in 0..self.get_input_count() {
-    //         if let Some(any_edge) = self.get_input_edge(idx) {
-    //             if let Some(edge) = any_edge.downcast_mut::<Edge<_>>() {
-    //                 match edge.try_message().await {
-    //                     Ok(Some(Message::Data(data))) => edge.set_buffer(Some(data.get_data())),
-    //                     Ok(Some(_ctrl)) => {} // Control message — ignore for now
-    //                     Ok(None) => edge.set_buffer(None), // explicitly set None
-    //                     Err(e) => {
-    //                         println!("[WARN] Failed to receive message on input {idx}: {}", e);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    // async fn poll_and_buffer_all(&mut self) -> Result<(), UpdateError> {
-    //     let io = self.node.get_io_mut();
-    //     let input_count = io.get_input_count();
-
-    //     for idx in 0..input_count {
-    //         // NOTE: get_input_edge_mut is already defined in node_io.rs
-    //         if let Some(edge_any) = get_input_edge_mut(io, idx) {
-    //             if let Err(e) = edge_any.poll_and_buffer().await {
-    //                 match e {
-    //                     ReceiveError::ControlMessage(msg) => {
-    //                         return Err(UpdateError::ControlMessage(msg));
-    //                     }
-    //                     ReceiveError::Other(err) => {
-    //                         return Err(UpdateError::RecvError {
-    //                             message: err.to_string(),
-    //                         });
-    //                     }
-    //                     ReceiveError::NoMessageAvailable => {
-    //                         // This is expected in a non-blocking poll; just skip
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
-    pub fn on_message(&mut self, msg: Message<String>) {
-        match msg {
-            // Handle Peer Connection Messages
-            Message::RequestPeerConnection(sender, receiver, out_idx, in_idx, dtype) => {
-                println!(
-                    "[ExecutionNode] Received Peer Connection Request: {} -> {} (Out {} -> In {})",
-                    sender, receiver, out_idx, in_idx
-                );
-
-                // TODO: Implement logic to handle connection request.
-            }
-            Message::AcceptPeerConnection(sender, receiver, out_idx, in_idx, port) => {
-                println!(
-                    "[ExecutionNode] Peer Connection Accepted: {}(idx: {}) -> {}(idx: {}) on Port {}",
-                    sender, receiver,out_idx, in_idx, port
-                );
-
-                // TODO: Implement logic to finalize accepted connection.
-            }
-            Message::RejectPeerConnection(sender, receiver, out_idx, in_idx, reason) => {
-                println!(
-                    "[ExecutionNode] Peer Connection Rejected: {}(idx: {}) -> {}(idx: {}) | Reason: {}",
-                    sender, receiver, out_idx, in_idx, reason
-                );
-
-                // TODO: Handle rejected connections appropriately.
-            }
-            // Ignore all other messages
-            _ => {
-                println!("[ExecutionNode] Ignoring irrelevant message: {:?}", msg);
-            }
-        }
-    }
-
-    pub async fn on_update_async(&mut self) -> Result<(), UpdateError> {
-        match self.execution_state {
-            ExecutionState::Ready => {
-                self.execution_state = ExecutionState::Running;
-
-                println!(
-                    "[ExecutionNode] Entered on_update_async() | Mode: {:?}, State: {:?}",
-                    self.execution_mode, self.execution_state
-                );
-
-                let mut result = Ok(());
-
-                loop {
-                    println!(
-                        "\n[ExecutionNode] Loop tick for node... State: {:?}",
-                        self.execution_state
-                    );
-
-                    // Shutdown check
-                    if self.execution_state == ExecutionState::Shutdown {
-                        println!("[ExecutionNode] Shutdown triggered.");
-                        if let Err(e) = self.on_shutdown() {
-                            println!("[WARN] Shutdown failed: {}", e);
-                        }
-                        break;
-                    }
-
-                    // Check for control messages
-                    match self.control_edge.try_message().await {
-                        Ok(Some(msg)) => {
-                            println!("[ExecutionNode] Control message received: {:?}", msg);
-                            self.on_message(msg);
-                        }
-                        Ok(None) | Err(ReceiveError::NoMessageAvailable) => {
-                            println!("[ExecutionNode] No control message available.");
-                        }
-                        Err(ReceiveError::ControlMessage(msg)) => {
-                            println!("[ExecutionNode] Control message error: {:?}", msg);
-                            return Err(UpdateError::ControlMessage(msg));
-                        }
-                        Err(ReceiveError::Other(e)) => {
-                            println!("[ExecutionNode] Receive error: {}", e);
-                            return Err(UpdateError::RecvError {
-                                message: e.to_string(),
-                            });
-                        }
-                    }
-
-                    // Poll all inputs only if they don't already have buffered data
-                    println!("[ExecutionNode] Polling all inputs...");
-                    let io = self.node.get_io_mut();
-                    let mut registry = POLL_REGISTRY.lock().await;
-
-                    for (idx, type_id) in &self.input_type_ids {
-                        // Check if buffer is already filled
-                        if io.has_ready_input(*idx) {
-                            continue;
-                        }
-
-                        if let Some(poll_fn) = registry.get_mut(&type_id) {
-                            match poll_fn.poll(io).await {
-                                Ok(_) => (),
-                                Err(ReceiveError::ControlMessage(msg)) => {
-                                    return Err(UpdateError::ControlMessage(msg));
-                                }
-                                Err(e) => {
-                                    return Err(UpdateError::RecvError {
-                                        message: e.to_string(),
-                                    });
-                                }
-                            }
-                        } else {
-                            println!(
-                            "[ExecutionNode] No PollFn registered for TypeId {:?} (input idx: {:?})",
-                            type_id, idx
-                        );
-                        }
-                    }
-
-                    println!("[ExecutionNode] Input polling completed.");
-
-                    // Check if all inputs are ready before calling on_update()
-                    let io = self.node.get_io_mut();
-                    let all_inputs_ready = self
-                        .input_type_ids
-                        .keys()
-                        .all(|idx| io.has_ready_input(*idx));
-
-                    if !all_inputs_ready {
-                        println!(
-                            "[ExecutionNode] Skipping on_update() — not all inputs ready: {:?}",
-                            self.input_type_ids
-                                .keys()
-                                .filter(|idx| !io.has_ready_input(**idx))
-                                .collect::<Vec<_>>()
-                        );
-                    } else {
-                        println!("[ExecutionNode] ⚙ Calling node.on_update()...");
-                        result = self.node.on_update();
-
-                        match result {
-                            Ok(_) => {
-                                println!("[ExecutionNode] Node logic executed successfully.")
-                            }
-                            Err(ref e) => println!("[ExecutionNode] Node logic error: {:?}", e),
-                        }
-                    }
-
-                    // Handle execution mode
-                    match self.execution_mode {
-                        ExecutionMode::Synchronized => {
-                            println!("[ExecutionNode] Exiting loop (Synchronized mode)");
-                            self.execution_state = ExecutionState::Ready;
-                            break;
-                        }
-                        ExecutionMode::Continuous => {
-                            println!("[ExecutionNode] Looping again after delay...");
-                            sleep(Duration::from_secs(1)).await;
-                            continue;
-                        }
-                    }
-                }
-
-                result
-            }
-
-            ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
-                message: "The node is Sleeping".to_string(),
-            }),
-            ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
-                message: "The node is Running".to_string(),
-            }),
-            ExecutionState::Initialized => Err(UpdateError::NotReadyError {
-                message: "The node is not ready".to_string(),
-            }),
-            ExecutionState::Shutdown => Ok(()),
-        }
-    }
-
-    // pub async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
-    //     let mut registry = POLL_REGISTRY.lock().await;
-
-    //     for (idx, type_id) in self.input_type_ids.iter() {
-    //         if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
-    //             poll_fn.poll_indexed(self.node.get_io_mut(), *idx).await?;
-    //         } else {
-    //             println!(
-    //                 "[WARN] No poll function registered for input index {} (type_id = {:?})",
-    //                 idx, type_id
-    //             );
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-}
-
-impl Node for ExecutionNode {
-    fn set_execution_mode(&mut self, mode: ExecutionMode) -> ExecutionMode {
-        self.execution_mode = mode.clone();
-        mode
-    }
-
-    fn on_update(&mut self) -> Result<(), UpdateError> {
-        Err(UpdateError::Other(anyhow!(
-            "ExecutionNode requires async context.".to_string(),
-        )))
-    }
-
-    fn get_execution_mode(&self) -> ExecutionMode {
-        ExecutionMode::Continuous
-    }
-
-    fn on_init(&mut self) -> Result<(), InitError> {
-        Ok(())
-    }
-
-    fn on_ready(&mut self) -> Result<(), ReadyError> {
-        if self.execution_state == ExecutionState::Initialized {
-            println!("[ExecutionNode] Node is now READY.");
-            self.execution_state = ExecutionState::Ready;
-            Ok(())
-        } else {
-            Err(ReadyError::from(
-                format!(
-                    "Node is not in an initialized state: {}",
-                    self.execution_state,
-                )
-                .as_str(),
-            ))
-        }
-    }
-
-    fn on_shutdown(&mut self) -> Result<(), ShutdownError> {
-        Ok(())
-    }
-
-    // fn update_controller(&self) -> Option<Box<dyn UpdateController>> {
-    //     None
-    // }
-
-    fn get_input_count(&self) -> u128 {
-        self.node.get_input_count()
-    }
-
-    fn get_output_count(&self) -> u128 {
-        self.node.get_output_count()
-    }
-
-    fn setup_input(&mut self, idx: u128, local: bool) {
-        self.node.setup_input(idx, local);
-    }
-
-    fn setup_output(&mut self, idx: u128, local: bool) {
-        self.node.setup_output(idx, local);
-    }
-
-    fn get_io_mut(&mut self) -> &mut dyn SetupIO {
-        self.node.get_io_mut() // Now correctly returns `&mut dyn SetupIO`
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum InitError {
     //TODO: Add init specific errors.
@@ -515,15 +186,6 @@ where
     ControlMessage(Message<D>),
     NoMessageAvailable,
 }
-
-// impl<D> fmt::Display for ReceiveError<D>
-// where
-//     D: Clone + fmt::Debug + FromStr,
-// {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{:?}", self)
-//     }
-// }
 
 impl<D> ToString for ReceiveError<D>
 where

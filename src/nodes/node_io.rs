@@ -1,6 +1,5 @@
 use crate::comm::thread_communicator::{Splittable, ThreadCommunicator};
 use crate::flow::flow_types::NodeIOIndex;
-use crate::types::type_registry::POLL_REGISTRY;
 use async_trait::async_trait;
 use std::any::Any;
 use std::{fmt::Debug, str::FromStr};
@@ -9,7 +8,6 @@ use tokio::runtime::Runtime;
 use super::connection::Input;
 use super::connection::Output;
 use super::connection::{Edge, EdgeTrait};
-use super::node::ReceiveError;
 use crate::comm::communication::{Communicator, NodeCommunicator};
 
 /// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>

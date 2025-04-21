@@ -14,7 +14,7 @@ use crate::{
     comm::messages::Message,
     exec::{execution_mode::ExecutionMode, execution_state::ExecutionState},
     flow::flow_types::NodeIOIndex,
-    types::type_registry::{PollFn, POLL_REGISTRY, TYPE_REGISTRY},
+    types::type_registry::POLL_REGISTRY,
 };
 
 use super::{
@@ -266,38 +266,38 @@ impl ExecutionNode {
                         break;
                     }
 
-                    // Control message check
+                    // Check for control messages
                     match self.control_edge.try_message().await {
                         Ok(Some(msg)) => {
                             println!("[ExecutionNode] Control message received: {:?}", msg);
                             self.on_message(msg);
                         }
-                        Ok(None) => {
+                        Ok(None) | Err(ReceiveError::NoMessageAvailable) => {
                             println!("[ExecutionNode] No control message available.");
                         }
-                        Err(e) => match e {
-                            ReceiveError::ControlMessage(msg) => {
-                                println!("[ExecutionNode] Control message error: {:?}", msg);
-                                return Err(UpdateError::ControlMessage(msg));
-                            }
-                            ReceiveError::Other(e) => {
-                                println!("[ExecutionNode] Receive error: {}", e);
-                                return Err(UpdateError::RecvError {
-                                    message: e.to_string(),
-                                });
-                            }
-                            ReceiveError::NoMessageAvailable => {
-                                println!("[ExecutionNode] No control message available.");
-                            }
-                        },
+                        Err(ReceiveError::ControlMessage(msg)) => {
+                            println!("[ExecutionNode] Control message error: {:?}", msg);
+                            return Err(UpdateError::ControlMessage(msg));
+                        }
+                        Err(ReceiveError::Other(e)) => {
+                            println!("[ExecutionNode] Receive error: {}", e);
+                            return Err(UpdateError::RecvError {
+                                message: e.to_string(),
+                            });
+                        }
                     }
 
-                    // Poll all inputs dynamically
+                    // Poll all inputs only if they don't already have buffered data
                     println!("[ExecutionNode] Polling all inputs...");
                     let io = self.node.get_io_mut();
                     let mut registry = POLL_REGISTRY.lock().await;
 
                     for (idx, type_id) in &self.input_type_ids {
+                        // Check if buffer is already filled
+                        if io.has_ready_input(*idx) {
+                            continue;
+                        }
+
                         if let Some(poll_fn) = registry.get_mut(&type_id) {
                             match poll_fn.poll(io).await {
                                 Ok(_) => (),
@@ -312,23 +312,42 @@ impl ExecutionNode {
                             }
                         } else {
                             println!(
-                                "[ExecutionNode] ❌ No PollFn registered for TypeId {:?} (input idx {})",
-                                type_id, idx
-                            );
+                            "[ExecutionNode] No PollFn registered for TypeId {:?} (input idx: {:?})",
+                            type_id, idx
+                        );
                         }
                     }
 
                     println!("[ExecutionNode] Input polling completed.");
 
-                    // Call on_update
-                    println!("[ExecutionNode] ⚙ Calling node.on_update()...");
-                    result = self.node.on_update();
+                    // Check if all inputs are ready before calling on_update()
+                    let io = self.node.get_io_mut();
+                    let all_inputs_ready = self
+                        .input_type_ids
+                        .keys()
+                        .all(|idx| io.has_ready_input(*idx));
 
-                    match result {
-                        Ok(_) => println!("[ExecutionNode] Node logic executed successfully."),
-                        Err(ref e) => println!("[ExecutionNode] Node logic error: {:?}", e),
+                    if !all_inputs_ready {
+                        println!(
+                            "[ExecutionNode] Skipping on_update() — not all inputs ready: {:?}",
+                            self.input_type_ids
+                                .keys()
+                                .filter(|idx| !io.has_ready_input(**idx))
+                                .collect::<Vec<_>>()
+                        );
+                    } else {
+                        println!("[ExecutionNode] ⚙ Calling node.on_update()...");
+                        result = self.node.on_update();
+
+                        match result {
+                            Ok(_) => {
+                                println!("[ExecutionNode] Node logic executed successfully.")
+                            }
+                            Err(ref e) => println!("[ExecutionNode] Node logic error: {:?}", e),
+                        }
                     }
 
+                    // Handle execution mode
                     match self.execution_mode {
                         ExecutionMode::Synchronized => {
                             println!("[ExecutionNode] Exiting loop (Synchronized mode)");
@@ -359,22 +378,22 @@ impl ExecutionNode {
         }
     }
 
-    pub async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
-        let mut registry = POLL_REGISTRY.lock().await;
+    // pub async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
+    //     let mut registry = POLL_REGISTRY.lock().await;
 
-        for (idx, type_id) in self.input_type_ids.iter() {
-            if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
-                poll_fn.poll_indexed(self.node.get_io_mut(), *idx).await?;
-            } else {
-                println!(
-                    "[WARN] No poll function registered for input index {} (type_id = {:?})",
-                    idx, type_id
-                );
-            }
-        }
+    //     for (idx, type_id) in self.input_type_ids.iter() {
+    //         if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
+    //             poll_fn.poll_indexed(self.node.get_io_mut(), *idx).await?;
+    //         } else {
+    //             println!(
+    //                 "[WARN] No poll function registered for input index {} (type_id = {:?})",
+    //                 idx, type_id
+    //             );
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
 impl Node for ExecutionNode {

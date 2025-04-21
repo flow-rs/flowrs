@@ -225,25 +225,25 @@ impl ExecutionFlow {
     // }
 }
 
-/// Describes a Node and the number of its inputs and outputs
-pub struct NodeDesc {
-    node_input_count: usize,
-    node_output_count: usize,
-}
+// Describes a Node and the number of its inputs and outputs
+// pub struct NodeDesc {
+//     node_input_count: usize,
+//     node_output_count: usize,
+// }
 
-impl NodeDesc {
-    pub fn new(input_count: usize, output_count: usize) -> Self {
-        //let mut input_count = 0;
-        //let mut output_count = 0;
-        // if let Some(inputs) = node_type.clone().inputs {
-        //     input_count = inputs.len();
-        // }
-        // if let Some(outputs) = node_type.clone().outputs {
-        //     output_count = outputs.len();
-        // }
-        NodeDesc {
-            node_input_count: input_count,
-            node_output_count: output_count,
-        }
-    }
-}
+// impl NodeDesc {
+//     pub fn new(input_count: usize, output_count: usize) -> Self {
+//         //let mut input_count = 0;
+//         //let mut output_count = 0;
+//         // if let Some(inputs) = node_type.clone().inputs {
+//         //     input_count = inputs.len();
+//         // }
+//         // if let Some(outputs) = node_type.clone().outputs {
+//         //     output_count = outputs.len();
+//         // }
+//         NodeDesc {
+//             node_input_count: input_count,
+//             node_output_count: output_count,
+//         }
+//     }
+// }

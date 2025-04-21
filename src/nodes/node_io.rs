@@ -30,17 +30,8 @@ where
     O: SetupOutputs + SetupOutputsSync + Send + Sync,
 {
     pub fn new(inputs: I, outputs: O) -> Self {
-        //Self::register_io_types();
         Self { inputs, outputs }
     }
-
-    /// Register only base types `I` and `O`
-    // fn register_io_types() {
-    //     tokio::spawn(async move {
-    //         I::register_types().await;
-    //         O::register_types().await;
-    //     });
-    // }
 
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
         let rt = Runtime::new().unwrap();
@@ -141,41 +132,6 @@ where
     }
 }
 
-// impl<I, O> SplittableCommunicator for NodeIO<I, O>
-// where
-//     I: SetupInputsSync + SetupInputs + Send + Sync + 'static,
-//     O: SetupOutputsSync + SetupOutputs + Send + Sync + 'static,
-// {
-//     fn split(
-//         &mut self,
-//         idx: NodeIOIndex,
-//     ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-//         let output_count = self.outputs.get_output_count();
-
-//         // Access the communicator via the getter
-//         if let Some(output) = self.outputs.get_output(idx) {
-//             if let Some(splittable) = output.get_splittable() {
-//                 // Clone the sender part
-//                 let send_half = splittable.clone_send_any();
-//                 // Move the receiver part
-//                 let recv_half = splittable.move_recv_any();
-
-//                 // Wrap the split halves back into SettableCommunicator objects
-//                 (
-//                     Box::new(TypedOutput::from_any_communicator(send_half))
-//                         as Box<dyn SettableCommunicator>,
-//                     Box::new(TypedOutput::from_any_communicator(recv_half))
-//                         as Box<dyn SettableCommunicator>,
-//                 )
-//             } else {
-//                 panic!("Failed to access splittable communicator.");
-//             }
-//         } else {
-//             panic!("No communicator found at index {}", idx);
-//         }
-//     }
-// }
-
 pub trait SettableCommunicator: Send + Sync + AsAny {
     fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);
 }
@@ -206,21 +162,6 @@ where
     }
 }
 
-/// **Helper functions to register individual types within tuples**
-// async fn register_tuple_inputs<T>()
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     register_base_type::<T>().await;
-// }
-
-// async fn register_tuple_outputs<T>()
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     register_base_type::<T>().await;
-// }
-
 impl<T> SetupOutputsSync for TypedOutput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
@@ -232,81 +173,6 @@ where
     fn get_output_count(&self) -> NodeIOIndex {
         1 // Each `TypedOutput<T>` represents a single output
     }
-}
-
-// /// **Recursive function to register each type in a tuple**
-// async fn register_tuple<T>()
-// where
-//     T: 'static + Debug + Send + Sync,
-// {
-//     // This ensures that `T` is a valid type for registration.
-//     register_global::<T, _>(|| panic!("Cannot create instance of generic type")).await;
-// }
-
-/// **Helper trait to register base types from a tuple**
-// #[async_trait]
-// pub trait RegisterBaseTypes {
-//     async fn register_types();
-// }
-
-// /// **Base case for empty tuple (does nothing)**
-// #[async_trait]
-// impl RegisterBaseTypes for () {
-//     async fn register_types() {}
-// }
-
-// impl<T> RegisterBaseTypes for TypedInput<T>
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     #[must_use]
-//     #[allow(
-//         elided_named_lifetimes,
-//         clippy::type_complexity,
-//         clippy::type_repetition_in_bounds
-//     )]
-//     fn register_types<'async_trait>() -> ::core::pin::Pin<
-//         Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
-//     > {
-//         Box::pin(async move {
-//             register_base_type::<T>().await;
-//         })
-//     }
-// }
-
-// impl<T> RegisterBaseTypes for TypedOutput<T>
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     #[must_use]
-//     #[allow(
-//         elided_named_lifetimes,
-//         clippy::type_complexity,
-//         clippy::type_repetition_in_bounds
-//     )]
-//     fn register_types<'async_trait>() -> ::core::pin::Pin<
-//         Box<dyn ::core::future::Future<Output = ()> + ::core::marker::Send + 'async_trait>,
-//     > {
-//         Box::pin(async move {
-//             register_base_type::<T>().await;
-//         })
-//     }
-// }
-
-/// Try to get mutable access to an Edge<D> by index
-pub fn get_input_edge_mut<D: 'static>(
-    io: &mut dyn SetupIO,
-    idx: NodeIOIndex,
-) -> Option<&mut Edge<D>>
-where
-    D: Clone,
-    D: Debug,
-    D: FromStr,
-    D: Send + 'static,
-{
-    io.get_input_communicator(idx)
-        .and_then(|any| any.downcast_mut::<Input<D>>())
-        .map(|input| input.edge_mut())
 }
 
 /// **Traits for setting up inputs and outputs asynchronously**
@@ -355,26 +221,6 @@ where
     }
 }
 
-// impl<I, O> SetupInputCommunicator for NodeIO<I, O>
-// where
-//     I: SetupInputsSync + SetupInputs + SetupInputCommunicator,
-//     O: SetupOutputsSync + SetupOutputs,
-// {
-//     fn set_local_input_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
-//         self.inputs.set_local_input_communicator(idx, comm);
-//     }
-// }
-
-// impl<I, O> SetupOutputCommunicator for NodeIO<I, O>
-// where
-//     I: SetupInputsSync + SetupInputs,
-//     O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator,
-// {
-//     fn set_local_output_communicator(&mut self, idx: usize, comm: Box<dyn Any>) {
-//         self.outputs.set_local_output_communicator(idx, comm);
-//     }
-// }
-
 #[async_trait]
 impl<O> SetupOutputs for Output<O>
 where
@@ -409,17 +255,6 @@ impl SetupOutputs for () {
         // nothing to set up
     }
 }
-
-// impl<T, Rest> SetupInputsSync for (TypedInput<T>, Rest)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-//     Rest: SetupInputsSync,
-// {
-//     fn setup_input_sync(&mut self, idx: u128, local: bool) {
-//         self.0.input.setup_input_sync(idx, local);
-//         self.1.setup_input_sync(idx, local);
-//     }
-// }
 
 /// **Macro to generate `SetupInputs` implementations**
 #[macro_export]
@@ -609,40 +444,6 @@ where
     }
 }
 
-// impl SetupInputsSync for () {
-//     fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
-//         // No inputs, nothing to set up
-//     }
-// }
-
-// impl SetupOutputsSync for () {
-//     fn setup_output_sync(&mut self, _idx: u128, _local: bool) {
-//         // No outputs, nothing to set up
-//     }
-// }
-
-// Implement for single TypedOutput<T>
-// impl<T> SetupOutputsSync for (TypedOutput<T>,)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn setup_output_sync(&mut self, idx: u128, local: bool) {
-//         self.0.output.setup_output_sync(idx, local);
-//     }
-// }
-
-// Recursive implementation for tuples of TypedOutput
-// impl<T, Rest> SetupOutputsSync for (TypedOutput<T>, Rest)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-//     Rest: SetupOutputsSync,
-// {
-//     fn setup_output_sync(&mut self, idx: u128, local: bool) {
-//         self.0.output.setup_output_sync(idx, local);
-//         self.1.setup_output_sync(idx, local);
-//     }
-// }
-
 impl<D> SetupOutputsSync for Output<D>
 where
     D: 'static + Send + Sync + Debug + FromStr + Clone,
@@ -655,17 +456,6 @@ where
         1 // Single output
     }
 }
-
-// // Implement for single TypedInput<T>
-// impl<T> SetupInputsSync for (TypedInput<T>,)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn setup_input_sync(&mut self, idx: u128, local: bool) {
-//         self.0.input.setup_input_sync(idx, local);
-//     }
-// }
-
 impl<T> SetupInputsSync for TypedInput<T>
 where
     T: 'static + Send + Sync + Debug + FromStr + Clone,
@@ -753,67 +543,6 @@ where
         self.outputs.get_output_communicator(idx)
     }
 }
-
-// #[macro_export]
-// macro_rules! impl_register_base_types {
-//     // **Base case: Single element tuples**
-//     ($(($D:ident)),+ $(,)?) => {
-//         $(
-//         #[async_trait::async_trait]
-//         impl<$D> RegisterBaseTypes for (TypedOutput<$D>,)
-//         where
-//             $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
-//         {
-//             async fn register_types() {
-//                 register_base_type::<$D>().await;
-//             }
-//         }
-
-//         #[async_trait::async_trait]
-//         impl<$D> RegisterBaseTypes for (TypedInput<$D>,)
-//         where
-//             $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static,
-//         {
-//             async fn register_types() {
-//                 register_base_type::<$D>().await;
-//             }
-//         }
-//         )+
-//     };
-
-//     // **Recursive case: Multiple elements**
-//     ($(($($D:ident),+)),+ $(,)?) => {
-//         $(
-//         #[async_trait::async_trait]
-//         impl<$($D),+> RegisterBaseTypes for ($(TypedOutput<$D>,)+)
-//         where
-//             $(
-//                 $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
-//             ),+
-//         {
-//             async fn register_types() {
-//                 $(
-//                     register_base_type::<$D>().await;
-//                 )+
-//             }
-//         }
-
-//         #[async_trait::async_trait]
-//         impl<$($D),+> RegisterBaseTypes for ($(TypedInput<$D>,)+)
-//         where
-//             $(
-//                 $D: Clone + Send + Sync + std::fmt::Debug + std::str::FromStr + 'static
-//             ),+
-//         {
-//             async fn register_types() {
-//                 $(
-//                     register_base_type::<$D>().await;
-//                 )+
-//             }
-//         }
-//         )+
-//     };
-// }
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -929,10 +658,9 @@ pub trait SetupIO: Send + Sync + AsAny {
     fn get_output_count(&self) -> NodeIOIndex;
     fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
     fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
-    //async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>>;
+    fn has_ready_input(&self, idx: NodeIOIndex) -> bool;
 }
 
-//#[async_trait]
 impl<I, O> SetupIO for NodeIO<I, O>
 where
     I: SetupInputsSync + SetupInputs + Send + Sync + TupleIO + 'static,
@@ -954,23 +682,9 @@ where
         TupleIO::get_output_communicator(&mut self.outputs, idx)
     }
 
-    // async fn poll_inputs(&mut self) -> Result<(), ReceiveError<String>> {
-    //     let mut registry = POLL_REGISTRY.lock().await;
-
-    //     for (idx, type_id) in self.input_type_ids.iter() {
-    //         if let Some(poll_fn) = registry.get_poll_fn_erased(type_id) {
-    //             // Poll this specific input index
-    //             poll_fn.poll_indexed(self, *idx).await?;
-    //         } else {
-    //             println!(
-    //                 "[WARN] No poll function registered for input index {} (type_id = {:?})",
-    //                 idx, type_id
-    //             );
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
+    fn has_ready_input(&self, idx: NodeIOIndex) -> bool {
+        TupleIO::has_ready_input(&self.inputs, idx)
+    }
 }
 
 /// Helper trait for accessing tuple elements dynamically.
@@ -979,6 +693,7 @@ pub trait TupleIO: Send + Sync {
     fn get_input_count(&self) -> NodeIOIndex;
     fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
     fn get_input_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any>;
+    fn has_ready_input(&self, idx: NodeIOIndex) -> bool;
 }
 
 impl TupleIO for () {
@@ -997,51 +712,11 @@ impl TupleIO for () {
     fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
         None
     }
+
+    fn has_ready_input(&self, idx: NodeIOIndex) -> bool {
+        true //empty inputs should always lead to execution
+    }
 }
-
-// // Implementing TupleIO for a single output
-// impl<T> TupleIO for (TypedOutput<T>,)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_output_count(&self) -> NodeIOIndex {
-//         1
-//     }
-
-//     fn get_input_count(&self) -> NodeIOIndex {
-//         0
-//     }
-
-//     fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
-//         Some(&mut self.0.output as &mut dyn Any)
-//     }
-
-//     fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
-//         None
-//     }
-// }
-
-// // Implementing TupleIO for a single input
-// impl<T> TupleIO for (TypedInput<T>,)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_output_count(&self) -> NodeIOIndex {
-//         0
-//     }
-
-//     fn get_input_count(&self) -> NodeIOIndex {
-//         1
-//     }
-
-//     fn get_output_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
-//         None
-//     }
-
-//     fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
-//         Some(&mut self.0.input as &mut dyn Any)
-//     }
-// }
 
 // Macro to implement TupleIO for multiple inputs and outputs
 macro_rules! impl_tuple_io {
@@ -1074,6 +749,10 @@ macro_rules! impl_tuple_io {
             fn get_input_communicator(&mut self, _index: NodeIOIndex) -> Option<&mut dyn Any> {
                 None
             }
+
+            fn has_ready_input(&self, _idx: NodeIOIndex) -> bool {
+                true // no inputs always lead to execution
+            }
         }
 
         // Implementing TupleIO for multiple inputs
@@ -1103,37 +782,35 @@ macro_rules! impl_tuple_io {
                     _ => None,
                 }
             }
+
+            fn has_ready_input(&self, idx: NodeIOIndex) -> bool {
+                match idx {
+                    $(
+                        $idx => self.$idx.input.edge.has_data(),
+                    )+
+                    _ => true, // no inputs always need to execution
+                }
+            }
         }
         )+
     };
 }
 
-// /// Macro to implement `TupleIO` for various tuple sizes.
-// macro_rules! impl_tuple_io {
-//     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
-//         $(
-//         impl<$($D),+> TupleIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
-//         where
-//             $(
-//                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
-//             ),+
-//         {
-//             fn get_count(&self) -> NodeIOIndex {
-//                 0 $(+ { let _ = &self.$idx; 1 })+ // Count elements in the tuple
-//             }
-
-//             fn get_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
-//                 match index {
-//                     $(
-//                         $idx => Some(&mut self.$idx.output as &mut dyn Any),
-//                     )+
-//                     _ => None,
-//                 }
-//             }
-//         }
-//         )+
-//     };
-// }
+// Try to get mutable access to an Edge<D> by index
+pub fn get_input_edge_mut<D: 'static>(
+    io: &mut dyn SetupIO,
+    idx: NodeIOIndex,
+) -> Option<&mut Edge<D>>
+where
+    D: Clone,
+    D: Debug,
+    D: FromStr,
+    D: Send + 'static,
+{
+    io.get_input_communicator(idx)
+        .and_then(|any| any.downcast_mut::<Input<D>>())
+        .map(|input| input.edge_mut())
+}
 
 impl_tuple_io!((0 D0));
 impl_tuple_io!((0 D0, 1 D1));
@@ -1144,46 +821,7 @@ impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5));
 impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6));
 impl_tuple_io!((0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7));
 
-// macro_rules! impl_setup_io {
-//     ($(($($idx:tt $D:ident),+)),+ $(,)?) => {
-//         $(
-//         impl<$($D),+> SetupIO for ($($crate::nodes::node_io::TypedOutput<$D>,)+)
-//         where
-//             $(
-//                 $D: Clone + Send + Sync + std::str::FromStr + std::fmt::Debug + 'static
-//             ),+
-//         {
-//             fn get_input_count(&self) -> NodeIOIndex {
-//                 0 // No inputs in outputs tuple
-//             }
-
-//             fn get_output_count(&self) -> NodeIOIndex {
-//                 0 $(+ { let _ = &(self.$idx); 1 })+ // Correct summation of output elements
-//             }
-
-//             fn get_output_communicator(&mut self, index: NodeIOIndex) -> Option<&mut dyn Any> {
-//                 match index {
-//                     $(
-//                         $idx => Some(&mut (self.$idx).output as &mut dyn Any),
-//                     )+
-//                     _ => None,
-//                 }
-//             }
-//         }
-//         )+
-//     };
-// }
-
-// impl_setup_io!((0 D0));
-// impl_setup_io!((0 D0), (1 D1));
-// impl_setup_io!((0 D0), (1 D1), (2 D2));
-// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3));
-// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4));
-// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5));
-// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5), (6 D6));
-// impl_setup_io!((0 D0), (1 D1), (2 D2), (3 D3), (4 D4), (5 D5), (6 D6), (7 D7));
-
-/// **Implement Input and Output setup macros**
+// **Implement Input and Output setup macros**
 impl_setup_inputs!(());
 impl_setup_outputs!(());
 
@@ -1208,14 +846,3 @@ impl_setup_outputs!(
     (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6),
     (0 D0, 1 D1, 2 D2, 3 D3, 4 D4, 5 D5, 6 D6, 7 D7)
 );
-
-// impl_register_base_types!(
-//     (D0),
-//     (D0, D1),
-//     (D0, D1, D2),
-//     (D0, D1, D2, D3),
-//     (D0, D1, D2, D3, D4),
-//     (D0, D1, D2, D3, D4, D5),
-//     (D0, D1, D2, D3, D4, D5, D6),
-//     (D0, D1, D2, D3, D4, D5, D6, D7)
-// );

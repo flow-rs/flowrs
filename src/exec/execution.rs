@@ -27,7 +27,6 @@ use crate::node::{ExecutionNode, Node};
 use crate::nodes::connection::EdgeTrait;
 use crate::types::type_registry::TYPE_REGISTRY;
 use crate::{
-    exec::node_updater::{NodeUpdateError, NodeUpdater, SleepMode},
     flow::abstract_flow::AbstractFlow,
     scheduler::{Scheduler, SchedulingInfo},
 };
@@ -68,21 +67,11 @@ pub struct ExecutionContextHandle {
 pub trait Executor {
     fn run<S, U>(&mut self, flow: AbstractFlow, scheduler: S, node_updater: U) -> Result<()>
     where
-        S: Scheduler + std::marker::Send,
-        U: NodeUpdater + Drop;
-
-    // async fn setup_and_connect(
-    //     &mut self,
-    //     abstract_flow: AbstractFlow,
-    //     execution_config: ExecutionConfig,
-    // ) -> Result<ExecutionFlow, ExecutionError>;
+        S: Scheduler + std::marker::Send;
 }
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
-    #[error("Errors occured while updating nodes: {errors:?}")]
-    UpdateErrorCollection { errors: Vec<NodeUpdateError> },
-
     #[error("Node Setup Failed Error. Message: {message:?}")]
     NodeSetupFailed { message: String },
 

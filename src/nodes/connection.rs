@@ -21,6 +21,7 @@ where
 {
     communicator: NodeCommunicator<D>,
     pub buffer: Option<D>,
+    is_ready: bool,
 }
 
 impl<D> Edge<D>
@@ -34,11 +35,13 @@ where
         Self {
             communicator,
             buffer: None,
+            is_ready: false,
         }
     }
 
     pub fn set_buffer(&mut self, val: Option<D>) {
         self.buffer = val;
+        self.is_ready = self.buffer.is_some();
     }
 
     pub fn has_data(&self) -> bool {
@@ -46,23 +49,37 @@ where
     }
 
     pub fn take(&mut self) -> Option<D> {
-        self.buffer.take()
+        let val = self.buffer.take();
+        self.is_ready = false;
+        val
     }
 
     /// Polls the underlying communicator once and updates the internal buffer accordingly.
     pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
+        // If we already have a buffered message, don't re-poll
+        if self.buffer.is_some() {
+            self.is_ready = true;
+            return Ok(());
+        }
+
         match self.try_message().await {
             Ok(Some(Message::Data(data))) => {
-                self.set_buffer(Some(data.get_data()));
+                let val = data.get_data();
+                self.set_buffer(Some(val));
                 Ok(())
             }
-            Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
+
+            Ok(Some(msg)) => {
+                // Pass control message upwards
+                Err(ReceiveError::ControlMessage(msg))
+            }
+
             Ok(None) => {
-                // No message yet, explicitly store `None`
-                self.set_buffer(None);
+                self.is_ready = false;
                 Ok(())
             }
-            Err(err) => Err(err),
+
+            Err(e) => Err(e),
         }
     }
 

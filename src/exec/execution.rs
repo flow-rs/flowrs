@@ -1,48 +1,22 @@
 use std::any::TypeId;
-use std::collections::hash_map::Drain;
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
-use std::{env, thread, time::Duration};
 
 use anyhow::Result;
-use metrics::increment_counter;
-#[cfg(feature = "metrics")]
-use metrics_exporter_prometheus::PrometheusBuilder;
 use thiserror::Error;
 use tokio::sync::Mutex;
-use tokio::task;
-use tracing::metadata::LevelFilter;
-use tracing::{error, info_span};
 
-#[cfg(feature = "tracing")]
-use crate::analytics::otlp_exporter::OtlpExporter;
-use crate::comm::communication::{Communicator, NodeCommunicator};
-use crate::comm::network_communicator::NetworkCommunicator;
+use crate::comm::communication::NodeCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::connection::Edge;
-use crate::flow::execution_flow::ExecutionFlow;
+use crate::flow::abstract_flow::AbstractFlow;
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
 use crate::node::{ExecutionNode, Node};
-use crate::nodes::connection::EdgeTrait;
-use crate::types::type_registry::TYPE_REGISTRY;
-use crate::{
-    flow::abstract_flow::AbstractFlow,
-    scheduler::{Scheduler, SchedulingInfo},
-};
+use crate::scheduler::Scheduler;
 
-use super::execution_configuration::{ExecutionConfig, ExecutionConfigError, NodeConfig};
+use super::execution_configuration::{ExecutionConfig, NodeConfig};
 use super::execution_mode::ExecutionMode;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "tracing")] {
-        use opentelemetry::trace::TracerProvider as _;
-        use opentelemetry_sdk::trace::TracerProvider;
-        use opentelemetry_sdk::Resource;
-        use tracing_subscriber::layer::SubscriberExt;
-        use tracing_subscriber::Registry;
-    }
-}
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
     pub flow: AbstractFlow,
@@ -55,13 +29,6 @@ impl ExecutionContext {
             flow: flow,
         }
     }
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-pub struct ExecutionContextHandle {
-    _data: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
 pub trait Executor {
@@ -291,35 +258,6 @@ impl StandardExecutor {
         // 4) Tell the typed node to create local input communicator
         receiver_guard.setup_input(recv_in_idx, /*local=*/ true);
 
-        Ok(())
-    }
-
-    /// Example placeholder that sets the NodeIO's output #out_idx to the given communicator
-    fn store_in_output<T>(
-        node: &mut dyn Node,
-        out_idx: u128,
-        comm: NodeCommunicator<T>,
-    ) -> anyhow::Result<()>
-    where
-        T: std::fmt::Debug + std::str::FromStr + Send + Sync + 'static,
-    {
-        // 1) If your node is e.g. AddNode<I1, I2, O>:
-        //    node.io.outputs.0.output = Output::new(comm)
-        // or do an internal cast or an interface if the Node trait has a “set_output_comm” method
-        // ...
-        Ok(())
-    }
-
-    /// Same idea for the input
-    fn store_in_input<T>(
-        node: &mut dyn Node,
-        in_idx: u128,
-        comm: NodeCommunicator<T>,
-    ) -> anyhow::Result<()>
-    where
-        T: std::fmt::Debug + std::str::FromStr + Send + Sync + 'static,
-    {
-        //  ...
         Ok(())
     }
 }

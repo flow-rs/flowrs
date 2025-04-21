@@ -188,6 +188,7 @@ impl StandardExecutor {
 
         Ok(ExecutionNode::new(
             node,
+            node_id,
             execution_mode,
             control_edge,
             input_type_ids,

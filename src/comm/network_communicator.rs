@@ -86,45 +86,6 @@ where
         &mut self,
         message: Message<D>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // if let Some(ref mut stream) = self.stream {
-        //     // if the stream exists, write to it
-        //     stream
-        //         .get_mut()
-        //         .write_all(message.to_string().as_bytes())
-        //         .await?;
-        //     stream.get_mut().flush().await?;
-        //     Ok(())
-        // } else {
-        //     Err("Can not send, as the receiving stream was moved".into())
-        // }
-
-        // if let Some(ref mut stream) = self.stream {
-        //     let msg_str = message.to_string();
-        //     println!(
-        //         "[DEBUG] Attempting to send message to {}:{} -> {:?}",
-        //         self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
-        //         self.port.unwrap_or(0),
-        //         msg_str
-        //     );
-
-        //     let bytes = msg_str.as_bytes();
-        //     println!("[DEBUG] Writing {} bytes...", bytes.len());
-
-        //     match stream.get_mut().write_all(bytes).await {
-        //         Ok(_) => println!("[DEBUG] write_all() completed successfully."),
-        //         Err(e) => println!("[ERROR] write_all() failed: {}", e),
-        //     }
-
-        //     match stream.get_mut().flush().await {
-        //         Ok(_) => println!("[DEBUG] flush() completed successfully."),
-        //         Err(e) => println!("[ERROR] flush() failed: {}", e),
-        //     }
-
-        //     Ok(())
-        // } else {
-        //     Err("Cannot send, as the stream was moved".into())
-        // }
-
         if self.stream.is_none() {
             return Err("Can not send, as the receiving stream was moved".into());
         }
@@ -213,27 +174,56 @@ where
         }
     }
 
+    // async fn try_receive(
+    //     &mut self,
+    // ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
+    //     if self.stream.is_none() {
+    //         return Err("Can not receive, as the receiving stream was moved".into());
+    //     }
+    //     let stream = self.stream.as_mut().unwrap();
+    //     let mut line = String::new();
+    //     //buffer of size = 1 is enough to peak if a new message is available
+    //     let mut buffer = [0, 1];
+    //     // Using peek() to find available data. This is blocking but does not consume data
+    //     // and has little overhead
+    //     if let Ok(available) = stream.get_ref().peek(&mut buffer).await {
+    //         println!("[DEBUG] Peeked {} bytes", available);
+    //         if available > 0 {
+    //             stream.read_line(&mut line).await?;
+    //             println!("[DEBUG] Received line: {:?}", line.trim());
+    //             return Ok(Message::from_str(&line));
+    //         }
+    //     }
+    //     Ok(None)
+    // }
+
     async fn try_receive(
         &mut self,
     ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
         if self.stream.is_none() {
-            return Err("Can not receive, as the receiving stream was moved".into());
+            return Err("Cannot receive, as the receiving stream was moved".into());
         }
+
         let stream = self.stream.as_mut().unwrap();
         let mut line = String::new();
-        //buffer of size = 1 is enough to peak if a new message is available
-        let mut buffer = [0, 1];
-        // Using peek() to find available data. This is blocking but does not consume data
-        // and has little overhead
-        if let Ok(available) = stream.get_ref().peek(&mut buffer).await {
-            println!("[DEBUG] Peeked {} bytes", available);
-            if available > 0 {
-                stream.read_line(&mut line).await?;
+
+        // Timeout-based short read
+        let result = timeout(Duration::from_millis(10), stream.read_line(&mut line)).await;
+
+        match result {
+            Ok(Ok(bytes_read)) => {
+                if bytes_read == 0 {
+                    return Ok(None);
+                }
                 println!("[DEBUG] Received line: {:?}", line.trim());
-                return Ok(Message::from_str(&line));
+                Ok(Message::from_str(&line))
             }
+            Ok(Err(e)) => {
+                println!("[ERROR] Read error: {}", e);
+                Err(Box::new(e))
+            }
+            Err(_) => Ok(None), // Timeout — no data available
         }
-        Ok(None)
     }
 
     fn clone_send(&self) -> Self

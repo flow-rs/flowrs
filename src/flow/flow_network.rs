@@ -74,7 +74,7 @@ impl FlowNetwork {
 
         if sender_connections.len() != 1 {
             tracing::debug!("[DEBUG] found connections: {:?}", sender_connections);
-            tracing::debug!("[FLOW NETWORK ERROR] wrong amount of connections found!");
+            tracing::error!("[FLOW NETWORK ERROR] wrong amount of connections found!");
             None
         } else {
             let single_con = sender_connections.into_iter().next().unwrap();
@@ -98,7 +98,7 @@ impl FlowNetwork {
 
         if receiver_connections.len() != 1 {
             tracing::debug!("[DEBUG] found connections: {:?}", receiver_connections);
-            tracing::debug!("[FLOW NETWORK ERROR] wrong amount of connections found!");
+            tracing::error!("[FLOW NETWORK ERROR] wrong amount of connections found!");
             None
         } else {
             let single_con = receiver_connections.into_iter().next().unwrap();

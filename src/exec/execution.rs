@@ -70,7 +70,7 @@ impl StandardExecutor {
         abstract_flow: Arc<Mutex<AbstractFlow>>,
         execution_config: &ExecutionConfig,
     ) -> Result<(), ExecutionError> {
-        tracing::debug!("[Executor] Initializing local nodes...");
+        tracing::info!("[Executor] Initializing local nodes...");
 
         let mut initialized_nodes = HashMap::new();
 
@@ -83,7 +83,7 @@ impl StandardExecutor {
         // Re-lock for read access now that the mutable borrow is gone
         let flow_guard = abstract_flow.lock().await;
 
-        tracing::debug!(
+        tracing::info!(
             "[Executor] Retrieved {} nodes from flow",
             drained_nodes.len()
         );
@@ -124,7 +124,7 @@ impl StandardExecutor {
                         }
 
                         Err(e) => {
-                            tracing::debug!(
+                            tracing::error!(
                                 "[ERROR] Failed to initialize node {}: {}",
                                 node_id,
                                 e.to_string()
@@ -137,7 +137,7 @@ impl StandardExecutor {
                 }
 
                 Some(NodeConfig::RemoteNodeConfig(runtime_id)) => {
-                    tracing::debug!(
+                    tracing::warn!(
                         "[Executor] Skipping remote node {} (belongs to runtime {})",
                         node_id,
                         runtime_id
@@ -160,7 +160,7 @@ impl StandardExecutor {
 
         self.execution_nodes = initialized_nodes;
 
-        tracing::debug!(
+        tracing::info!(
             "[Executor] Successfully initialized {} local nodes.",
             self.execution_nodes.len()
         );
@@ -202,7 +202,7 @@ impl StandardExecutor {
         for (node_id, node) in &self.execution_nodes {
             let mut node_guard = node.lock().await;
             if let Err(e) = node_guard.on_ready() {
-                tracing::debug!(
+                tracing::error!(
                     "[Executor] ERROR: Node {} failed to enter ready state: {}",
                     node_id,
                     e
@@ -211,13 +211,13 @@ impl StandardExecutor {
             }
         }
 
-        tracing::debug!("[Executor] All nodes are ready.");
+        tracing::info!("[Executor] All nodes are ready.");
         Ok(())
     }
 
     /// **Starts execution using a Tokio task per node.**
     pub async fn start_execution(&self) {
-        tracing::debug!("[Executor] Starting execution...");
+        tracing::info!("[Executor] Starting execution...");
 
         for (node_id, execution_node) in &self.execution_nodes {
             let node_id = *node_id;
@@ -227,7 +227,7 @@ impl StandardExecutor {
 
                 let mut node = execution_node.lock().await;
                 if let Err(e) = node.on_update_async().await {
-                    tracing::debug!("[Executor] Error executing node {}: {:?}", node_id, e);
+                    tracing::error!("[Executor] Error executing node {}: {:?}", node_id, e);
                 }
             });
         }

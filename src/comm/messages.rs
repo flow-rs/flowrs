@@ -235,7 +235,7 @@ where
 
                 let communicator_option = NodeCommunicator::from_str(&comm_string);
                 if communicator_option.is_none() {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Could not parse communicator from '{}'",
                         comm_string
                     );
@@ -276,7 +276,7 @@ where
                 let parts: Vec<&str> = stripped_msg.split(',').collect();
 
                 if parts.len() != 6 {
-                    tracing::debug!(
+                    tracing::error!(
                     "[ERROR] Invalid number of parts for OrchestratorRequestNodeConnection: {:?}",
                     parts
                 );
@@ -286,7 +286,7 @@ where
                 let sender_id = match parts[0].trim().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        tracing::debug!("[ERROR] Failed to parse sender_id: '{}'", parts[0].trim());
+                        tracing::error!("[ERROR] Failed to parse sender_id: '{}'", parts[0].trim());
                         return None;
                     }
                 };
@@ -294,7 +294,7 @@ where
                 let receiver_id = match parts[1].trim().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        tracing::debug!(
+                        tracing::error!(
                             "[ERROR] Failed to parse receiver_id: '{}'",
                             parts[1].trim()
                         );
@@ -305,7 +305,7 @@ where
                 let runtime_id = match parts[2].trim().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        tracing::debug!(
+                        tracing::error!(
                             "[ERROR] Failed to parse runtime_id: '{}'",
                             parts[2].trim()
                         );
@@ -318,7 +318,7 @@ where
                 let send_idx = match parts[4].trim().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        tracing::debug!("[ERROR] Failed to parse send_idx: '{}'", parts[4].trim());
+                        tracing::error!("[ERROR] Failed to parse send_idx: '{}'", parts[4].trim());
                         return None;
                     }
                 };
@@ -326,7 +326,7 @@ where
                 let recv_idx = match parts[5].trim().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        tracing::debug!("[ERROR] Failed to parse recv_idx: '{}'", parts[5].trim());
+                        tracing::error!("[ERROR] Failed to parse recv_idx: '{}'", parts[5].trim());
                         return None;
                     }
                 };
@@ -359,7 +359,7 @@ where
                         parts[4].trim().parse().ok()?,
                     ))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for RequestPeerConnection: {:?}",
                         parts
                     );
@@ -380,7 +380,7 @@ where
                         parts[4].parse().ok()?,
                     ))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for AcceptPeerConnection: {:?}",
                         parts
                     );
@@ -401,7 +401,7 @@ where
                         parts[4].to_string(),
                     ))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for RejectPeerConnection: {:?}",
                         parts
                     );
@@ -425,7 +425,7 @@ where
                         || send_out_idx.is_err()
                         || recv_in_idx.is_err()
                     {
-                        tracing::debug!(
+                        tracing::error!(
                         "[ERROR] One or more parsing errors occurred: sender={:?}, receiver={:?}, out_idx={:?}, in_idx={:?}",
                         sender_id, receiver_id, send_out_idx, recv_in_idx
                     );
@@ -439,7 +439,7 @@ where
                         recv_in_idx.unwrap(),
                     ))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for AcknowledgeConnectionSetup: {:?}",
                         parts
                     );
@@ -453,7 +453,7 @@ where
                 if parts.len() == 1 {
                     Some(Self::RequestNodeRuntimeIP(parts[0].parse().ok()?))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for RequestNodeRuntimeIP: {:?}",
                         parts
                     );
@@ -470,7 +470,7 @@ where
                         parts[1].to_string(),
                     ))
                 } else {
-                    tracing::debug!(
+                    tracing::error!(
                         "[ERROR] Invalid number of parts for RespondNodeRuntimeIP: {:?}",
                         parts
                     );
@@ -489,7 +489,7 @@ where
             }
 
             _ => {
-                tracing::debug!("[ERROR] Unknown message pattern for: '{}'", s);
+                tracing::error!("[ERROR] Unknown message pattern for: '{}'", s);
                 None
             }
         }

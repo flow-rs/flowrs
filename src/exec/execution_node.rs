@@ -175,6 +175,10 @@ impl ExecutionNode {
 
                             if let Some(type_id) = self.input_type_ids.get(idx) {
                                 if let Some(poll_fn) = registry.get_mut(type_id) {
+                                    println!(
+                                        "[ExecutionNode] Node {}: Polling input {:?}...",
+                                        self.node_id, idx
+                                    );
                                     match poll_fn.poll(io).await {
                                         Ok(_) => println!(
                                         "[ExecutionNode] Node {}: Polled input {} (TypeId: {:?})",
@@ -194,6 +198,10 @@ impl ExecutionNode {
                                     "[ExecutionNode] Node {}: ❌ No PollFn registered for TypeId {:?} at index {}",
                                     self.node_id, type_id, idx
                                 );
+                                    println!(
+                                        "[ExecutionNode] Node {}: Poll finished",
+                                        self.node_id
+                                    );
                                 }
                             }
                         }

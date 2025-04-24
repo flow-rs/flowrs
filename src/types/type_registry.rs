@@ -313,7 +313,10 @@ where
     T: 'static + Send + Clone + Debug + FromStr + Sync,
 {
     async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>> {
+        println!("[PollFn] Calling polling function...");
         let result = (self)(io).await;
+        println!("[PollFn] Polling function returned: {:?}", result);
+        //let result = (self)(io).await;
         result.map_err(|e| ReceiveError::Other(anyhow!("{:?}", e)))
     }
 

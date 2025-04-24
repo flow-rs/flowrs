@@ -187,7 +187,7 @@ where
 
             // Debugging & Data Transfer
             Message::Debug(msg) => write!(f, "[[MESSAGE]: [DEBUG]>]{}", msg),
-            Message::Data(data) => write!(f, "[[MESSAGE]: [DATA]>]{:?}", data),
+            Message::Data(data) => write!(f, "[[MESSAGE]: [DATA]>]{:?}", &data.data),
         }
     }
 }

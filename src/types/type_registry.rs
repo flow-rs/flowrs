@@ -47,6 +47,7 @@ pub type PollResult = Result<(), ReceiveError<String>>;
 pub type PollFn<T> = Box<
     dyn for<'a> FnMut(
             &'a mut dyn SetupIO,
+            NodeIOIndex,
         )
             -> Pin<Box<dyn Future<Output = Result<(), ReceiveError<T>>> + Send + 'a>>
         + Send,
@@ -298,7 +299,11 @@ impl TypeRegistry {
 
 #[async_trait]
 pub trait PollFnErased: Send {
-    async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>>;
+    async fn poll(
+        &mut self,
+        io: &mut dyn SetupIO,
+        index: NodeIOIndex,
+    ) -> Result<(), ReceiveError<String>>;
 
     fn poll_indexed<'a>(
         &mut self,
@@ -312,11 +317,14 @@ impl<T> PollFnErased for PollFn<T>
 where
     T: 'static + Send + Clone + Debug + FromStr + Sync,
 {
-    async fn poll(&mut self, io: &mut dyn SetupIO) -> Result<(), ReceiveError<String>> {
-        println!("[PollFn] Calling polling function...");
-        let result = (self)(io).await;
-        println!("[PollFn] Polling function returned: {:?}", result);
-        //let result = (self)(io).await;
+    async fn poll(
+        &mut self,
+        io: &mut dyn SetupIO,
+        index: NodeIOIndex,
+    ) -> Result<(), ReceiveError<String>> {
+        println!("[PollFn] Polling index {}...", index);
+        let result = (self)(io, index).await;
+        println!("[PollFn] Poll result: {:?}", result);
         result.map_err(|e| ReceiveError::Other(anyhow!("{:?}", e)))
     }
 

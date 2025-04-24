@@ -178,7 +178,7 @@ impl ExecutionNode {
                                 "[ExecutionNode] Node {}: Polling input {:?}...",
                                 self.node_id, idx
                             );
-                            match poll_fn.poll(io).await {
+                            match poll_fn.poll(io, *idx).await {
                                 Ok(_) => println!(
                                     "[ExecutionNode] Node {}: Polled input {} (TypeId: {:?})",
                                     self.node_id, idx, type_id

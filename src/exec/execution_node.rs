@@ -81,204 +81,186 @@ impl ExecutionNode {
     }
 
     pub async fn on_update_async(&mut self) -> Result<(), UpdateError> {
-        match self.execution_state {
-            ExecutionState::Ready => {
-                self.execution_state = ExecutionState::Running;
-                println!(
-                    "[ExecutionNode] Node {} entered on_update_async() | Mode: {:?}, State: {:?}",
-                    self.node_id, self.execution_mode, self.execution_state
-                );
+        self.execution_state = ExecutionState::Running;
 
-                let mut result = Ok(());
+        println!(
+            "[ExecutionNode] Node {} entered on_update_async() | Mode: {:?}, State: {:?}",
+            self.node_id, self.execution_mode, self.execution_state
+        );
 
-                loop {
+        let mut result = Ok(());
+
+        loop {
+            println!(
+                "\n[ExecutionNode] Loop tick for Node {} State: {:?}",
+                self.node_id, self.execution_state
+            );
+
+            if self.execution_state == ExecutionState::Shutdown {
+                println!("[ExecutionNode] Node {}: Shutdown triggered.", self.node_id);
+                if let Err(e) = self.on_shutdown() {
+                    println!("[WARN] Node {}: Shutdown failed: {}", self.node_id, e);
+                }
+                break;
+            }
+
+            match self.control_edge.try_message().await {
+                Ok(Some(msg)) => {
                     println!(
-                        "\n[ExecutionNode] Loop tick for Node {} State: {:?}",
-                        self.node_id, self.execution_state
+                        "[ExecutionNode] Node {} received Control Message: {:?}",
+                        self.node_id, msg
                     );
-
-                    if self.execution_state == ExecutionState::Shutdown {
-                        println!("[ExecutionNode] Node {}: Shutdown triggered.", self.node_id);
-                        if let Err(e) = self.on_shutdown() {
-                            println!("[WARN] Node {}: Shutdown failed: {}", self.node_id, e);
-                        }
-                        break;
-                    }
-
-                    match self.control_edge.try_message().await {
-                        Ok(Some(msg)) => {
-                            println!(
-                                "[ExecutionNode] Node {} received Control Message: {:?}",
-                                self.node_id, msg
-                            );
-                            self.on_message(msg);
-                        }
-                        Ok(None) | Err(ReceiveError::NoMessageAvailable) => {
-                            println!(
-                                "[ExecutionNode] Node {}: No control message available.",
-                                self.node_id
-                            );
-                        }
-                        Err(ReceiveError::ControlMessage(msg)) => {
-                            println!(
-                                "[ExecutionNode] Node {}: Control message error: {:?}",
-                                self.node_id, msg
-                            );
-                            return Err(UpdateError::ControlMessage(msg));
-                        }
-                        Err(ReceiveError::Other(e)) => {
-                            println!(
-                                "[ExecutionNode] Node {}: Receive error: {}",
-                                self.node_id, e
-                            );
-                            return Err(UpdateError::RecvError {
-                                message: e.to_string(),
-                            });
-                        }
-                    }
-
-                    // Retrieve directive
-                    let directive = self.node.on_update_directive()?;
+                    self.on_message(msg);
+                }
+                Ok(None) | Err(ReceiveError::NoMessageAvailable) => {
                     println!(
-                        "[ExecutionNode] Node {}: on_update_directive → {:?}",
-                        self.node_id, directive
-                    );
-
-                    let required_inputs = match directive {
-                        NodeExecutionDirective::ContinueImmediately => None,
-                        NodeExecutionDirective::Suspend => {
-                            println!("[ExecutionNode] Node {}: Suspended.", self.node_id);
-                            break;
-                        }
-                        NodeExecutionDirective::WaitForInputs(req) => Some(req),
-                    };
-
-                    let io = self.node.get_io_mut();
-                    let mut registry = POLL_REGISTRY.lock().await;
-
-                    if let Some(inputs) = required_inputs.as_ref() {
-                        println!(
-                            "[ExecutionNode] Node {}: Polling required inputs: {:?}",
-                            self.node_id, inputs
-                        );
-
-                        for idx in inputs {
-                            let already_ready = io.has_ready_input(*idx);
-                            println!(
-                                "[ExecutionNode] Node {}: Input {} buffer ready? {}",
-                                self.node_id, idx, already_ready
-                            );
-
-                            if already_ready {
-                                continue;
-                            }
-
-                            if let Some(type_id) = self.input_type_ids.get(idx) {
-                                if let Some(poll_fn) = registry.get_mut(type_id) {
-                                    println!(
-                                        "[ExecutionNode] Node {}: Polling input {:?}...",
-                                        self.node_id, idx
-                                    );
-                                    match poll_fn.poll(io).await {
-                                        Ok(_) => println!(
-                                        "[ExecutionNode] Node {}: Polled input {} (TypeId: {:?})",
-                                        self.node_id, idx, type_id
-                                    ),
-                                        Err(ReceiveError::ControlMessage(msg)) => {
-                                            return Err(UpdateError::ControlMessage(msg));
-                                        }
-                                        Err(e) => {
-                                            return Err(UpdateError::RecvError {
-                                                message: e.to_string(),
-                                            });
-                                        }
-                                    }
-                                } else {
-                                    println!(
-                                    "[ExecutionNode] Node {}: ❌ No PollFn registered for TypeId {:?} at index {}",
-                                    self.node_id, type_id, idx
-                                );
-                                    println!(
-                                        "[ExecutionNode] Node {}: Poll finished",
-                                        self.node_id
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    println!(
-                        "[ExecutionNode] Node {}: Input polling completed.",
+                        "[ExecutionNode] Node {}: No control message available.",
                         self.node_id
                     );
+                }
+                Err(ReceiveError::ControlMessage(msg)) => {
+                    println!(
+                        "[ExecutionNode] Node {}: Control message error: {:?}",
+                        self.node_id, msg
+                    );
+                    return Err(UpdateError::ControlMessage(msg));
+                }
+                Err(ReceiveError::Other(e)) => {
+                    println!(
+                        "[ExecutionNode] Node {}: Receive error: {}",
+                        self.node_id, e
+                    );
+                    return Err(UpdateError::RecvError {
+                        message: e.to_string(),
+                    });
+                }
+            }
 
-                    let all_ready = required_inputs
-                        .as_ref()
-                        .map(|inputs| inputs.iter().all(|i| io.has_ready_input(*i)))
-                        .unwrap_or(true);
+            let directive = self.node.on_update_directive()?;
+            println!(
+                "[ExecutionNode] Node {}: on_update_directive → {:?}",
+                self.node_id, directive
+            );
 
-                    if all_ready {
-                        println!(
-                            "[ExecutionNode] Node {}: Calling node.on_update()...",
-                            self.node_id
-                        );
-                        result = self.node.on_update();
-                        match result {
-                            Ok(_) => println!(
-                                "[ExecutionNode] Node {}: ✅ Node logic executed successfully.",
-                                self.node_id
-                            ),
-                            Err(ref e) => println!(
-                                "[ExecutionNode] Node {}: ❌ Node logic error: {:?}",
-                                self.node_id, e
-                            ),
-                        }
-                    } else {
-                        println!(
-                            "[ExecutionNode] Node {}: ⏭ Skipping on_update(), missing inputs: {:?}",
-                            self.node_id,
-                            required_inputs
-                                .unwrap()
-                                .iter()
-                                .filter(|idx| !io.has_ready_input(**idx))
-                                .collect::<Vec<_>>()
-                        );
+            let required_inputs = match directive {
+                NodeExecutionDirective::ContinueImmediately => None,
+                NodeExecutionDirective::Suspend => {
+                    println!("[ExecutionNode] Node {}: Suspended.", self.node_id);
+                    self.execution_state = ExecutionState::Sleeping;
+                    break;
+                }
+                NodeExecutionDirective::WaitForInputs(req) => Some(req),
+            };
+
+            let io = self.node.get_io_mut();
+            let mut registry = POLL_REGISTRY.lock().await;
+
+            if let Some(inputs) = required_inputs.as_ref() {
+                println!(
+                    "[ExecutionNode] Node {}: Polling required inputs: {:?}",
+                    self.node_id, inputs
+                );
+
+                for idx in inputs {
+                    let already_ready = io.has_ready_input(*idx);
+                    println!(
+                        "[ExecutionNode] Node {}: Input {} buffer ready? {}",
+                        self.node_id, idx, already_ready
+                    );
+
+                    if already_ready {
+                        continue;
                     }
 
-                    match self.execution_mode {
-                        ExecutionMode::Synchronized => {
+                    if let Some(type_id) = self.input_type_ids.get(idx) {
+                        if let Some(poll_fn) = registry.get_mut(type_id) {
                             println!(
-                                "[ExecutionNode] Node {}: Exiting loop (Synchronized mode)",
-                                self.node_id
+                                "[ExecutionNode] Node {}: Polling input {:?}...",
+                                self.node_id, idx
                             );
-                            self.execution_state = ExecutionState::Ready;
-                            break;
-                        }
-                        ExecutionMode::Continuous => {
+                            match poll_fn.poll(io).await {
+                                Ok(_) => println!(
+                                    "[ExecutionNode] Node {}: Polled input {} (TypeId: {:?})",
+                                    self.node_id, idx, type_id
+                                ),
+                                Err(ReceiveError::ControlMessage(msg)) => {
+                                    return Err(UpdateError::ControlMessage(msg));
+                                }
+                                Err(e) => {
+                                    return Err(UpdateError::RecvError {
+                                        message: e.to_string(),
+                                    });
+                                }
+                            }
+                        } else {
                             println!(
-                                "[ExecutionNode] Node {}: Sleeping before next tick...",
-                                self.node_id
-                            );
-                            sleep(Duration::from_secs(1)).await;
-                            continue;
+                            "[ExecutionNode] Node {}: ❌ No PollFn registered for TypeId {:?} at index {}",
+                            self.node_id, type_id, idx
+                        );
                         }
                     }
                 }
-
-                result
             }
 
-            ExecutionState::Sleeping => Err(UpdateError::AlreadyRunningError {
-                message: "The node is Sleeping".to_string(),
-            }),
-            ExecutionState::Running => Err(UpdateError::AlreadyRunningError {
-                message: "The node is Running".to_string(),
-            }),
-            ExecutionState::Initialized => Err(UpdateError::NotReadyError {
-                message: "The node is not ready".to_string(),
-            }),
-            ExecutionState::Shutdown => Ok(()),
+            println!(
+                "[ExecutionNode] Node {}: Input polling completed.",
+                self.node_id
+            );
+
+            let all_ready = required_inputs
+                .as_ref()
+                .map(|inputs| inputs.iter().all(|i| io.has_ready_input(*i)))
+                .unwrap_or(true);
+
+            if all_ready {
+                println!(
+                    "[ExecutionNode] Node {}: Calling node.on_update()...",
+                    self.node_id
+                );
+                result = self.node.on_update();
+                match result {
+                    Ok(_) => println!(
+                        "[ExecutionNode] Node {}: ✅ Node logic executed successfully.",
+                        self.node_id
+                    ),
+                    Err(ref e) => println!(
+                        "[ExecutionNode] Node {}: ❌ Node logic error: {:?}",
+                        self.node_id, e
+                    ),
+                }
+            } else {
+                println!(
+                    "[ExecutionNode] Node {}: ⏭ Skipping on_update(), missing inputs: {:?}",
+                    self.node_id,
+                    required_inputs
+                        .unwrap()
+                        .iter()
+                        .filter(|idx| !io.has_ready_input(**idx))
+                        .collect::<Vec<_>>()
+                );
+            }
+
+            match self.execution_mode {
+                ExecutionMode::Synchronized => {
+                    println!(
+                        "[ExecutionNode] Node {}: Exiting loop (Synchronized mode)",
+                        self.node_id
+                    );
+                    self.execution_state = ExecutionState::Ready;
+                    break;
+                }
+                ExecutionMode::Continuous => {
+                    println!(
+                        "[ExecutionNode] Node {}: Sleeping before next tick...",
+                        self.node_id
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            }
         }
+
+        result
     }
 }
 

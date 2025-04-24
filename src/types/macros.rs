@@ -16,7 +16,7 @@ macro_rules! generate_local_connection {
                     receiver_input.set_any_communicator(Box::new(recv_half));
                     sender_output.set_any_communicator(Box::new(send_half));
 
-                    println!(
+                    tracing::debug!(
                         "[generate_local_connection] Successfully connected nodes {} -> {} with type {}",
                         sender_id, receiver_id, stringify!($type)
                     );
@@ -34,7 +34,7 @@ macro_rules! generate_local_connection {
             .unwrap()
             .register::<$type>(connect_nodes);
 
-        println!(
+        tracing::debug!(
             "[generate_local_connection] Registered connection function for type: {}",
             stringify!($type)
         );

@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Formatter};
 use opentelemetry::Key;
 use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
+use std::fmt::{Debug, Formatter};
 
 pub struct OtlpExporter {
     client: reqwest::blocking::Client,
@@ -32,25 +32,31 @@ impl Debug for OtlpExporter {
 }
 
 impl SpanExporter for OtlpExporter {
-    fn export(&mut self, batch: Vec<SpanData>) -> futures_core::future::BoxFuture<'static, ExportResult> {
+    fn export(
+        &mut self,
+        batch: Vec<SpanData>,
+    ) -> futures_core::future::BoxFuture<'static, ExportResult> {
         // we are only interested in flowrs code namespace traces for now
-        let filtered: Vec<_> = batch.into_iter().filter(|span| {
-            let code_namespace = span.attributes.iter().find(|attr| {
-                attr.key == Key::new("code.namespace")
-            }).map(|attr| {
-                attr.value.as_str()
-            });
-            match code_namespace {
-                Some(code) => {
-                    let valid = code.starts_with("flowrs");
-                    if !valid {
-                        println!("filtered out {code}");
+        let filtered: Vec<_> = batch
+            .into_iter()
+            .filter(|span| {
+                let code_namespace = span
+                    .attributes
+                    .iter()
+                    .find(|attr| attr.key == Key::new("code.namespace"))
+                    .map(|attr| attr.value.as_str());
+                match code_namespace {
+                    Some(code) => {
+                        let valid = code.starts_with("flowrs");
+                        if !valid {
+                            tracing::debug!("filtered out {code}");
+                        }
+                        valid
                     }
-                    valid
+                    None => false,
                 }
-                None => false
-            }
-        }).collect();
+            })
+            .collect();
 
         let span_data = opentelemetry_stdout::SpanData::from(filtered);
 
@@ -60,11 +66,11 @@ impl SpanExporter for OtlpExporter {
                 if resp.status() == 200 {
                     // alright
                 } else {
-                    println!("Unsuccessful push: {:?}", resp.text());
+                    tracing::debug!("Unsuccessful push: {:?}", resp.text());
                 }
             }
             Err(e) => {
-                println!("Fatal Error when pushing: {e:?}");
+                tracing::debug!("Fatal Error when pushing: {e:?}");
             }
         }
 
@@ -80,4 +86,3 @@ impl SpanExporter for OtlpExporter {
         Box::pin(std::future::ready(Ok(())))
     }
 }
-

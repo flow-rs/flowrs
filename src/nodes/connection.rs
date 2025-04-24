@@ -57,13 +57,13 @@ where
     /// Polls the underlying communicator once and updates the internal buffer accordingly.
     pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
         match &self.communicator {
-            NodeCommunicator::ThreadComm(_) => println!("[Edge] Using ThreadCommunicator"),
-            NodeCommunicator::NetworkComm(_) => println!("[Edge] Using NetworkCommunicator"),
+            NodeCommunicator::ThreadComm(_) => tracing::debug!("[Edge] Using ThreadCommunicator"),
+            NodeCommunicator::NetworkComm(_) => tracing::debug!("[Edge] Using NetworkCommunicator"),
         }
         // If we already have a buffered message, don't re-poll
         if self.buffer.is_some() {
             self.is_ready = true;
-            println!("[Edge] buffer already filled");
+            tracing::debug!("[Edge] buffer already filled");
             return Ok(());
         }
 
@@ -71,19 +71,19 @@ where
             Ok(Some(Message::Data(data))) => {
                 let val = data.get_data();
                 self.set_buffer(Some(val));
-                println!("[Edge] buffer set!");
+                tracing::debug!("[Edge] buffer set!");
                 Ok(())
             }
 
             Ok(Some(msg)) => {
                 // Pass control message upwards
-                println!("[Edge] error");
+                tracing::debug!("[Edge] error");
                 Err(ReceiveError::ControlMessage(msg))
             }
 
             Ok(None) => {
                 self.is_ready = false;
-                println!("[Edge] nothing received");
+                tracing::debug!("[Edge] nothing received");
                 Ok(())
             }
 

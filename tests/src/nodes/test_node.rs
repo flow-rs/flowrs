@@ -95,12 +95,12 @@
 //     // To be replaced by macro
 //     fn on_update(&mut self) -> Result<(), UpdateError> {
 //         if let Ok(i1) = self.input_1.next() {
-//             println!("UPDATE1");
+//             tracing::debug!("UPDATE1");
 //             self.handle_1(i1)?;
 //         }
 
 //         if let Ok(i2) = self.input_2.next() {
-//             println!("UPDATE2");
+//             tracing::debug!("UPDATE2");
 //             self.handle_2(i2)?;
 //         }
 //         Ok(())
@@ -191,7 +191,7 @@
 //             (0..100).for_each(|_| {
 //                 match add1.on_update() {
 //                     Ok(_) => (),
-//                     Err(e) => println!("{:?}", e),
+//                     Err(e) => tracing::debug!("{:?}", e),
 //                 };
 //             });
 //         });
@@ -199,7 +199,7 @@
 //             (0..100).for_each(|_| {
 //                 match add2.on_update() {
 //                     Ok(_) => (),
-//                     Err(e) => println!("{:?}", e),
+//                     Err(e) => tracing::debug!("{:?}", e),
 //                 };
 //             });
 //         });

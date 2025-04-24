@@ -166,7 +166,7 @@
 //         check_feature_enabled();
 //         let mut cmd = {
 //             let exe = executable_path("ipc_test");
-//             println!("{:?}", exe);
+//             tracing::debug!("{:?}", exe);
 //             let cmd = Command::new(exe);
 //             cmd
 //         };
@@ -197,13 +197,13 @@
 //         //set up communication partners
 //         let mut cmd1 = {
 //             let exe = executable_path("ipc_test_comm_one");
-//             println!("{:?}", exe);
+//             tracing::debug!("{:?}", exe);
 //             let cmd = Command::new(exe);
 //             cmd
 //         };
 //         let mut cmd2 = {
 //             let exe = executable_path("ipc_test_comm_two");
-//             println!("{:?}", exe);
+//             tracing::debug!("{:?}", exe);
 //             let cmd = Command::new(exe);
 //             cmd
 //         };

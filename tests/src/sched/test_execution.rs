@@ -97,7 +97,7 @@
 //         });
 //         let controller = receiver.recv().unwrap();
 //         thread::sleep(Duration::from_secs(3));
-//         println!("CANCEL");
+//         tracing::debug!("CANCEL");
 //         controller.lock().unwrap().cancel();
 //         thread_handle.join().unwrap();
 //         Ok(())
@@ -122,7 +122,7 @@
 //             MultiThreadedNodeUpdater::new(1),
 //         ) {
 //             Ok(_) => todo!(),
-//             Err(err) => eprintln!("Error: {:?}", err),
+//             Err(err) => etracing::debug!("Error: {:?}", err),
 //         }
 //     }
 
@@ -173,7 +173,7 @@
 //         });
 //         let controller = receiver.recv().unwrap();
 //         thread::sleep(Duration::from_millis(100));
-//         println!("CANCEL");
+//         tracing::debug!("CANCEL");
 //         controller.lock().unwrap().cancel();
 //         thread_handle.join().unwrap();
 //         Ok(())
@@ -225,7 +225,7 @@
 //         });
 //         let controller = receiver.recv().unwrap();
 //         thread::sleep(Duration::from_millis(100));
-//         println!("CANCEL");
+//         tracing::debug!("CANCEL");
 //         controller.lock().unwrap().cancel();
 //         thread_handle.join().unwrap();
 //         Ok(())
@@ -273,7 +273,7 @@
 //         });
 //         let controller = receiver.recv().unwrap();
 //         thread::sleep(Duration::from_secs(3));
-//         println!("CANCEL");
+//         tracing::debug!("CANCEL");
 //         controller.lock().unwrap().cancel();
 //         thread_handle.join().unwrap();
 //         Ok(())

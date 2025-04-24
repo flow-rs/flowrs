@@ -70,7 +70,7 @@ impl StandardExecutor {
         abstract_flow: Arc<Mutex<AbstractFlow>>,
         execution_config: &ExecutionConfig,
     ) -> Result<(), ExecutionError> {
-        println!("[Executor] Initializing local nodes...");
+        tracing::debug!("[Executor] Initializing local nodes...");
 
         let mut initialized_nodes = HashMap::new();
 
@@ -83,7 +83,7 @@ impl StandardExecutor {
         // Re-lock for read access now that the mutable borrow is gone
         let flow_guard = abstract_flow.lock().await;
 
-        println!(
+        tracing::debug!(
             "[Executor] Retrieved {} nodes from flow",
             drained_nodes.len()
         );
@@ -91,7 +91,7 @@ impl StandardExecutor {
         for (node_id, node) in drained_nodes {
             match execution_config.node_configs.get(&node_id) {
                 Some(NodeConfig::LocalNodeConfig) => {
-                    println!("[Executor] Creating execution node for ID: {}", node_id);
+                    tracing::debug!("[Executor] Creating execution node for ID: {}", node_id);
 
                     // Collect input type IDs for this node
                     let mut input_type_ids = HashMap::new();
@@ -120,11 +120,11 @@ impl StandardExecutor {
                         Ok(execution_node) => {
                             let execution_node = Arc::new(Mutex::new(execution_node));
                             initialized_nodes.insert(node_id, execution_node);
-                            println!("[Executor] Node {} initialized.", node_id);
+                            tracing::debug!("[Executor] Node {} initialized.", node_id);
                         }
 
                         Err(e) => {
-                            println!(
+                            tracing::debug!(
                                 "[ERROR] Failed to initialize node {}: {}",
                                 node_id,
                                 e.to_string()
@@ -137,9 +137,10 @@ impl StandardExecutor {
                 }
 
                 Some(NodeConfig::RemoteNodeConfig(runtime_id)) => {
-                    println!(
+                    tracing::debug!(
                         "[Executor] Skipping remote node {} (belongs to runtime {})",
-                        node_id, runtime_id
+                        node_id,
+                        runtime_id
                     );
                 }
 
@@ -159,7 +160,7 @@ impl StandardExecutor {
 
         self.execution_nodes = initialized_nodes;
 
-        println!(
+        tracing::debug!(
             "[Executor] Successfully initialized {} local nodes.",
             self.execution_nodes.len()
         );
@@ -196,41 +197,42 @@ impl StandardExecutor {
     }
     /// **Ensure all nodes are in ready state before execution**
     pub async fn ready_nodes(&self) -> Result<(), anyhow::Error> {
-        println!("[Executor] Ensuring all nodes are in ready state...");
+        tracing::debug!("[Executor] Ensuring all nodes are in ready state...");
 
         for (node_id, node) in &self.execution_nodes {
             let mut node_guard = node.lock().await;
             if let Err(e) = node_guard.on_ready() {
-                println!(
+                tracing::debug!(
                     "[Executor] ERROR: Node {} failed to enter ready state: {}",
-                    node_id, e
+                    node_id,
+                    e
                 );
                 return Err(anyhow::Error::msg("Node ready state failed"));
             }
         }
 
-        println!("[Executor] All nodes are ready.");
+        tracing::debug!("[Executor] All nodes are ready.");
         Ok(())
     }
 
     /// **Starts execution using a Tokio task per node.**
     pub async fn start_execution(&self) {
-        println!("[Executor] Starting execution...");
+        tracing::debug!("[Executor] Starting execution...");
 
         for (node_id, execution_node) in &self.execution_nodes {
             let node_id = *node_id;
             let execution_node: Arc<Mutex<ExecutionNode>> = Arc::clone(execution_node);
             tokio::spawn(async move {
-                println!("[Executor] Running node {}...", node_id);
+                tracing::debug!("[Executor] Running node {}...", node_id);
 
                 let mut node = execution_node.lock().await;
                 if let Err(e) = node.on_update_async().await {
-                    println!("[Executor] Error executing node {}: {:?}", node_id, e);
+                    tracing::debug!("[Executor] Error executing node {}: {:?}", node_id, e);
                 }
             });
         }
 
-        println!("[Executor] Execution started.");
+        tracing::debug!("[Executor] Execution started.");
     }
 
     pub async fn connect_local(

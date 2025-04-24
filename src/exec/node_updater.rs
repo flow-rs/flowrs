@@ -101,7 +101,7 @@
 // //                         let update_receiver_res = update_receiver_clone.recv();
 // //                         match update_receiver_res {
 // //                             Result::Err(err) => {
-// //                                 //println!("{:?} THREAD UPDATE ERROR {:?}", std::thread::current().id(), err);
+// //                                 //tracing::debug!("{:?} THREAD UPDATE ERROR {:?}", std::thread::current().id(), err);
 // //                                 let _res = error_sender_clone.send(NodeUpdateError {
 // //                                     source: UpdateError::RecvError {
 // //                                         message: err.to_string(),

@@ -252,21 +252,21 @@ mod tests {
                 {
                     let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
-                    println!("sending msg1 for the first time");
+                    tracing::debug!("sending msg1 for the first time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
                     let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
-                    println!("sending msg1 for the second time");
+                    tracing::debug!("sending msg1 for the second time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
                     let mut com = communicator_clone_1.lock().unwrap();
                     let _ = com.send(Message::StartExecution).await;
-                    println!("sending msg1 for the third time");
+                    tracing::debug!("sending msg1 for the third time");
                 }
             });
         };
@@ -277,21 +277,21 @@ mod tests {
                 {
                     let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
-                    println!("sending msg2 for the first time");
+                    tracing::debug!("sending msg2 for the first time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
                     let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
-                    println!("sending msg2 for the second time");
+                    tracing::debug!("sending msg2 for the second time");
                 }
                 sleep(Duration::from_millis(10));
 
                 {
                     let mut com = communicator_clone_2.lock().unwrap();
                     let _ = com.send(Message::StopExecution).await;
-                    println!("sending msg2 for the third time");
+                    tracing::debug!("sending msg2 for the third time");
                 }
             });
         };
@@ -313,14 +313,14 @@ mod tests {
                         match message {
                             Some(Message::StartExecution) => {
                                 msg_1_counter += 1;
-                                println!("received msg1");
+                                tracing::debug!("received msg1");
                                 if msg_1_counter + msg_2_counter == 6 {
                                     break;
                                 }
                             }
                             Some(Message::StopExecution) => {
                                 msg_2_counter += 1;
-                                println!("received msg2");
+                                tracing::debug!("received msg2");
                                 if msg_1_counter + msg_2_counter == 6 {
                                     break;
                                 }

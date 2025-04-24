@@ -134,7 +134,7 @@ impl TypeRegistry {
     pub fn register<T: 'static>(&mut self, func: ConnectionFn) {
         let type_id = TypeId::of::<T>();
         self.connections.insert(type_id, func);
-        println!(
+        tracing::debug!(
             "[DEBUG] Registered connection function for type {:?}",
             type_id
         );
@@ -178,7 +178,7 @@ impl TypeRegistry {
         let length_before = self.name_to_id.len();
         self.name_to_id.insert(type_name.to_string(), type_id);
         let length_after = self.name_to_id.len();
-        println!("[TYPE_REGISTRY] Inserting type name {} into name_to_id map. Length before: {}, Length After: {}", type_name.to_string(), length_before, length_after);
+        tracing::debug!("[TYPE_REGISTRY] Inserting type name {} into name_to_id map. Length before: {}, Length After: {}", type_name.to_string(), length_before, length_after);
 
         // Register Ourput setters
         self.output_setters_with_connect
@@ -322,9 +322,9 @@ where
         io: &mut dyn SetupIO,
         index: NodeIOIndex,
     ) -> Result<(), ReceiveError<String>> {
-        println!("[PollFn] Polling index {}...", index);
+        tracing::debug!("[PollFn] Polling index {}...", index);
         let result = (self)(io, index).await;
-        println!("[PollFn] Poll result: {:?}", result);
+        tracing::debug!("[PollFn] Poll result: {:?}", result);
         result.map_err(|e| ReceiveError::Other(anyhow!("{:?}", e)))
     }
 
@@ -344,7 +344,7 @@ where
 
             // Step 3: Attempt downcast to correct input type
             let typed_input = comm.downcast_mut::<TypedInput<T>>().ok_or_else(|| {
-                eprintln!(
+                tracing::error!(
                     "[DEBUG] Downcast failed! Expected: TypedInput<{}>, but got type ID: {:?}",
                     std::any::type_name::<T>(),
                     actual_type_id,

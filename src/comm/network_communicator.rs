@@ -54,7 +54,7 @@ where
     ) -> Result<Message<String>, Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(("0.0.0.0", port)).await?;
         let (mut socket, addr) = listener.accept().await?;
-        println!("[NetworkCommunicator] Accepted R2R message from {}", addr);
+        tracing::debug!("[NetworkCommunicator] Accepted R2R message from {}", addr);
 
         let mut line = String::new();
         let mut buffer = [0; 1];
@@ -100,14 +100,14 @@ where
                 match stream.get_mut().write_all(msg_str.as_bytes()).await {
                     Ok(_) => {
                         stream.get_mut().flush().await?;
-                        println!(
+                        tracing::debug!(
                             "[DEBUG] Successfully sent message after {} attempt(s).",
                             attempts + 1
                         );
                         return Ok(()); // Message sent successfully
                     }
                     Err(e) => {
-                        println!(
+                        tracing::debug!(
                             "[WARN] Failed to send message (attempt {}/{}): {}",
                             attempts + 1,
                             max_retries,
@@ -133,7 +133,7 @@ where
         let mut line = String::new();
         let timeout_duration = Duration::from_secs(30);
 
-        println!(
+        tracing::debug!(
             "[DEBUG] Waiting to receive message on {}:{}",
             self.addr.as_ref().unwrap_or(&"UNKNOWN".to_string()),
             self.port.unwrap_or(0)
@@ -143,7 +143,7 @@ where
 
         match result {
             Ok(Ok(bytes_read)) => {
-                println!("[DEBUG] Received {} bytes: '{}'", bytes_read, line.trim());
+                tracing::debug!("[DEBUG] Received {} bytes: '{}'", bytes_read, line.trim());
 
                 if bytes_read == 0 {
                     return Err("Stream closed unexpectedly".into());
@@ -151,21 +151,21 @@ where
 
                 match Message::from_str(&line) {
                     Some(message) => {
-                        println!("[DEBUG] Successfully parsed message: {:?}", message);
+                        tracing::debug!("[DEBUG] Successfully parsed message: {:?}", message);
                         Ok(message)
                     }
                     None => {
-                        println!("[ERROR] Failed to parse message: '{}'", line.trim());
+                        tracing::debug!("[ERROR] Failed to parse message: '{}'", line.trim());
                         Err(Box::new(MessageError::CouldNotParse(line)))
                     }
                 }
             }
             Ok(Err(e)) => {
-                println!("[ERROR] Read error: {}", e);
+                tracing::debug!("[ERROR] Read error: {}", e);
                 Err(Box::new(e))
             }
             Err(_) => {
-                println!(
+                tracing::debug!(
                     "[ERROR] Timeout reached! No message received within {:?}.",
                     timeout_duration
                 );
@@ -187,10 +187,10 @@ where
     //     // Using peek() to find available data. This is blocking but does not consume data
     //     // and has little overhead
     //     if let Ok(available) = stream.get_ref().peek(&mut buffer).await {
-    //         println!("[DEBUG] Peeked {} bytes", available);
+    //         tracing::debug!("[DEBUG] Peeked {} bytes", available);
     //         if available > 0 {
     //             stream.read_line(&mut line).await?;
-    //             println!("[DEBUG] Received line: {:?}", line.trim());
+    //             tracing::debug!("[DEBUG] Received line: {:?}", line.trim());
     //             return Ok(Message::from_str(&line));
     //         }
     //     }
@@ -215,11 +215,11 @@ where
                 if bytes_read == 0 {
                     return Ok(None);
                 }
-                println!("[DEBUG] Received line: {:?}", line.trim());
+                tracing::debug!("[DEBUG] Received line: {:?}", line.trim());
                 Ok(Message::from_str(&line))
             }
             Ok(Err(e)) => {
-                println!("[ERROR] Read error: {}", e);
+                tracing::debug!("[ERROR] Read error: {}", e);
                 Err(Box::new(e))
             }
             Err(_) => Ok(None), // Timeout — no data available
@@ -288,7 +288,7 @@ where
             //strict check not working with docker's NAT resolution
             //return Err("Received connection from wrong IP".into());
             //display warning message instead
-            println!(
+            tracing::debug!(
                 "[Node RT] WARN: Receiver accepted connection from {} while expected address was {}",
                 remote_addr, addr.unwrap()
             );
@@ -363,7 +363,7 @@ mod tests {
                     }
                 } => {},
                 _ = shutdown_rx => {
-                    println!("Server is shutting down.");
+                    tracing::debug!("Server is shutting down.");
                 }
             }
         });

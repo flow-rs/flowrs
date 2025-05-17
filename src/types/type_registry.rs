@@ -112,7 +112,6 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 pub struct TypeRegistry {
     connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
-    //pub poll_fns: HashMap<TypeId, Box<dyn PollFnErased>>,
     pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
     output_setters_with_connect: HashMap<TypeId, OutputSetterWithConnectFn>,
@@ -265,36 +264,6 @@ impl TypeRegistry {
 
         setter(node_io, input_idx, communicator)
     }
-
-    // pub fn register_poll_functions<T>(&mut self)
-    // where
-    //     T: 'static + Send + Clone + Debug + FromStr,
-    // {
-    //     let type_id = TypeId::of::<T>();
-
-    //     let func: PollFn<T> = Box::new(|io: &mut dyn SetupIO| {
-    //         Box::pin(async move {
-    //             for idx in 0..io.get_input_count() {
-    //                 if let Some(edge_any) = io.get_input_communicator(idx) {
-    //                     let edge = edge_any
-    //                         .downcast_mut::<Edge<T>>()
-    //                         .ok_or_else(|| ReceiveError::<T>::Other(anyhow!("Downcast failed")))?;
-
-    //                     edge.poll_and_buffer().await?;
-    //                 }
-    //             }
-    //             Ok(())
-    //         })
-    //     });
-
-    //     //self.poll_fns
-    //     //    .insert(TypeId::of::<T>(), Box::new(func) as Box<dyn PollFnErased>);
-    // }
-
-    // Get a mutable reference to a polling function for a given type
-    // pub fn get_poll_fn_erased(&mut self, type_id: &TypeId) -> Option<&mut Box<dyn PollFnErased>> {
-    //     self.poll_fns.get_mut(type_id)
-    // }
 }
 
 #[async_trait]

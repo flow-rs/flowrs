@@ -150,6 +150,7 @@ where
             receiver: None,
         }
     }
+
     fn move_recv(&mut self) -> Result<Self, Box<dyn std::error::Error + Send + Sync>>
     where
         Self: Sized,

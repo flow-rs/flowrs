@@ -85,25 +85,15 @@ pub trait UpdateController {
     fn cancel(&mut self);
 }
 
-/// Trait that has to be implemented by any node.
-/// Contains methods for each state in the lifecycle of a node.
+/// Trait that has to be implemented by any node
+/// Contains methods for each state in the lifecycle of a node
 pub trait Node: Send + Sync {
-    /// This method changes the current execution mode of the node
-    fn set_execution_mode(&mut self, _mode: ExecutionMode) -> ExecutionMode {
-        ExecutionMode::Continuous
-    }
-
-    /// This method retrieves the current execution mode of the node
-    fn get_execution_mode(&self) -> ExecutionMode {
-        ExecutionMode::Continuous
-    }
-
-    /// This method is called for node initialization.
+    /// This method is called for node initialization
     fn on_init(&mut self) -> Result<(), InitError> {
         Ok(())
     }
 
-    /// This method is called when all nodes in the flow are initialized.
+    /// This method is called once all nodes in the flow are initialized
     fn on_ready(&mut self) -> Result<(), ReadyError> {
         Ok(())
     }
@@ -118,6 +108,7 @@ pub trait Node: Send + Sync {
         Ok(())
     }
 
+    /// This function is called before on_update to control execution behavior
     /// Default directive behavior: wait for all inputs.
     fn on_update_directive(&mut self) -> Result<NodeExecutionDirective, UpdateError> {
         let count = self.get_input_count();
@@ -126,12 +117,32 @@ pub trait Node: Send + Sync {
         Ok(NodeExecutionDirective::WaitForInputs(required_inputs))
     }
 
+    /// This method changes the current execution mode of the node
+    fn set_execution_mode(&mut self, _mode: ExecutionMode) -> ExecutionMode {
+        ExecutionMode::Continuous
+    }
+
+    /// This method retrieves the current execution mode of the node
+    fn get_execution_mode(&self) -> ExecutionMode {
+        ExecutionMode::Continuous
+    }
+
+    /// Returns the total number of inputs the node has
     fn get_input_count(&self) -> u128;
+
+    /// Returns the total number of outputs the node has
     fn get_output_count(&self) -> u128;
+
+    /// Sets up an input with index and locality flag
     fn setup_input(&mut self, idx: u128, local: bool);
+
+    /// Sets up an output with index and locality flag
     fn setup_output(&mut self, idx: u128, local: bool);
+
+    /// Retrieves the IO of the node as mutable object
     fn get_io_mut(&mut self) -> &mut dyn SetupIO;
 }
+
 #[derive(Error, Debug)]
 pub enum InitError {
     //TODO: Add init specific errors.

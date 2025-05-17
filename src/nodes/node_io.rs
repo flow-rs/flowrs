@@ -10,8 +10,7 @@ use super::connection::Output;
 use super::connection::{Edge, EdgeTrait};
 use crate::comm::communication::{Communicator, NodeCommunicator};
 
-/// The main I/O wrapper for all node implementationspub struct NodeIO<I, O>
-
+/// The main I/O wrapper for all node implementations
 #[derive(Debug)]
 pub struct NodeIO<I, O>
 where
@@ -42,138 +41,9 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct TypedInput<I>
-where
-    I: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    pub input: Input<I>,
-}
+//================================SETUP TRAITS========================================================
 
-#[derive(Debug)]
-pub struct TypedOutput<O>
-where
-    O: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    pub output: Output<O>,
-}
-
-pub trait SplittableCommunicator: Send + Sync + AsAny {
-    fn split(
-        &mut self,
-        idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>);
-}
-
-impl<T> SplittableCommunicator for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn split(
-        &mut self,
-        _idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-        if let Some(existing_comm) = self.output.get_communicator_mut() {
-            let send_half = existing_comm.clone_send();
-            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
-
-            (
-                Box::new(TypedOutput {
-                    output: Output::from_communicator(send_half),
-                }),
-                Box::new(TypedOutput {
-                    output: Output::from_communicator(recv_half),
-                }),
-            )
-        } else {
-            panic!("No communicator to split!");
-        }
-    }
-}
-
-impl<T> SplittableCommunicator for TypedInput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn split(
-        &mut self,
-        _idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-        if let Some(existing_comm) = self.input.get_communicator_mut() {
-            let send_half = existing_comm.clone_send();
-            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
-
-            (
-                Box::new(TypedOutput::from_communicator(send_half))
-                    as Box<dyn SettableCommunicator>,
-                Box::new(TypedOutput::from_communicator(recv_half))
-                    as Box<dyn SettableCommunicator>,
-            )
-        } else {
-            panic!("No communicator to split!");
-        }
-    }
-}
-
-pub trait CommunicatorGetter {
-    fn get_splittable(&mut self) -> Option<&mut dyn Splittable>;
-}
-
-impl<T> CommunicatorGetter for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_splittable(&mut self) -> Option<&mut dyn Splittable> {
-        self.output
-            .get_communicator_mut()
-            .map(|comm| comm as &mut dyn Splittable)
-    }
-}
-
-pub trait SettableCommunicator: Send + Sync + AsAny {
-    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);
-}
-
-impl<T> SettableCommunicator for TypedInput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
-        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
-            self.input.set_communicator(*typed_comm);
-        } else {
-            panic!("Failed to cast communicator to the expected type");
-        }
-    }
-}
-
-impl<T> SettableCommunicator for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
-        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
-            self.output.set_communicator(*typed_comm);
-        } else {
-            panic!("Failed to cast communicator to the expected type");
-        }
-    }
-}
-
-impl<T> SetupOutputsSync for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn setup_output_sync(&mut self, idx: u128, local: bool) {
-        self.output.setup_output_sync(idx, local);
-    }
-
-    fn get_output_count(&self) -> NodeIOIndex {
-        1 // Each `TypedOutput<T>` represents a single output
-    }
-}
-
-/// **Traits for setting up inputs and outputs asynchronously**
+/// Traits for setting up inputs and outputs asynchronously
 #[async_trait]
 pub trait SetupInputs {
     async fn setup_input(&mut self, idx: NodeIOIndex, local: bool);
@@ -542,6 +412,8 @@ where
     }
 }
 
+//===========================================================ASANY==========================================
+
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -650,7 +522,10 @@ where
     }
 }
 
+//==========================================SETUP IO==================================================
 //#[async_trait]
+
+/// Helper trait for indexed tuple access of structures containing multiple tuples
 pub trait SetupIO: Send + Sync + AsAny {
     fn get_input_count(&self) -> NodeIOIndex;
     fn get_output_count(&self) -> NodeIOIndex;
@@ -684,6 +559,8 @@ where
         TupleIO::has_ready_input(&self.inputs, idx)
     }
 }
+
+//================================================TUPLE IO============================================
 
 /// Helper trait for accessing tuple elements dynamically.
 pub trait TupleIO: Send + Sync {
@@ -794,6 +671,140 @@ macro_rules! impl_tuple_io {
     };
 }
 
+//================================TYPED INPUT/OUTPUT==============================
+#[derive(Debug)]
+pub struct TypedInput<I>
+where
+    I: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub input: Input<I>,
+}
+
+#[derive(Debug)]
+pub struct TypedOutput<O>
+where
+    O: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    pub output: Output<O>,
+}
+
+pub trait SplittableCommunicator: Send + Sync + AsAny {
+    fn split(
+        &mut self,
+        idx: NodeIOIndex,
+    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>);
+}
+
+impl<T> SplittableCommunicator for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn split(
+        &mut self,
+        _idx: NodeIOIndex,
+    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
+        if let Some(existing_comm) = self.output.get_communicator_mut() {
+            let send_half = existing_comm.clone_send();
+            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+
+            (
+                Box::new(TypedOutput {
+                    output: Output::from_communicator(send_half),
+                }),
+                Box::new(TypedOutput {
+                    output: Output::from_communicator(recv_half),
+                }),
+            )
+        } else {
+            panic!("No communicator to split!");
+        }
+    }
+}
+
+impl<T> SplittableCommunicator for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn split(
+        &mut self,
+        _idx: NodeIOIndex,
+    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
+        if let Some(existing_comm) = self.input.get_communicator_mut() {
+            let send_half = existing_comm.clone_send();
+            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+
+            (
+                Box::new(TypedOutput::from_communicator(send_half))
+                    as Box<dyn SettableCommunicator>,
+                Box::new(TypedOutput::from_communicator(recv_half))
+                    as Box<dyn SettableCommunicator>,
+            )
+        } else {
+            panic!("No communicator to split!");
+        }
+    }
+}
+
+pub trait CommunicatorGetter {
+    fn get_splittable(&mut self) -> Option<&mut dyn Splittable>;
+}
+
+impl<T> CommunicatorGetter for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_splittable(&mut self) -> Option<&mut dyn Splittable> {
+        self.output
+            .get_communicator_mut()
+            .map(|comm| comm as &mut dyn Splittable)
+    }
+}
+
+pub trait SettableCommunicator: Send + Sync + AsAny {
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);
+}
+
+impl<T> SettableCommunicator for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
+        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
+            self.input.set_communicator(*typed_comm);
+        } else {
+            panic!("Failed to cast communicator to the expected type");
+        }
+    }
+}
+
+impl<T> SettableCommunicator for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>) {
+        if let Ok(typed_comm) = communicator.downcast::<NodeCommunicator<T>>() {
+            self.output.set_communicator(*typed_comm);
+        } else {
+            panic!("Failed to cast communicator to the expected type");
+        }
+    }
+}
+
+impl<T> SetupOutputsSync for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn setup_output_sync(&mut self, idx: u128, local: bool) {
+        self.output.setup_output_sync(idx, local);
+    }
+
+    fn get_output_count(&self) -> NodeIOIndex {
+        1 // Each `TypedOutput<T>` represents a single output
+    }
+}
+
+//===================================================================================
+
 // Try to get mutable access to an Edge<D> by index
 pub fn get_input_edge_mut<D: 'static>(
     io: &mut dyn SetupIO,
@@ -809,6 +820,8 @@ where
         .and_then(|any| any.downcast_mut::<Input<D>>())
         .map(|input| input.edge_mut())
 }
+
+//======================================TUPLE INVOCATIONS==========================================
 
 impl_tuple_io!((0 D0));
 impl_tuple_io!((0 D0, 1 D1));

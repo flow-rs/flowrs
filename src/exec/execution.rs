@@ -110,12 +110,30 @@ impl StandardExecutor {
                         }
                     }
 
+                    // Collect output type IDs for this node
+                    let mut output_type_ids = HashMap::new();
+                    for conn in flow_guard.get_connections() {
+                        if conn.sender_id == node_id {
+                            if let Some((_, type_id)) = flow_guard.get_connection_type(conn) {
+                                output_type_ids.insert(conn.send_out_idx, type_id);
+                            } else {
+                                return Err(ExecutionError::NodeSetupFailed {
+                                    message: format!(
+                                        "Missing type ID for output of node {}",
+                                        node_id
+                                    ),
+                                });
+                            }
+                        }
+                    }
+
                     // Create the node (now synchronous, no await)
                     match self.create_local_execution_node(
                         node,
                         node_id,
                         self.execution_mode.clone(),
                         input_type_ids,
+                        output_type_ids,
                     ) {
                         Ok(execution_node) => {
                             let execution_node = Arc::new(Mutex::new(execution_node));
@@ -175,6 +193,7 @@ impl StandardExecutor {
         node_id: NodeId,
         execution_mode: ExecutionMode,
         input_type_ids: HashMap<NodeIOIndex, TypeId>,
+        output_type_ids: HashMap<NodeIOIndex, TypeId>,
     ) -> Result<ExecutionNode, ExecutionError> {
         let thread_comm =
             ThreadCommunicator::<String>::new().map_err(|err| ExecutionError::NodeSetupFailed {
@@ -193,6 +212,7 @@ impl StandardExecutor {
             execution_mode,
             control_edge,
             input_type_ids,
+            output_type_ids,
         ))
     }
     /// **Ensure all nodes are in ready state before execution**

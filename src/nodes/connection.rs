@@ -1,5 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::{Mutex, MutexGuard};
+
+use std::collections::VecDeque;
 
 use crate::comm::communication::{Communicator, NodeCommunicator};
 use crate::comm::data::DataWrapper;
@@ -9,35 +13,77 @@ use crate::comm::network_communicator::NetworkCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::node::{Node, ReceiveError, SendError};
 use async_trait::async_trait;
+#[cfg(not(target_arch = "wasm32"))]
 use futures::executor::block_on;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::runtime::Handle;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::spawn_local;
 
 #[derive(Debug)]
 pub struct Edge<D>
 where
-    D: Clone,
-    D: fmt::Debug,
-    D: FromStr,
-    D: Send + 'static,
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
     communicator: NodeCommunicator<D>,
-    pub buffer: Option<D>,
+    send_queue: Vec<D>,
+    buffer: Option<D>,
     is_ready: bool,
 }
 
 impl<D> Edge<D>
 where
-    D: Clone,
-    D: fmt::Debug,
-    D: FromStr,
-    D: Send + 'static,
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
     pub fn new(communicator: NodeCommunicator<D>) -> Self {
         Self {
-            communicator,
+            communicator: communicator,
             buffer: None,
             is_ready: false,
+            send_queue: Vec::new(),
         }
+    }
+
+    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+        debug_assert!(
+            self.buffer.is_none(),
+            "get_communicator_mut() called after runtime started"
+        );
+        match &mut self.communicator {
+            NodeCommunicator::ThreadComm(comm) => Some(comm),
+            _ => None,
+        }
+    }
+
+    pub fn enqueue_send(&mut self, data: D) -> Result<(), SendError> {
+        self.send_queue.push(data);
+        Ok(())
+    }
+
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        self.enqueue_send(data)
+    }
+
+    pub async fn flush(&mut self) -> Result<(), SendError> {
+        for data in self.send_queue.drain(..) {
+            let data_wrapper = DataWrapper::<D>::new(data);
+            let msg = Message::<D>::Data(data_wrapper);
+
+            match &mut self.communicator {
+                NodeCommunicator::ThreadComm(comm) => comm
+                    .send(msg)
+                    .await
+                    .map_err(|e| SendError::Other(anyhow::anyhow!(e)))?,
+                #[cfg(not(target_arch = "wasm32"))]
+                NodeCommunicator::NetworkComm(comm) => comm
+                    .send(msg)
+                    .await
+                    .map_err(|e| SendError::Other(anyhow::anyhow!(e)))?,
+            }
+        }
+
+        Ok(())
     }
 
     pub fn set_buffer(&mut self, val: Option<D>) {
@@ -55,14 +101,17 @@ where
         val
     }
 
-    /// Polls the underlying communicator once and updates the internal buffer accordingly.
     pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
         match &self.communicator {
-            NodeCommunicator::ThreadComm(_) => tracing::debug!("[Edge] Using ThreadCommunicator"),
+            NodeCommunicator::ThreadComm(_) => {
+                tracing::debug!("[Edge] Using ThreadCommunicator");
+            }
             #[cfg(not(target_arch = "wasm32"))]
-            NodeCommunicator::NetworkComm(_) => tracing::debug!("[Edge] Using NetworkCommunicator"),
+            NodeCommunicator::NetworkComm(_) => {
+                tracing::debug!("[Edge] Using NetworkCommunicator");
+            }
         }
-        // If we already have a buffered message, don't re-poll
+
         if self.buffer.is_some() {
             self.is_ready = true;
             tracing::debug!("[Edge] buffer already filled");
@@ -76,37 +125,53 @@ where
                 tracing::debug!("[Edge] buffer set!");
                 Ok(())
             }
-
             Ok(Some(msg)) => {
-                // Pass control message upwards
-                tracing::debug!("[Edge] error");
+                tracing::debug!("[Edge] received control msg");
                 Err(ReceiveError::ControlMessage(msg))
             }
-
             Ok(None) => {
                 self.is_ready = false;
                 tracing::debug!("[Edge] nothing received");
                 Ok(())
             }
-
             Err(e) => Err(e),
         }
     }
 
-    // Send a single data point over the edge
-    pub fn send(&mut self, data: D) -> Result<(), SendError> {
-        let data_wrapper = DataWrapper::<D>::new(data);
-        let msg = Message::<D>::Data(data_wrapper);
-        match &mut self.communicator {
-            NodeCommunicator::ThreadComm(communicator) => block_on(communicator.send(msg))
-                .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+    pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
+        let res = match &mut self.communicator {
+            NodeCommunicator::ThreadComm(comm) => comm.try_receive().await,
             #[cfg(not(target_arch = "wasm32"))]
-            NodeCommunicator::NetworkComm(communicator) => block_on(communicator.send(msg))
-                .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+            NodeCommunicator::NetworkComm(comm) => comm.try_receive().await,
+        };
+
+        match res {
+            Ok(msg_option) => Ok(msg_option),
+            Err(err) => Err(ReceiveError::Other(anyhow::anyhow!(err.to_string()))),
         }
     }
+}
 
-    // Receive a single data point over the edge
+#[cfg(not(target_arch = "wasm32"))]
+impl<D> Edge<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    // pub fn send(&self, data: D) -> Result<(), SendError> {
+    //     let data_wrapper = DataWrapper::<D>::new(data);
+    //     let msg = Message::Data(data_wrapper);
+
+    //     let mut guard = block_on(self.communicator.lock());
+    //     match &mut *guard {
+    //         NodeCommunicator::ThreadComm(comm) => {
+    //             block_on(comm.send(msg)).map_err(|e| SendError::Other(anyhow::anyhow!(e)))
+    //         }
+    //         NodeCommunicator::NetworkComm(comm) => {
+    //             block_on(comm.send(msg)).map_err(|e| SendError::Other(anyhow::anyhow!(e)))
+    //         }
+    //     }
+    // }
+
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         let fut = match &mut self.communicator {
             NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
@@ -114,28 +179,36 @@ where
             NodeCommunicator::NetworkComm(comm) => comm.try_receive(),
         };
 
-        match Handle::current().block_on(fut) {
+        match block_on(fut) {
             Ok(Some(Message::Data(data))) => Ok(Some(data.get_data())),
             Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
-            Ok(None) => Ok(None), // No message yet — this is non-blocking behavior
-            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(err.to_string()))),
+            Ok(None) => Ok(None),
+            Err(err) => Err(ReceiveError::Other(anyhow::anyhow!(err))),
         }
     }
+}
 
-    // Try to receive any message over the Edge. Use this function to retrieve control messages
-    pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
-        let res = match &mut self.communicator {
-            NodeCommunicator::ThreadComm(communicator) => communicator.try_receive().await,
-            #[cfg(not(target_arch = "wasm32"))]
-            NodeCommunicator::NetworkComm(communicator) => communicator.try_receive().await,
-        };
-        match res {
-            Ok(msg_option) => match msg_option {
-                Some(msg) => Ok(Some(msg)),
-                None => Ok(None),
-            },
-            Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(format!("{}", err)))),
-        }
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug)]
+impl<D> Edge<D>
+where
+    D: Clone + fmt::Debug + FromStr + Send + 'static,
+{
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        let comm = Arc::clone(&self.communicator);
+        spawn_local(async move {
+            let msg = Message::<D>::Data(DataWrapper::new(data));
+            let mut guard = comm.lock().await; // <-- FIXED
+
+            if let NodeCommunicator::ThreadComm(comm) = &mut *guard {
+                let _ = comm.send(msg).await;
+            }
+        });
+        Ok(())
+    }
+
+    pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+        Ok(None)
     }
 }
 
@@ -153,28 +226,7 @@ where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
     pub edge: Edge<D>,
-}
-
-// /// A node's input implemented as an [Edge] type.
-// pub type Input<D> = Edge<D>;
-
-// /// A node's input implemented as an [Edge] type.
-// pub type Output<D> = Edge<D>;
-
-// /// Marker traits for inputs and outputs
-// /// (mainly to avoid making them separate types)
-// pub trait IsInput {}
-// pub trait IsOutput {}
-// impl<D> IsInput for Edge<D> where D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static {}
-// impl<D> IsOutput for Edge<D> where D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static {}
-
-#[async_trait]
-pub trait EdgeTrait<D>: Sized
-where
-    D: Clone + Send + fmt::Debug + FromStr + 'static,
-{
-    fn new_local() -> Self;
-    async fn new_network() -> Self;
+    pub pending: VecDeque<Message<D>>,
 }
 
 impl<D> Input<D>
@@ -187,24 +239,34 @@ where
         }
     }
 
-    pub fn send(&mut self, data: D) -> Result<(), SendError> {
-        self.edge.send(data)
+    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+        self.edge.get_communicator_mut()
     }
 
+    /// Adds the message to the outgoing buffer (async flush will be called later)
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        self.edge.enqueue_send(data)
+    }
+
+    /// Blocking-style non-async receive for native use
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         self.edge.next()
     }
 
-    /// Set a new communicator
-    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
-        self.edge = Edge::new(communicator);
+    /// Async-style receive for wasm
+    #[cfg(target_arch = "wasm32")]
+    pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+        self.edge.next_async().await
     }
 
-    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
-        match &mut self.edge.communicator {
-            NodeCommunicator::ThreadComm(comm) => Some(comm),
-            _ => None,
-        }
+    /// Flushes the buffered outgoing data (must be called after `on_update`)
+    pub async fn flush(&mut self) -> Result<(), SendError> {
+        self.edge.flush().await
+    }
+
+    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+        self.edge = Edge::new(communicator);
     }
 
     pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
@@ -225,34 +287,72 @@ where
     pub fn new(communicator: NodeCommunicator<D>) -> Self {
         Self {
             edge: Edge::new(communicator),
+            pending: VecDeque::new(),
         }
     }
 
-    pub fn send(&mut self, data: D) -> Result<(), SendError> {
-        self.edge.send(data)
+    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+        self.edge.get_communicator_mut()
     }
 
+    /// Queues a value for sending (actual send will happen on `flush()`)
+    pub fn send(&mut self, data: D) -> Result<(), SendError> {
+        self.edge.enqueue_send(data)
+    }
+
+    /// Blocking-style non-async receive for native use
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         self.edge.next()
     }
 
-    /// Set a new communicator
-    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
-        self.edge = Edge::new(communicator);
+    /// Async-style receive for wasm
+    #[cfg(target_arch = "wasm32")]
+    pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+        self.edge.next_async().await
     }
 
-    pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+    /// Flushes queued data (should be called at end of `on_update`)
+    pub async fn flush(&mut self) -> Result<(), SendError> {
+        self.edge.flush().await
+    }
+
+    pub fn with_thread_comm<F, R>(&mut self, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut ThreadCommunicator<D>) -> R,
+    {
         match &mut self.edge.communicator {
-            NodeCommunicator::ThreadComm(comm) => Some(comm),
+            NodeCommunicator::ThreadComm(comm) => Some(f(comm)),
             _ => None,
         }
     }
 
+    pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+        self.edge = Edge::new(communicator);
+    }
+
+    // pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+    //     match &mut self.edge.communicator {
+    //         NodeCommunicator::ThreadComm(comm) => Some(comm),
+    //         _ => None,
+    //     }
+    // }
+
     pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
         Self {
             edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
+            pending: VecDeque::new(),
         }
     }
+}
+
+#[async_trait]
+pub trait EdgeTrait<D>: Sized
+where
+    D: Clone + Send + fmt::Debug + FromStr + 'static,
+{
+    fn new_local() -> Self;
+    async fn new_network() -> Self;
 }
 
 #[async_trait]
@@ -303,263 +403,406 @@ where
     }
 }
 
+// use std::fmt;
+// use std::str::FromStr;
+
+// use crate::comm::communication::{Communicator, NodeCommunicator};
+// use crate::comm::data::DataWrapper;
+// use crate::comm::messages::Message;
+// #[cfg(not(target_arch = "wasm32"))]
+// use crate::comm::network_communicator::NetworkCommunicator;
+// use crate::comm::thread_communicator::ThreadCommunicator;
+// use crate::node::{Node, ReceiveError, SendError};
+// use async_trait::async_trait;
+// use futures::executor::block_on;
+// use tokio::runtime::Handle;
+
+// #[derive(Debug)]
+// pub struct Edge<D>
+// where
+//     D: Clone,
+//     D: fmt::Debug,
+//     D: FromStr,
+//     D: Send + 'static,
+// {
+//     communicator: NodeCommunicator<D>,
+//     pub buffer: Option<D>,
+//     is_ready: bool,
+// }
+
+// impl<D> Edge<D>
+// where
+//     D: Clone,
+//     D: fmt::Debug,
+//     D: FromStr,
+//     D: Send + 'static,
+// {
+//     pub fn new(communicator: NodeCommunicator<D>) -> Self {
+//         Self {
+//             communicator,
+//             buffer: None,
+//             is_ready: false,
+//         }
+//     }
+
+//     pub fn set_buffer(&mut self, val: Option<D>) {
+//         self.buffer = val;
+//         self.is_ready = self.buffer.is_some();
+//     }
+
+//     pub fn has_data(&self) -> bool {
+//         self.buffer.is_some()
+//     }
+
+//     pub fn take(&mut self) -> Option<D> {
+//         let val = self.buffer.take();
+//         self.is_ready = false;
+//         val
+//     }
+
+//     /// Polls the underlying communicator once and updates the internal buffer accordingly.
+//     pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
+//         match &self.communicator {
+//             NodeCommunicator::ThreadComm(_) => tracing::debug!("[Edge] Using ThreadCommunicator"),
+//             #[cfg(not(target_arch = "wasm32"))]
+//             NodeCommunicator::NetworkComm(_) => tracing::debug!("[Edge] Using NetworkCommunicator"),
+//         }
+//         // If we already have a buffered message, don't re-poll
+//         if self.buffer.is_some() {
+//             self.is_ready = true;
+//             tracing::debug!("[Edge] buffer already filled");
+//             return Ok(());
+//         }
+
+//         match self.try_message().await {
+//             Ok(Some(Message::Data(data))) => {
+//                 let val = data.get_data();
+//                 self.set_buffer(Some(val));
+//                 tracing::debug!("[Edge] buffer set!");
+//                 Ok(())
+//             }
+
+//             Ok(Some(msg)) => {
+//                 // Pass control message upwards
+//                 tracing::debug!("[Edge] error");
+//                 Err(ReceiveError::ControlMessage(msg))
+//             }
+
+//             Ok(None) => {
+//                 self.is_ready = false;
+//                 tracing::debug!("[Edge] nothing received");
+//                 Ok(())
+//             }
+
+//             Err(e) => Err(e),
+//         }
+//     }
+
+//     // Try to receive any message over the Edge. Use this function to retrieve control messages
+//     pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
+//         let res = match &mut self.communicator {
+//             NodeCommunicator::ThreadComm(communicator) => communicator.try_receive().await,
+//             #[cfg(not(target_arch = "wasm32"))]
+//             NodeCommunicator::NetworkComm(communicator) => communicator.try_receive().await,
+//         };
+//         match res {
+//             Ok(msg_option) => match msg_option {
+//                 Some(msg) => Ok(Some(msg)),
+//                 None => Ok(None),
+//             },
+//             Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(format!("{}", err)))),
+//         }
+//     }
+// }
+
+// #[cfg(not(target_arch = "wasm32"))]
+// impl<D> Edge<D>
+// where
+//     D: Clone,
+//     D: fmt::Debug,
+//     D: FromStr,
+//     D: Send + 'static,
+// {
+//     pub fn send(&mut self, data: D) -> Result<(), SendError> {
+//         let data_wrapper = DataWrapper::<D>::new(data);
+//         let msg = Message::<D>::Data(data_wrapper);
+
+//         match &mut self.communicator {
+//             NodeCommunicator::ThreadComm(communicator) => block_on(communicator.send(msg))
+//                 .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+//             NodeCommunicator::NetworkComm(communicator) => block_on(communicator.send(msg))
+//                 .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+//         }
+//     }
+
+//     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         let fut = match &mut self.communicator {
+//             NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
+//             NodeCommunicator::NetworkComm(comm) => comm.try_receive(),
+//         };
+
+//         match Handle::current().block_on(fut) {
+//             Ok(Some(Message::Data(data))) => Ok(Some(data.get_data())),
+//             Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
+//             Ok(None) => Ok(None),
+//             Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(err.to_string()))),
+//         }
+//     }
+// }
+
+// #[cfg(target_arch = "wasm32")]
+// impl<D> Edge<D>
+// where
+//     D: Clone,
+//     D: fmt::Debug,
+//     D: FromStr,
+//     D: Send + 'static,
+// {
+//     pub async fn send_async(&mut self, data: D) -> Result<(), SendError> {
+//         let data_wrapper = DataWrapper::<D>::new(data);
+//         let msg = Message::<D>::Data(data_wrapper);
+
+//         match &mut self.communicator {
+//             NodeCommunicator::ThreadComm(communicator) => communicator
+//                 .send(msg)
+//                 .await
+//                 .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+//         }
+//     }
+
+//     pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         let fut = match &mut self.communicator {
+//             NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
+//         };
+
+//         match fut.await {
+//             Ok(Some(Message::Data(data))) => Ok(Some(data.get_data())),
+//             Ok(Some(msg)) => Err(ReceiveError::ControlMessage(msg)),
+//             Ok(None) => Ok(None),
+//             Err(err) => Err(ReceiveError::Other(anyhow::Error::msg(err.to_string()))),
+//         }
+//     }
+// }
+
+// #[derive(Debug)]
+// pub struct Input<D>
+// where
+//     D: Clone + fmt::Debug + FromStr + Send + 'static,
+// {
+//     pub edge: Edge<D>,
+// }
+
+// #[derive(Debug)]
+// pub struct Output<D>
+// where
+//     D: Clone + fmt::Debug + FromStr + Send + 'static,
+// {
+//     pub edge: Edge<D>,
+// }
+
+// #[async_trait]
+// pub trait EdgeTrait<D>: Sized
+// where
+//     D: Clone + Send + fmt::Debug + FromStr + 'static,
+// {
+//     fn new_local() -> Self;
+//     async fn new_network() -> Self;
+// }
+
+// impl<D> Input<D>
+// where
+//     D: Clone + fmt::Debug + FromStr + Send + 'static,
+// {
+//     pub fn new(communicator: NodeCommunicator<D>) -> Self {
+//         Self {
+//             edge: Edge::new(communicator),
+//         }
+//     }
+
+//     #[cfg(not(target_arch = "wasm32"))]
+//     pub fn send(&mut self, data: D) -> Result<(), SendError> {
+//         self.edge.send(data)
+//     }
+
+//     #[cfg(target_arch = "wasm32")]
+//     pub async fn send_async(&mut self, data: D) -> Result<(), SendError> {
+//         self.edge.send_async(data).await
+//     }
+
+//     #[cfg(not(target_arch = "wasm32"))]
+//     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         self.edge.next()
+//     }
+
+//     #[cfg(target_arch = "wasm32")]
+//     pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         self.edge.next_async().await
+//     }
+
+//     /// Set a new communicator
+//     pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+//         self.edge = Edge::new(communicator);
+//     }
+
+//     pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+//         match &mut self.edge.communicator {
+//             NodeCommunicator::ThreadComm(comm) => Some(comm),
+//             _ => None,
+//         }
+//     }
+
+//     pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
+//         Self {
+//             edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
+//         }
+//     }
+
+//     pub fn edge_mut(&mut self) -> &mut Edge<D> {
+//         &mut self.edge
+//     }
+// }
+
+// impl<D> Output<D>
+// where
+//     D: Clone + fmt::Debug + FromStr + Send + 'static,
+// {
+//     pub fn new(communicator: NodeCommunicator<D>) -> Self {
+//         Self {
+//             edge: Edge::new(communicator),
+//         }
+//     }
+
+//     #[cfg(not(target_arch = "wasm32"))]
+//     pub fn send(&mut self, data: D) -> Result<(), SendError> {
+//         self.edge.send(data)
+//     }
+
+//     #[cfg(target_arch = "wasm32")]
+//     pub async fn send_async(&mut self, data: D) -> Result<(), SendError> {
+//         self.edge.send_async(data).await
+//     }
+
+//     #[cfg(not(target_arch = "wasm32"))]
+//     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         self.edge.next()
+//     }
+
+//     #[cfg(target_arch = "wasm32")]
+//     pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+//         self.edge.next_async().await
+//     }
+
+//     /// Set a new communicator
+//     pub fn set_communicator(&mut self, communicator: NodeCommunicator<D>) {
+//         self.edge = Edge::new(communicator);
+//     }
+
+//     pub fn get_communicator_mut(&mut self) -> Option<&mut ThreadCommunicator<D>> {
+//         match &mut self.edge.communicator {
+//             NodeCommunicator::ThreadComm(comm) => Some(comm),
+//             _ => None,
+//         }
+//     }
+
+//     pub fn from_communicator(communicator: ThreadCommunicator<D>) -> Self {
+//         Self {
+//             edge: Edge::new(NodeCommunicator::ThreadComm(communicator)),
+//         }
+//     }
+// }
+
+// #[async_trait]
 // impl<D> EdgeTrait<D> for Input<D>
 // where
-//     D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static,
-//     Input<D>: IsInput,
+//     D: Clone + Send + fmt::Debug + FromStr + 'static,
 // {
-//     async fn new_local() -> Self {
+//     fn new_local() -> Self {
 //         Input::new(NodeCommunicator::ThreadComm(
 //             ThreadCommunicator::<D>::new().expect("should construct"),
 //         ))
 //     }
 
+//     #[cfg(not(target_arch = "wasm32"))]
 //     async fn new_network() -> Self {
 //         Input::new(NodeCommunicator::NetworkComm(
 //             NetworkCommunicator::new().await.expect("should construct"),
 //         ))
 //     }
+
+//     #[cfg(target_arch = "wasm32")]
+//     async fn new_network() -> Self {
+//         panic!("new_network is not supported on wasm");
+//     }
 // }
 
+// #[async_trait]
 // impl<D> EdgeTrait<D> for Output<D>
 // where
-//     D: Clone + Send + std::fmt::Debug + std::str::FromStr + 'static,
-//     Output<D>: IsOutput,
+//     D: Clone + Send + fmt::Debug + FromStr + 'static,
 // {
-//     async fn new_local() -> Self {
+//     fn new_local() -> Self {
 //         Output::new(NodeCommunicator::ThreadComm(
 //             ThreadCommunicator::<D>::new().expect("should construct"),
 //         ))
 //     }
 
+//     #[cfg(not(target_arch = "wasm32"))]
 //     async fn new_network() -> Self {
 //         Output::new(NodeCommunicator::NetworkComm(
 //             NetworkCommunicator::new().await.expect("should construct"),
 //         ))
 //     }
-// }
 
-// /// This trait is used for a accessing a node's
-// /// inputs and outputs by index at runtime.
-// pub trait RuntimeConnectable {
-//     fn input_at(&self, index: usize) -> Rc<dyn Any>;
-//     fn output_at(&self, index: usize) -> Rc<dyn Any>;
-// }
-
-/// A [Node] that implements the [RuntimeConnectable] trait.
-//pub trait RuntimeNode: Node + RuntimeConnectable {}
-pub trait RuntimeNode: Node {}
-
-//impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
-impl<T> RuntimeNode for T where T: Node {}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::comm::thread_communicator::ThreadCommunicator;
-
-    #[tokio::test]
-    async fn test_send() {
-        // Create an edge
-        let communicator =
-            ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
-        let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
-
-        // Send something
-        let test_data = "Hello World!".to_string();
-        let res = edge.send(test_data);
-
-        // Assert Result
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_next() {
-        // Create an edge
-        let communicator =
-            ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
-        let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
-
-        // Send something
-        let test_data = "Hello World!".to_string();
-        let _ = edge.send(test_data.clone());
-
-        // Try to receive the message
-        let res = edge.next();
-
-        // Assert result
-        assert!(res.is_ok());
-        let msg = res.unwrap().unwrap();
-        assert_eq!(msg, test_data);
-    }
-}
-
-// /// An edge defines the connection between two nodes.
-// /// It is implemented using a [`std::sync::mpsc::channel`].
-// #[derive(Debug)]
-// pub struct Edge<I> {
-//     /// The producer side (technically there can be multiple producers).
-//     sender: Sender<I>,
-
-//     /// The consumer side (only a single consumer).
-//     /// Consumers are optional.
-//     receiver: Option<Receiver<I>>,
-// }
-
-// impl<I> Clone for Edge<I> {
-//     fn clone(&self) -> Self {
-//         Self {
-//             sender: self.sender.clone(),
-//             receiver: None,
-//         }
+//     #[cfg(target_arch = "wasm32")]
+//     async fn new_network() -> Self {
+//         panic!("new_network is not supported on wasm");
 //     }
 // }
 
-// impl<I> Edge<I> {
-//     pub fn new() -> Self {
-//         let (sender, receiver) = channel();
-//         Self {
-//             sender,
-//             receiver: Some(receiver),
-//         }
+// /// A [Node] that implements the [RuntimeConnectable] trait.
+// //pub trait RuntimeNode: Node + RuntimeConnectable {}
+// pub trait RuntimeNode: Node {}
+
+// //impl<T> RuntimeNode for T where T: Node + RuntimeConnectable {}
+// impl<T> RuntimeNode for T where T: Node {}
+
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     use crate::comm::thread_communicator::ThreadCommunicator;
+
+//     #[tokio::test]
+//     async fn test_send() {
+//         // Create an edge
+//         let communicator =
+//             ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
+//         let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
+
+//         // Send something
+//         let test_data = "Hello World!".to_string();
+//         let res = edge.send(test_data);
+
+//         // Assert Result
+//         assert!(res.is_ok());
 //     }
 
-//     pub fn send(&self, elem: I) -> Result<(), SendError> {
-//         let payload_bytes = size_of::<I>();
+//     #[tokio::test]
+//     async fn test_next() {
+//         // Create an edge
+//         let communicator =
+//             ThreadCommunicator::<String>::new().expect("creation of a ThreadCommunicator object");
+//         let mut edge = Edge::new(NodeCommunicator::ThreadComm(communicator));
 
-//         match self.sender.send(elem) {
-//             Ok(_) => {
-//                 counter!("flowrs.node.edge.send.bytes", payload_bytes as u64);
-//                 increment_counter!("flowrs.node.edge.send.count");
-//                 Ok(())
-//             }
-//             Err(err) => Err(SendError::Other(anyhow::Error::msg(format!("{}", err)))),
-//         }
-//     }
+//         // Send something
+//         let test_data = "Hello World!".to_string();
+//         let _ = edge.send(test_data.clone());
 
-//     pub fn next(&self) -> Result<I, ReceiveError> {
-//         let res = self
-//             .receiver
-//             .as_ref()
-//             .expect("Only the Node that created this edge can receive from it.")
-//             .try_recv();
-//         match res {
-//             Ok(i) => {
-//                 let payload_bytes = size_of::<I>();
-//                 counter!("flowrs.node.edge.receive.bytes", payload_bytes as u64);
-//                 increment_counter!("flowrs.node.edge.receive.count");
-//                 Ok(i)
-//             }
-//             Err(err) => Err(ReceiveError::Other(err.into())),
-//         }
-//     }
-// }
+//         // Try to receive the message
+//         let res = edge.next();
 
-// /// A node's input implemented as an [Edge] type.
-// pub type Input<I> = Edge<I>;
-
-// impl<T> Serialize for Edge<T> {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         serializer.serialize_unit()
+//         // Assert result
+//         assert!(res.is_ok());
+//         let msg = res.unwrap().unwrap();
+//         assert_eq!(msg, test_data);
 //     }
 // }
-
-// impl<'de, T> Deserialize<'de> for Edge<T> {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         deserializer.deserialize_any(IgnoredAny).unwrap();
-//         Ok(Self::new())
-//     }
-// }
-
-// /// A node's output.
-// #[derive(Clone)]
-// pub struct Output<T> {
-//     // The (optional) connection to another node's input.
-//     edge: Arc<Mutex<Option<Edge<T>>>>,
-
-//     /// Whenever something is written to the output
-//     /// (and a change notifier exists), a change notification is sent.
-//     change_notifier: Option<Sender<bool>>,
-// }
-
-// impl<T> Serialize for Output<T> {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         serializer.serialize_unit()
-//     }
-// }
-
-// impl<'de, T> Deserialize<'de> for Output<T> {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         deserializer.deserialize_any(IgnoredAny).unwrap();
-//         Ok(Self::new(None))
-//     }
-// }
-
-// impl<O> Output<O> {
-//     pub fn new(change_observer: Option<&ChangeObserver>) -> Self {
-//         let change_notifier = change_observer.map(|observer| observer.notifier.clone());
-//         Self {
-//             edge: Arc::new(Mutex::new(None)),
-//             change_notifier: change_notifier,
-//         }
-//     }
-
-//     pub fn set_sender(mut self, edge: Edge<O>) -> Self {
-//         self.edge = Arc::new(Mutex::new(Some(edge)));
-//         self
-//     }
-
-//     pub fn set_observer(mut self, change_observer: &ChangeObserver) -> Self {
-//         let change_notifier = change_observer.notifier.clone();
-//         self.change_notifier = Some(change_notifier);
-//         self
-//     }
-
-//     pub fn send(&mut self, elem: O) -> Result<(), SendError> {
-//         let _res = self
-//             .edge
-//             .lock()
-//             .unwrap()
-//             .as_mut()
-//             .ok_or(SendError::Other(anyhow::Error::msg(
-//                 "Failed to send item to output",
-//             )))?
-//             .send(elem);
-
-//         if let Some(cn) = &self.change_notifier {
-//             let _ = cn.send(true);
-//         }
-
-//         Ok(())
-//     }
-
-//     pub fn set(&mut self, edge: Edge<O>) {
-//         let _ = self.edge.lock().unwrap().insert(edge);
-//     }
-// }
-
-// pub fn connect<I: Clone>(mut lhs: Output<I>, rhs: Input<I>) {
-//     lhs.set(rhs)
-// }
-
-// /// This trait is used for a accessing a node's
-// /// inputs and outputs by index at runtime.
-// pub trait RuntimeConnectable {
-//     fn input_at(&self, index: usize) -> Rc<dyn Any>;
-//     fn output_at(&self, index: usize) -> Rc<dyn Any>;
-// }
-
-// /// A [`Node`] that implements the [`RuntimeConnectable`] trait.
-// pub trait RuntimeNode: Node + RuntimeConnectable {}

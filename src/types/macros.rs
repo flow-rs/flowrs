@@ -84,6 +84,7 @@ macro_rules! generate_local_connection {
 
         let mut poll_registry = POLL_REGISTRY.lock().await;
         poll_registry.register_poll_fn::<$type>(poll_fn);
+        register_flush_fn::<$type>();
 
         tracing::debug!(
             "[generate_local_connection] Fully registered type: {}",

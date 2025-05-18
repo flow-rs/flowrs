@@ -4,9 +4,7 @@ use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::comm::network_communicator::NetworkCommunicator;
-use crate::connection::Edge;
 use crate::node::ReceiveError;
-use crate::nodes::node_io::NodeIO;
 use crate::nodes::node_io::SettableCommunicator;
 use crate::nodes::node_io::SetupIO;
 use crate::nodes::node_io::TypedInput;
@@ -14,7 +12,6 @@ use crate::nodes::node_io::TypedOutput;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::FutureExt;
-use futures::TryFutureExt;
 use futures_core::future::BoxFuture;
 use lazy_static::lazy_static;
 use std::any::{Any, TypeId};
@@ -23,7 +20,6 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
 use std::str::FromStr;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
@@ -339,6 +335,42 @@ where
             Ok(())
         })
     }
+}
+
+/// Registers a poll function that flushes outputs for type `T`
+pub fn register_flush_fn<T>()
+where
+    T: 'static + Send + Sync + Clone + Debug + FromStr,
+{
+    use crate::connection::Output;
+    use crate::nodes::node_io::TypedOutput;
+
+    let flush_fn: PollFn<T> = Box::new(|io, index| {
+        Box::pin(async move {
+            let output_any = io
+                .get_output_communicator(index)
+                .ok_or_else(|| anyhow!("Output communicator missing at index {}", index))?;
+
+            let typed = output_any.downcast_mut::<TypedOutput<T>>().ok_or_else(|| {
+                anyhow!(
+                    "Failed to downcast to TypedOutput<{}>",
+                    std::any::type_name::<T>()
+                )
+            })?;
+
+            // Call the flush method exposed on Output<T>
+            typed
+                .output
+                .flush()
+                .await
+                .map_err(|e| ReceiveError::Other(anyhow::anyhow!(e.to_string())))?;
+
+            Ok(())
+        })
+    });
+
+    let mut registry = POLL_REGISTRY.blocking_lock();
+    registry.register_poll_fn::<T>(flush_fn);
 }
 
 pub struct PollRegistry {

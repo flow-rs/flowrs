@@ -729,21 +729,27 @@ where
         &mut self,
         _idx: NodeIOIndex,
     ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-        if let Some(existing_comm) = self.output.get_communicator_mut() {
-            let send_half = existing_comm.clone_send();
-            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+        let comm = self
+            .output
+            .get_communicator_mut()
+            .expect("Expected ThreadCommunicator for split");
 
-            (
-                Box::new(TypedOutput {
-                    output: Output::from_communicator(send_half),
-                }),
-                Box::new(TypedOutput {
-                    output: Output::from_communicator(recv_half),
-                }),
-            )
-        } else {
-            panic!("No communicator to split!");
-        }
+        let send_half = comm.clone_send();
+        let recv_half = comm
+            .move_recv()
+            .expect("Failed to move receiver half from communicator");
+
+        let sender_output = Output::from_communicator(send_half);
+        let receiver_output = Output::from_communicator(recv_half);
+
+        (
+            Box::new(TypedOutput {
+                output: sender_output,
+            }),
+            Box::new(TypedOutput {
+                output: receiver_output,
+            }),
+        )
     }
 }
 

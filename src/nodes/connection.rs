@@ -4,6 +4,7 @@ use std::str::FromStr;
 use crate::comm::communication::{Communicator, NodeCommunicator};
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::comm::network_communicator::NetworkCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::node::{Node, ReceiveError, SendError};
@@ -261,10 +262,16 @@ where
         ))
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     async fn new_network() -> Self {
         Input::new(NodeCommunicator::NetworkComm(
             NetworkCommunicator::new().await.expect("should construct"),
         ))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    async fn new_network() -> Self {
+        panic!("new_network is not supported on wasm");
     }
 }
 
@@ -279,10 +286,16 @@ where
         ))
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     async fn new_network() -> Self {
         Output::new(NodeCommunicator::NetworkComm(
             NetworkCommunicator::new().await.expect("should construct"),
         ))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    async fn new_network() -> Self {
+        panic!("new_network is not supported on wasm");
     }
 }
 

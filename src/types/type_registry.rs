@@ -2,6 +2,7 @@ use crate::comm::communication::Communicator;
 use crate::comm::communication::NodeCommunicator;
 use crate::comm::data::DataWrapper;
 use crate::comm::messages::Message;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::comm::network_communicator::NetworkCommunicator;
 use crate::connection::Edge;
 use crate::node::ReceiveError;

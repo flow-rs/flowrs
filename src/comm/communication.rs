@@ -57,6 +57,7 @@ where
 {
     ThreadComm(ThreadCommunicator<D>),
     //ProcessComm(ProcessCommunicator),
+    #[cfg(not(target_arch = "wasm32"))]
     NetworkComm(NetworkCommunicator<D>),
 }
 

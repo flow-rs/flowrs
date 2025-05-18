@@ -6,11 +6,9 @@ use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use async_trait::async_trait;
 use flowrs_package::flow_package::package::Type;
 
-use super::{
-    network_communicator::NetworkCommunicator,
-    //process_communicator::ProcessCommunicator,
-    thread_communicator::ThreadCommunicator,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::comm::network_communicator::NetworkCommunicator;
+use crate::comm::thread_communicator::ThreadCommunicator;
 
 /// Communicator ==================================================================================
 #[async_trait]

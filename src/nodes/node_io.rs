@@ -3,6 +3,7 @@ use crate::flow::flow_types::NodeIOIndex;
 use async_trait::async_trait;
 use std::any::Any;
 use std::{fmt::Debug, str::FromStr};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::runtime::Runtime;
 
 use super::connection::Input;
@@ -334,9 +335,15 @@ impl<D> SetupOutputsSync for Output<D>
 where
     D: 'static + Send + Sync + Debug + FromStr + Clone,
 {
+    #[cfg(target_arch = "wasm32")]
     fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn setup_output_sync(&mut self, _idx: NodeIOIndex, _local: bool) {
+        panic!("setup_output_sync is not available in wasm");
     }
 
     fn get_output_count(&self) -> NodeIOIndex {

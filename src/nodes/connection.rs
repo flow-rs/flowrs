@@ -100,6 +100,7 @@ where
         match &mut self.communicator {
             NodeCommunicator::ThreadComm(communicator) => block_on(communicator.send(msg))
                 .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(communicator) => block_on(communicator.send(msg))
                 .map_err(|e| SendError::Other(anyhow::Error::msg(format!("{}", e)))),
         }
@@ -109,6 +110,7 @@ where
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         let fut = match &mut self.communicator {
             NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.try_receive(),
         };
 
@@ -124,6 +126,7 @@ where
     pub async fn try_message(&mut self) -> Result<Option<Message<D>>, ReceiveError<D>> {
         let res = match &mut self.communicator {
             NodeCommunicator::ThreadComm(communicator) => communicator.try_receive().await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(communicator) => communicator.try_receive().await,
         };
         match res {

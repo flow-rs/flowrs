@@ -54,6 +54,7 @@ macro_rules! generate_local_connection {
         // Register both local and dynamic factory/setup functions
         let mut registry = TYPE_REGISTRY.lock().await;
         registry.register::<$type>(connect_nodes);                    // local connection
+        #[cfg(not(target_arch = "wasm32"))]
         registry.register_communicator::<$type>(stringify!($type));  // P2P factory + IO setup
 
          // Register polling function in the separate registry

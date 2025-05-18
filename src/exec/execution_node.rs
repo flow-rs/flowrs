@@ -2,7 +2,9 @@ use crate::exec::execution_directive::NodeExecutionDirective;
 use crate::flow::flow_types::NodeId;
 use anyhow::anyhow;
 use std::{any::TypeId, collections::HashMap};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::time::sleep;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::time::Duration;
 
 use crate::node::InitError;
@@ -271,7 +273,8 @@ impl ExecutionNode {
                         "[ExecutionNode] Node {}: Sleeping before next tick...",
                         self.node_id
                     );
-                    sleep(Duration::from_secs(1)).await;
+                    // #[cfg(not(target_arch = "wasm32"))]
+                    // sleep(Duration::from_secs(1)).await;
                     continue;
                 }
             }

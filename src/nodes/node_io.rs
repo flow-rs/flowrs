@@ -30,14 +30,26 @@ where
         Self { inputs, outputs }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn setup_input_sync(&mut self, idx: u128, local: bool) {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.inputs.setup_input(idx, local));
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn setup_output_sync(&mut self, idx: u128, local: bool) {
-        let rt = Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.outputs.setup_output(idx, local));
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
+        panic!("setup_input_sync is not supported on wasm");
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn setup_output_sync(&mut self, _idx: u128, _local: bool) {
+        panic!("setup_output_sync is not supported on wasm");
     }
 }
 
@@ -107,9 +119,15 @@ impl<D> SetupInputsSync for Input<D>
 where
     D: 'static + Send + Sync + Debug + FromStr + Clone,
 {
+    #[cfg(not(target_arch = "wasm32"))]
     fn setup_input_sync(&mut self, idx: u128, local: bool) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_input(idx, local));
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn setup_input_sync(&mut self, _idx: u128, _local: bool) {
+        panic!("setup_input_sync is not supported on wasm");
     }
 
     fn get_input_count(&self) -> NodeIOIndex {
@@ -320,6 +338,7 @@ where
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
     }
+
     fn get_output_count(&self) -> NodeIOIndex {
         1 // Single output
     }

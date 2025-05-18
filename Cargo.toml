@@ -6,7 +6,6 @@ authors = ["wuermseer.florian@gmail.com", "markus.friedrich@hm.edu"]
 description = "A generic and Type-Safe WASM library for Flow-Based Programming."
 repository = "https://github.com/flow-rs/flowrs"
 license = "Apache-2.0"
-license-file = "LICENSE"
 readme = "README.md"
 documentation = "https://docs.rs/flowrs"
 keywords = ["flow", "fbp", "wasm", "flow-package"]
@@ -16,7 +15,7 @@ categories = ["data-structures", "wasm"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flowrs-derive = { version = "0.3.0", path = "flowrs_derive" }
+flowrs-derive = { git = "https://github.com/flow-rs/flowrs-derive", branch = "main" }
 flowrs-package = { git = "https://github.com/flow-rs/flowrs-package", branch = "main" }
 
 serde = { version = "1.0.184", features = ["derive", "rc"] }
@@ -32,7 +31,7 @@ lazy_static = "1.5.0"
 paste = "1.0"
 log = "0.4.20"
 
-# Optional (feature-gated) dependencies
+# Optional dependencies (behind features)
 reqwest = { version = "0.11.22", features = ["blocking", "json"], optional = true }
 futures-core = { version = "0.3.29", optional = true }
 opentelemetry = { version = "0.21", optional = true }
@@ -46,11 +45,12 @@ metrics = { version = "0.21.1", optional = true }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = ["push-gateway"], optional = true }
 aho-corasick = "1.1.3"
 
-# Native build dependencies (tokio full)
+# Native build: full tokio and env_logger
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
+env_logger = "0.10"
 
-# WASM-safe tokio & random support
+# WASM build: safe subset of tokio + getrandom
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1", features = ["rt", "macros", "time", "sync"] }
 getrandom = { version = "0.2", features = ["js"] }
@@ -61,34 +61,18 @@ wasm-bindgen-test = "0.3.37"
 [features]
 default = ["native"]
 
-# Enable for building a WASM library with wasm-bindgen
+native = [
+    "reqwest",
+    "futures-core",
+    "tracing",
+    "tracing-opentelemetry",
+    "tracing-subscriber",
+    "tracing-log",
+    "opentelemetry",
+    "opentelemetry_sdk",
+    "opentelemetry-stdout",
+    "metrics",
+    "metrics-exporter-prometheus"
+]
+
 wasm = []
-
-# Native runtime features
-native-tracing = [
-    "dep:reqwest",
-    "dep:futures-core",
-    "dep:tracing",
-    "dep:tracing-subscriber",
-    "dep:tracing-opentelemetry",
-    "dep:opentelemetry-stdout",
-    "dep:opentelemetry",
-    "dep:opentelemetry_sdk",
-    "dep:tracing-log"
-]
-
-native-metrics = [
-    "dep:metrics",
-    "dep:metrics-exporter-prometheus",
-    "dep:reqwest"
-]
-
-native-testing = []
-
-# Convenience umbrella feature
-native = ["native-tracing", "native-metrics", "native-testing"]
-
-[[bin]]
-name = "ipc_test"
-path = "optional/ipc_test/main.rs"
-required-features = ["native-testing"]

@@ -67,6 +67,7 @@ pub trait CommunicatorBox: Send + Sync {
 }
 
 #[async_trait]
+#[cfg(not(target_arch = "wasm32"))]
 impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkCommunicator<T> {
     fn as_any(&self) -> &dyn Any {
         self
@@ -98,6 +99,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
             .map_err(|e| e.to_string())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn into_node_communicator(self: Box<Self>) -> Result<Box<dyn Any + Send>, String> {
         // First cast self into a Box<dyn Any>
         let boxed_any = self as Box<dyn Any>;
@@ -145,6 +147,7 @@ impl TypeRegistry {
         self.connections.get(&type_id)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn register_communicator<T>(&mut self, type_name: &str)
     where
         T: 'static + Send + Sync + Debug + FromStr + Clone,

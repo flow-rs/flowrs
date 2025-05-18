@@ -115,6 +115,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NodeCommunicator::ThreadComm(comm) => write!(f, "{:?}", comm),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => write!(f, "{:?}", comm),
             //NodeCommunicator::ProcessComm(comm) => write!(f, "{:?}", comm),
         }
@@ -132,6 +133,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NodeCommunicator::ThreadComm(comm) => write!(f, "{}", comm),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => write!(f, "{}", comm),
             //NodeCommunicator::ProcessComm(comm) => write!(f, "{}", comm),
         }
@@ -153,6 +155,7 @@ where
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.send(message).await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.send(message).await,
         }
     }
@@ -160,6 +163,7 @@ where
     async fn receive(&mut self) -> Result<Message<D>, Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.receive().await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.receive().await,
         }
     }
@@ -169,6 +173,7 @@ where
     ) -> Result<Option<Message<D>>, Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.try_receive().await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.try_receive().await,
         }
     }
@@ -179,6 +184,7 @@ where
     {
         match self {
             NodeCommunicator::ThreadComm(comm) => NodeCommunicator::ThreadComm(comm.clone_send()),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => NodeCommunicator::NetworkComm(comm.clone_send()),
         }
     }
@@ -192,6 +198,7 @@ where
                 let new_comm = comm.move_recv()?;
                 Ok(NodeCommunicator::ThreadComm(new_comm))
             }
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => {
                 let new_comm = comm.move_recv()?;
                 Ok(NodeCommunicator::NetworkComm(new_comm))
@@ -206,6 +213,7 @@ where
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_send(addr, port).await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.connect_send(addr, port).await,
         }
     }
@@ -217,6 +225,7 @@ where
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self {
             NodeCommunicator::ThreadComm(comm) => comm.connect_recv(addr, port).await,
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(comm) => comm.connect_recv(addr, port).await,
         }
     }

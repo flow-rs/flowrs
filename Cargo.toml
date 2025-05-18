@@ -12,13 +12,12 @@ documentation = "https://docs.rs/flowrs"
 keywords = ["flow", "fbp", "wasm", "flow-package"]
 categories = ["data-structures", "wasm"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 flowrs-derive = { version = "0.3.0", path = "flowrs_derive" }
-flowrs-package = { git = "https://github.com/flow-rs/flowrs-package", branch = "main"}
+flowrs-package = { git = "https://github.com/flow-rs/flowrs-package", branch = "main" }
 serde = { version = "1.0.184", features = ["derive", "rc"] }
 serde_json = "1.0.100"
 thiserror = "1.0.44"
@@ -27,34 +26,50 @@ crossbeam-channel = "0.5.8"
 web-time = "0.2.0"
 cfg-if = "1.0.0"
 async-trait = "0.1"
-tokio = {version = "1", features = ["full"]}
 futures = "0.3"
 lazy_static = "1.5.0"
 paste = "1.0"
+log = "0.4.20"
+env_logger = "0.10.1"
+tracing = { version = "0.1.40" }
+metrics = { version = "0.21.1" }
+aho-corasick = "1.1.3"
 
+# Optional dependencies
 reqwest = { version = "0.11.22", features = ["blocking", "json"], optional = true }
 futures-core = { version = "0.3.29", optional = true }
-
 opentelemetry = { version = "0.21", optional = true }
 opentelemetry_sdk = { version = "0.21", optional = true }
 opentelemetry-stdout = { version = "0.2.0", features = ["trace"], optional = true }
 tracing-opentelemetry = { version = "0.22", optional = true }
-tracing-subscriber = { version = "0.3.18", features = [], optional = true }
+tracing-subscriber = { version = "0.3.18", optional = true }
 tracing-log = { version = "0.2.0", optional = true }
-log = "0.4.20"
-env_logger = "0.10.1"
-
-tracing = { version = "0.1.40" }
-metrics = { version = "0.21.1" }
 metrics-exporter-prometheus = { version = "0.12.1", default-features = false, features = ["push-gateway"], optional = true }
-aho-corasick = "1.1.3"
+
+# Native build: full tokio
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
+
+# WASM build: safe subset of tokio + getrandom fix
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time", "sync"] }
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.37"
 
 [features]
 default = ["tracing", "metrics", "testing"]
-tracing = ["dep:reqwest", "dep:futures-core", "dep:tracing-subscriber", "dep:tracing-opentelemetry", "dep:opentelemetry-stdout", "dep:opentelemetry", "dep:opentelemetry_sdk", "dep:tracing-log"]
+tracing = [
+    "dep:reqwest",
+    "dep:futures-core",
+    "dep:tracing-subscriber",
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry-stdout",
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:tracing-log"
+]
 metrics = ["dep:metrics-exporter-prometheus", "dep:reqwest"]
 testing = []
 

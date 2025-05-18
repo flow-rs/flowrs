@@ -222,7 +222,18 @@ impl StandardExecutor {
         for (node_id, execution_node) in &self.execution_nodes {
             let node_id = *node_id;
             let execution_node: Arc<Mutex<ExecutionNode>> = Arc::clone(execution_node);
+
+            #[cfg(not(target_arch = "wasm32"))]
             tokio::spawn(async move {
+                tracing::debug!("[Executor] Running node {}...", node_id);
+
+                let mut node = execution_node.lock().await;
+                if let Err(e) = node.on_update_async().await {
+                    tracing::error!("[Executor] Error executing node {}: {:?}", node_id, e);
+                }
+            });
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(async move {
                 tracing::debug!("[Executor] Running node {}...", node_id);
 
                 let mut node = execution_node.lock().await;

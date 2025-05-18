@@ -335,13 +335,13 @@ impl<D> SetupOutputsSync for Output<D>
 where
     D: 'static + Send + Sync + Debug + FromStr + Clone,
 {
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(not(target_arch = "wasm32"))]
     fn setup_output_sync(&mut self, idx: NodeIOIndex, local: bool) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.setup_output(idx, local));
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(target_arch = "wasm32")]
     fn setup_output_sync(&mut self, _idx: NodeIOIndex, _local: bool) {
         panic!("setup_output_sync is not available in wasm");
     }

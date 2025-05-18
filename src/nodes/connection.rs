@@ -59,6 +59,7 @@ where
     pub async fn poll_and_buffer(&mut self) -> Result<(), ReceiveError<D>> {
         match &self.communicator {
             NodeCommunicator::ThreadComm(_) => tracing::debug!("[Edge] Using ThreadCommunicator"),
+            #[cfg(not(target_arch = "wasm32"))]
             NodeCommunicator::NetworkComm(_) => tracing::debug!("[Edge] Using NetworkCommunicator"),
         }
         // If we already have a buffered message, don't re-poll

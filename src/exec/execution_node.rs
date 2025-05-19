@@ -544,8 +544,8 @@ impl ExecutionNode {
                         "[ExecutionNode] Node {}: Sleeping before next tick...",
                         self.node_id
                     );
-                    #[cfg(target_arch = "wasm32")]
-                    use wasm_bindgen_futures::yield_now;
+                    // #[cfg(target_arch = "wasm32")]
+                    // use wasm_bindgen_futures::yield_now;
                     continue;
                 }
             }

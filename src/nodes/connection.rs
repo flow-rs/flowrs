@@ -210,15 +210,13 @@ where
         Ok(None)
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
-        self.try_message().await.map(|opt| match opt {
-            Some(Message::Data(data)) => Some(data.get_data()),
-            Some(msg) => {
-                // Forward control messages as error
-                Err(ReceiveError::ControlMessage(msg))
-            }
+        match self.try_message().await? {
+            Some(Message::Data(data)) => Ok(Some(data.get_data())),
+            Some(msg) => Err(ReceiveError::ControlMessage(msg)),
             None => Ok(None),
-        })?
+        }
     }
 }
 

@@ -189,26 +189,36 @@ where
 }
 
 #[cfg(target_arch = "wasm32")]
-#[derive(Debug)]
 impl<D> Edge<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
-    pub fn send(&mut self, data: D) -> Result<(), SendError> {
-        let comm = Arc::clone(&self.communicator);
-        spawn_local(async move {
-            let msg = Message::<D>::Data(DataWrapper::new(data));
-            let mut guard = comm.lock().await; // <-- FIXED
+    // pub fn send(&mut self, data: D) -> Result<(), SendError> {
+    //     let comm = Arc::clone(&self.communicator);
+    //     spawn_local(async move {
+    //         let msg = Message::<D>::Data(DataWrapper::new(data));
+    //         let mut guard = comm.lock().await; // <-- FIXED
 
-            if let NodeCommunicator::ThreadComm(comm) = &mut *guard {
-                let _ = comm.send(msg).await;
-            }
-        });
-        Ok(())
-    }
+    //         if let NodeCommunicator::ThreadComm(comm) = &mut *guard {
+    //             let _ = comm.send(msg).await;
+    //         }
+    //     });
+    //     Ok(())
+    // }
 
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         Ok(None)
+    }
+
+    pub async fn next_async(&mut self) -> Result<Option<D>, ReceiveError<D>> {
+        self.try_message().await.map(|opt| match opt {
+            Some(Message::Data(data)) => Some(data.get_data()),
+            Some(msg) => {
+                // Forward control messages as error
+                Err(ReceiveError::ControlMessage(msg))
+            }
+            None => Ok(None),
+        })?
     }
 }
 

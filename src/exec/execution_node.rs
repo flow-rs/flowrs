@@ -527,8 +527,8 @@ impl ExecutionNode {
                 );
             }
 
-            #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::yield_now().await;
+            // #[cfg(target_arch = "wasm32")]
+            // wasm_bindgen_futures::yield_now().await;
 
             match self.execution_mode {
                 ExecutionMode::Synchronized => {

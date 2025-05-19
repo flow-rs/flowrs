@@ -358,19 +358,29 @@ where
                 )
             })?;
 
-            // Call the flush method exposed on Output<T>
             typed
                 .output
                 .flush()
                 .await
-                .map_err(|e| ReceiveError::Other(anyhow::anyhow!(e.to_string())))?;
+                .map_err(|e| ReceiveError::Other(anyhow!(e.to_string())))?;
 
             Ok(())
         })
     });
 
-    let mut registry = POLL_REGISTRY.blocking_lock();
-    registry.register_poll_fn::<T>(flush_fn);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut registry = POLL_REGISTRY.blocking_lock();
+        registry.register_poll_fn::<T>(flush_fn);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut registry = POLL_REGISTRY.lock().await;
+            registry.register_poll_fn::<T>(flush_fn);
+        });
+    }
 }
 
 pub struct PollRegistry {

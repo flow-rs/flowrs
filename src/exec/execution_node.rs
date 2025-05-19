@@ -8,6 +8,7 @@ use tokio::time::sleep;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::time::Duration;
 
+use super::{execution_mode::ExecutionMode, execution_state::ExecutionState};
 use crate::node::InitError;
 use crate::node::ReadyError;
 use crate::node::ShutdownError;
@@ -19,8 +20,8 @@ use crate::{
     node::{Node, ReceiveError, UpdateError},
     types::type_registry::POLL_REGISTRY,
 };
-
-use super::{execution_mode::ExecutionMode, execution_state::ExecutionState};
+#[cfg(target_arch = "wasm32")]
+use gloo::timers::future::yield_now;
 
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,
@@ -335,6 +336,9 @@ impl ExecutionNode {
         let mut result = Ok(());
 
         loop {
+            #[cfg(target_arch = "wasm32")]
+            yield_now().await;
+
             tracing::debug!(
                 "\n[ExecutionNode] Loop tick for Node {} State: {:?}",
                 self.node_id,
@@ -527,8 +531,8 @@ impl ExecutionNode {
                 );
             }
 
-            // #[cfg(target_arch = "wasm32")]
-            // wasm_bindgen_futures::yield_now().await;
+            #[cfg(target_arch = "wasm32")]
+            yield_now().await;
 
             match self.execution_mode {
                 ExecutionMode::Synchronized => {

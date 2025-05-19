@@ -21,7 +21,7 @@ use crate::{
     types::type_registry::POLL_REGISTRY,
 };
 #[cfg(target_arch = "wasm32")]
-use gloo::timers::future::yield_now;
+use gloo::futures::yield_now;
 
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,

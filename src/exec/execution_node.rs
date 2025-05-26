@@ -21,7 +21,7 @@ use crate::{
     types::type_registry::POLL_REGISTRY,
 };
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::yield_now;
+use async_wasm_task::yield_now;
 
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,

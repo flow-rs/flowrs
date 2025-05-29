@@ -2,11 +2,19 @@ use crate::connection::Output;
 use crate::exec::execution_directive::NodeExecutionDirective;
 use crate::flow::flow_types::NodeId;
 use anyhow::anyhow;
+#[cfg(target_arch = "wasm32")]
+use js_sys::Promise;
 use std::{any::TypeId, collections::HashMap};
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::time::sleep;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::time::Duration;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::JsFuture;
+#[cfg(target_arch = "wasm32")]
+use web_sys::window;
 
 use super::{execution_mode::ExecutionMode, execution_state::ExecutionState};
 use crate::node::InitError;
@@ -20,8 +28,8 @@ use crate::{
     node::{Node, ReceiveError, UpdateError},
     types::type_registry::POLL_REGISTRY,
 };
-#[cfg(target_arch = "wasm32")]
-use async_wasm_task::yield_now;
+// #[cfg(target_arch = "wasm32")]
+// use async_wasm_task::yield_now;
 
 pub struct ExecutionNode {
     execution_mode: ExecutionMode,

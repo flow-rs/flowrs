@@ -157,21 +157,6 @@ impl<D> Edge<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
-    // pub fn send(&self, data: D) -> Result<(), SendError> {
-    //     let data_wrapper = DataWrapper::<D>::new(data);
-    //     let msg = Message::Data(data_wrapper);
-
-    //     let mut guard = block_on(self.communicator.lock());
-    //     match &mut *guard {
-    //         NodeCommunicator::ThreadComm(comm) => {
-    //             block_on(comm.send(msg)).map_err(|e| SendError::Other(anyhow::anyhow!(e)))
-    //         }
-    //         NodeCommunicator::NetworkComm(comm) => {
-    //             block_on(comm.send(msg)).map_err(|e| SendError::Other(anyhow::anyhow!(e)))
-    //         }
-    //     }
-    // }
-
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         let fut = match &mut self.communicator {
             NodeCommunicator::ThreadComm(comm) => comm.try_receive(),
@@ -193,19 +178,6 @@ impl<D> Edge<D>
 where
     D: Clone + fmt::Debug + FromStr + Send + 'static,
 {
-    // pub fn send(&mut self, data: D) -> Result<(), SendError> {
-    //     let comm = Arc::clone(&self.communicator);
-    //     spawn_local(async move {
-    //         let msg = Message::<D>::Data(DataWrapper::new(data));
-    //         let mut guard = comm.lock().await; // <-- FIXED
-
-    //         if let NodeCommunicator::ThreadComm(comm) = &mut *guard {
-    //             let _ = comm.send(msg).await;
-    //         }
-    //     });
-    //     Ok(())
-    // }
-
     pub fn next(&mut self) -> Result<Option<D>, ReceiveError<D>> {
         Ok(None)
     }

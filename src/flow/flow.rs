@@ -16,12 +16,12 @@ use super::flow_types::NodeId;
 
 //use crate::connection::RuntimeNode;
 
-pub struct AbstractFlow {
+pub struct Flow {
     nodes: HashMap<NodeId, Box<dyn Node>>,
     network: FlowNetwork,
 }
 
-impl AbstractFlow {
+impl Flow {
     pub fn new_empty() -> Self {
         Self {
             //nodes: Vec::new(),
@@ -168,7 +168,7 @@ impl NodeDesc {
 mod tests {
     use super::*;
     use crate::{
-        flow::{abstract_flow::AbstractFlow, flow_error::FlowError},
+        flow::{flow::Flow, flow_error::FlowError},
         nodes::node_io::NodeIO,
     };
     /// A mock node for testing, simulating a basic node with configurable input/output counts.
@@ -216,13 +216,13 @@ mod tests {
 
     #[test]
     fn test_new_empty_flow() {
-        let flow = AbstractFlow::new_empty();
+        let flow = Flow::new_empty();
         assert_eq!(flow.num_nodes(), 0, "New flow should have zero nodes");
     }
 
     #[test]
     fn test_add_node_with_id() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let node_id = 1;
         let node = create_test_node();
 
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_add_duplicate_node() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let node_id = 1;
         let node1 = create_test_node();
         let node2 = create_test_node();
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_connect_nodes_success() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let node1 = create_test_node();
         let node2 = create_test_node();
         let id1 = 1;
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_connect_nodes_invalid_ids() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let node1 = create_test_node();
         let id1 = 1;
         let id_invalid = 999; // Non-existing node ID
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_get_nodes() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let node1 = create_test_node();
         let node2 = create_test_node();
 
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_move_nodes() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         flow.add_node_with_id(create_test_node(), 1);
         flow.add_node_with_id(create_test_node(), 2);
 
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_move_connections() {
-        let mut flow = AbstractFlow::new_empty();
+        let mut flow = Flow::new_empty();
         let id1 = 1;
         let id2 = 2;
         flow.add_node_with_id(create_test_node(), id1);

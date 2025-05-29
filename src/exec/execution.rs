@@ -10,7 +10,7 @@ use crate::comm::communication::NodeCommunicator;
 use crate::comm::thread_communicator::ThreadCommunicator;
 use crate::connection::Edge;
 use crate::exec::execution_node::ExecutionNode;
-use crate::flow::abstract_flow::AbstractFlow;
+use crate::flow::flow::Flow;
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
 use crate::node::Node;
 use crate::scheduler::Scheduler;
@@ -20,11 +20,11 @@ use super::execution_mode::ExecutionMode;
 
 pub struct ExecutionContext {
     pub executor: StandardExecutor,
-    pub flow: AbstractFlow,
+    pub flow: Flow,
 }
 
 impl ExecutionContext {
-    pub fn new(executor: StandardExecutor, flow: AbstractFlow) -> Self {
+    pub fn new(executor: StandardExecutor, flow: Flow) -> Self {
         Self {
             executor: executor,
             flow: flow,
@@ -33,7 +33,7 @@ impl ExecutionContext {
 }
 
 pub trait Executor {
-    fn run<S, U>(&mut self, flow: AbstractFlow, scheduler: S, node_updater: U) -> Result<()>
+    fn run<S, U>(&mut self, flow: Flow, scheduler: S, node_updater: U) -> Result<()>
     where
         S: Scheduler + std::marker::Send;
 }
@@ -67,7 +67,7 @@ impl StandardExecutor {
     /// **Creates Execution Nodes for each local node in the flow.**
     pub async fn initialize_nodes(
         &mut self,
-        abstract_flow: Arc<Mutex<AbstractFlow>>,
+        abstract_flow: Arc<Mutex<Flow>>,
         execution_config: &ExecutionConfig,
     ) -> Result<(), ExecutionError> {
         tracing::info!("[Executor] Initializing local nodes...");

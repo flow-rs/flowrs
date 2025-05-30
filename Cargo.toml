@@ -20,6 +20,7 @@ flowrs-package = { git = "https://github.com/flow-rs/flowrs-package", branch = "
 
 serde = { version = "1.0.184", features = ["derive", "rc"] }
 serde_json = "1.0.100"
+serde_yaml = "0.9"
 thiserror = "1.0.44"
 anyhow = "1.0"
 crossbeam-channel = "0.5.8"

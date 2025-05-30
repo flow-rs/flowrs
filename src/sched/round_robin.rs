@@ -1,40 +1,42 @@
-// use web_time::Instant;
+use crate::flow::flow::Flow;
 
-// use crate::scheduler::{Scheduler, SchedulingInfo};
+use super::{
+    infrastructure_config::InfrastructureConfig, scheduler::Scheduler,
+    scheduling_config::SchedulingConfig,
+};
 
-// pub struct RoundRobinScheduler {
-//     cur_node_idx: usize,
-//     last_restart: Instant
-// }
+pub struct RoundRobinScheduler {
+    infra: InfrastructureConfig,
+}
 
-// impl RoundRobinScheduler {
-//     pub fn new() -> Self {
-//         Self {
-//             cur_node_idx: 0,
-//             last_restart: Instant::now()
-//         }
-//     }
-// }
+impl Scheduler for RoundRobinScheduler {
+    fn new(infra: InfrastructureConfig) -> Self {
+        RoundRobinScheduler { infra }
+    }
 
-// impl Scheduler for RoundRobinScheduler {
-//     fn get_next_node_idx(&mut self) -> usize {
-//         self.cur_node_idx += 1;
+    fn schedule(&self, flow: &Flow) -> SchedulingConfig {
+        let mut config = SchedulingConfig::new();
 
-//         return self.cur_node_idx - 1;
-//     }
+        // Get all runtime IDs excluding the orchestrator (id 0)
+        let mut runtime_ids: Vec<_> = self
+            .infra
+            .machines
+            .iter()
+            .filter(|m| m.runtime_id != 0)
+            .map(|m| m.runtime_id)
+            .collect();
 
-//     fn epoch_is_over(&self, info: &mut SchedulingInfo) -> bool {
-//         if self.cur_node_idx >= info.num_nodes {
-//             info.epoch_duration = self.last_restart.elapsed();
-//             true
-//         }
-//         else {
-//             false
-//         }
-//     }
+        runtime_ids.sort(); // Ensure stable ordering
 
-//     fn restart_epoch(&mut self, _info: &mut SchedulingInfo) {
-//         self.cur_node_idx = 0;
-//         self.last_restart = Instant::now();
-//     }
-// }
+        let mut index = 0;
+        let node_ids: Vec<_> = flow.get_nodes().map(|(id, _)| *id).collect();
+
+        for node_id in node_ids {
+            let runtime_id = runtime_ids[index % runtime_ids.len()];
+            config.assign_node(runtime_id, node_id);
+            index += 1;
+        }
+
+        config
+    }
+}

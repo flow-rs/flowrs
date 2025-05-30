@@ -109,7 +109,7 @@ impl<T: 'static + Send + Sync + Debug + FromStr> CommunicatorBox for NetworkComm
 }
 
 pub struct TypeRegistry {
-    connections: HashMap<TypeId, ConnectionFn>,
+    local_connections: HashMap<TypeId, ConnectionFn>,
     communicator_factories: HashMap<TypeId, CommunicatorFactory>,
     pub name_to_id: HashMap<String, TypeId>,
     input_setters: HashMap<TypeId, InputSetterFn>,
@@ -119,7 +119,7 @@ pub struct TypeRegistry {
 impl TypeRegistry {
     pub fn new() -> Self {
         Self {
-            connections: HashMap::new(),
+            local_connections: HashMap::new(),
             communicator_factories: HashMap::new(),
             name_to_id: HashMap::new(),
             input_setters: HashMap::new(),
@@ -131,7 +131,7 @@ impl TypeRegistry {
     /// Register a type with its connection function
     pub fn register<T: 'static>(&mut self, func: ConnectionFn) {
         let type_id = TypeId::of::<T>();
-        self.connections.insert(type_id, func);
+        self.local_connections.insert(type_id, func);
         tracing::debug!(
             "[DEBUG] Registered connection function for type {:?}",
             type_id
@@ -140,7 +140,7 @@ impl TypeRegistry {
 
     /// Get the connection function based on type ID
     pub fn get(&self, type_id: TypeId) -> Option<&ConnectionFn> {
-        self.connections.get(&type_id)
+        self.local_connections.get(&type_id)
     }
 
     #[cfg(not(target_arch = "wasm32"))]

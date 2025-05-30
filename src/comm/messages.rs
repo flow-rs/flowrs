@@ -4,7 +4,7 @@ use std::any::TypeId;
 use std::{error::Error, fmt, str::FromStr};
 
 use crate::flow::flow_types::{NodeIOIndex, NodeId};
-use crate::sched::scheduling_config::RuntimeId;
+use crate::sched::scheduling_types::RuntimeId;
 
 use super::{
     communication::{CommWrapper, NodeCommunicator},

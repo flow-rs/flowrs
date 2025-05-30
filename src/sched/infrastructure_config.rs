@@ -3,6 +3,8 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
 
+use super::scheduling_types::RuntimeId;
+
 #[derive(Debug, Deserialize)]
 pub struct InfrastructureConfig {
     pub machines: Vec<MachineConfig>,
@@ -11,7 +13,7 @@ pub struct InfrastructureConfig {
 #[derive(Debug, Deserialize)]
 pub struct MachineConfig {
     pub ip: String,
-    pub runtime_id: u128,
+    pub runtime_id: RuntimeId,
     pub capabilities: Vec<String>,
 }
 
@@ -24,7 +26,7 @@ impl InfrastructureConfig {
     }
 
     /// Returns a MachineConfig by the given runtime ID
-    pub fn get_machine_by_runtime_id(&self, id: u128) -> Option<&MachineConfig> {
+    pub fn get_machine_by_runtime_id(&self, id: RuntimeId) -> Option<&MachineConfig> {
         self.machines.iter().find(|m| m.runtime_id == id)
     }
 

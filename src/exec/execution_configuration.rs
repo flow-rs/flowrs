@@ -1,6 +1,6 @@
 use crate::{
     flow::flow_types::NodeId,
-    sched::scheduling_config::{RuntimeId, SchedulingConfig},
+    sched::{scheduling_config::SchedulingConfig, scheduling_types::RuntimeId},
 };
 use std::collections::HashMap;
 use thiserror::Error;

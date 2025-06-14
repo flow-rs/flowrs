@@ -32,10 +32,10 @@ use crate::{
 // use async_wasm_task::yield_now;
 
 pub struct ExecutionNode {
-    execution_mode: ExecutionMode,
-    execution_state: ExecutionState,
     pub node: Box<dyn Node>,
     node_id: NodeId,
+    execution_mode: ExecutionMode,
+    execution_state: ExecutionState,
     control_edge: Edge<String>,
     input_type_ids: HashMap<NodeIOIndex, TypeId>,
     output_type_ids: HashMap<NodeIOIndex, TypeId>,

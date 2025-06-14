@@ -362,81 +362,81 @@ where
     }
 }
 
-pub trait SetupInputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
-    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
-}
+// pub trait SetupInputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
+// }
 
-pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
-    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
-}
+// pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
+// }
 
-impl<T> SetupInputCommunicator<T> for TypedInput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_input_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        self.input.get_communicator_mut()
-    }
-}
+// impl<T> SetupInputCommunicator<T> for TypedInput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_input_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         self.input.get_communicator_mut()
+//     }
+// }
 
-impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-    Rest: SetupInputCommunicator<T>,
-{
-    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        if idx == 0 {
-            self.0.get_input_communicator(idx)
-        } else {
-            self.1.get_input_communicator(idx - 1)
-        }
-    }
-}
+// impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+//     Rest: SetupInputCommunicator<T>,
+// {
+//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         if idx == 0 {
+//             self.0.get_input_communicator(idx)
+//         } else {
+//             self.1.get_input_communicator(idx - 1)
+//         }
+//     }
+// }
 
-impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_output_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        self.output.get_communicator_mut()
-    }
-}
+// impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_output_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         self.output.get_communicator_mut()
+//     }
+// }
 
-impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-    Rest: SetupOutputCommunicator<T>,
-{
-    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        if idx == 0 {
-            self.0.get_output_communicator(idx)
-        } else {
-            self.1.get_output_communicator(idx - 1)
-        }
-    }
-}
+// impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+//     Rest: SetupOutputCommunicator<T>,
+// {
+//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         if idx == 0 {
+//             self.0.get_output_communicator(idx)
+//         } else {
+//             self.1.get_output_communicator(idx - 1)
+//         }
+//     }
+// }
 
-impl<I, O, T> SetupInputCommunicator<T> for NodeIO<I, O>
-where
-    I: SetupInputsSync + SetupInputs + SetupInputCommunicator<T>,
-    O: SetupOutputsSync + SetupOutputs,
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        self.inputs.get_input_communicator(idx)
-    }
-}
+// impl<I, O, T> SetupInputCommunicator<T> for NodeIO<I, O>
+// where
+//     I: SetupInputsSync + SetupInputs + SetupInputCommunicator<T>,
+//     O: SetupOutputsSync + SetupOutputs,
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         self.inputs.get_input_communicator(idx)
+//     }
+// }
 
-impl<I, O, T> SetupOutputCommunicator<T> for NodeIO<I, O>
-where
-    I: SetupInputsSync + SetupInputs,
-    O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator<T>,
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-        self.outputs.get_output_communicator(idx)
-    }
-}
+// impl<I, O, T> SetupOutputCommunicator<T> for NodeIO<I, O>
+// where
+//     I: SetupInputsSync + SetupInputs,
+//     O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator<T>,
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+//         self.outputs.get_output_communicator(idx)
+//     }
+// }
 
 //===========================================================ASANY==========================================
 
@@ -714,83 +714,83 @@ where
     pub output: Output<O>,
 }
 
-pub trait SplittableCommunicator: Send + Sync + AsAny {
-    fn split(
-        &mut self,
-        idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>);
-}
+// pub trait SplittableCommunicator: Send + Sync + AsAny {
+//     fn split(
+//         &mut self,
+//         idx: NodeIOIndex,
+//     ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>);
+// }
 
-impl<T> SplittableCommunicator for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn split(
-        &mut self,
-        _idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-        let comm = self
-            .output
-            .get_communicator_mut()
-            .expect("Expected ThreadCommunicator for split");
+// impl<T> SplittableCommunicator for TypedOutput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn split(
+//         &mut self,
+//         _idx: NodeIOIndex,
+//     ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
+//         let comm = self
+//             .output
+//             .get_communicator_mut()
+//             .expect("Expected ThreadCommunicator for split");
 
-        let send_half = comm.clone_send();
-        let recv_half = comm
-            .move_recv()
-            .expect("Failed to move receiver half from communicator");
+//         let send_half = comm.clone_send();
+//         let recv_half = comm
+//             .move_recv()
+//             .expect("Failed to move receiver half from communicator");
 
-        let sender_output = Output::from_communicator(send_half);
-        let receiver_output = Output::from_communicator(recv_half);
+//         let sender_output = Output::from_communicator(send_half);
+//         let receiver_output = Output::from_communicator(recv_half);
 
-        (
-            Box::new(TypedOutput {
-                output: sender_output,
-            }),
-            Box::new(TypedOutput {
-                output: receiver_output,
-            }),
-        )
-    }
-}
+//         (
+//             Box::new(TypedOutput {
+//                 output: sender_output,
+//             }),
+//             Box::new(TypedOutput {
+//                 output: receiver_output,
+//             }),
+//         )
+//     }
+// }
 
-impl<T> SplittableCommunicator for TypedInput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn split(
-        &mut self,
-        _idx: NodeIOIndex,
-    ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
-        if let Some(existing_comm) = self.input.get_communicator_mut() {
-            let send_half = existing_comm.clone_send();
-            let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
+// impl<T> SplittableCommunicator for TypedInput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn split(
+//         &mut self,
+//         _idx: NodeIOIndex,
+//     ) -> (Box<dyn SettableCommunicator>, Box<dyn SettableCommunicator>) {
+//         if let Some(existing_comm) = self.input.get_communicator_mut() {
+//             let send_half = existing_comm.clone_send();
+//             let recv_half = existing_comm.move_recv().expect("Failed to move receiver");
 
-            (
-                Box::new(TypedOutput::from_communicator(send_half))
-                    as Box<dyn SettableCommunicator>,
-                Box::new(TypedOutput::from_communicator(recv_half))
-                    as Box<dyn SettableCommunicator>,
-            )
-        } else {
-            panic!("No communicator to split!");
-        }
-    }
-}
+//             (
+//                 Box::new(TypedOutput::from_communicator(send_half))
+//                     as Box<dyn SettableCommunicator>,
+//                 Box::new(TypedOutput::from_communicator(recv_half))
+//                     as Box<dyn SettableCommunicator>,
+//             )
+//         } else {
+//             panic!("No communicator to split!");
+//         }
+//     }
+// }
 
-pub trait CommunicatorGetter {
-    fn get_splittable(&mut self) -> Option<&mut dyn Splittable>;
-}
+// pub trait CommunicatorGetter {
+//     fn get_splittable(&mut self) -> Option<&mut dyn Splittable>;
+// }
 
-impl<T> CommunicatorGetter for TypedOutput<T>
-where
-    T: 'static + Send + Sync + Debug + FromStr + Clone,
-{
-    fn get_splittable(&mut self) -> Option<&mut dyn Splittable> {
-        self.output
-            .get_communicator_mut()
-            .map(|comm| comm as &mut dyn Splittable)
-    }
-}
+// impl<T> CommunicatorGetter for TypedOutput<T>
+// where
+//     T: 'static + Send + Sync + Debug + FromStr + Clone,
+// {
+//     fn get_splittable(&mut self) -> Option<&mut dyn Splittable> {
+//         self.output
+//             .get_communicator_mut()
+//             .map(|comm| comm as &mut dyn Splittable)
+//     }
+// }
 
 pub trait SettableCommunicator: Send + Sync + AsAny {
     fn set_any_communicator(&mut self, communicator: Box<dyn Any + Send>);

@@ -362,81 +362,81 @@ where
     }
 }
 
-// pub trait SetupInputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
-//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
-// }
+pub trait SetupInputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
+}
 
-// pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
-//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
-// }
+pub trait SetupOutputCommunicator<T: 'static + Send + Sync + Debug + FromStr + Clone> {
+    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>>;
+}
 
-// impl<T> SetupInputCommunicator<T> for TypedInput<T>
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_input_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         self.input.get_communicator_mut()
-//     }
-// }
+impl<T> SetupInputCommunicator<T> for TypedInput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_input_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        self.input.get_communicator_mut()
+    }
+}
 
-// impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-//     Rest: SetupInputCommunicator<T>,
-// {
-//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         if idx == 0 {
-//             self.0.get_input_communicator(idx)
-//         } else {
-//             self.1.get_input_communicator(idx - 1)
-//         }
-//     }
-// }
+impl<T, Rest> SetupInputCommunicator<T> for (TypedInput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: SetupInputCommunicator<T>,
+{
+    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        if idx == 0 {
+            self.0.get_input_communicator(idx)
+        } else {
+            self.1.get_input_communicator(idx - 1)
+        }
+    }
+}
 
-// impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_output_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         self.output.get_communicator_mut()
-//     }
-// }
+impl<T> SetupOutputCommunicator<T> for TypedOutput<T>
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_output_communicator(&mut self, _idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        self.output.get_communicator_mut()
+    }
+}
 
-// impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
-// where
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-//     Rest: SetupOutputCommunicator<T>,
-// {
-//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         if idx == 0 {
-//             self.0.get_output_communicator(idx)
-//         } else {
-//             self.1.get_output_communicator(idx - 1)
-//         }
-//     }
-// }
+impl<T, Rest> SetupOutputCommunicator<T> for (TypedOutput<T>, Rest)
+where
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+    Rest: SetupOutputCommunicator<T>,
+{
+    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        if idx == 0 {
+            self.0.get_output_communicator(idx)
+        } else {
+            self.1.get_output_communicator(idx - 1)
+        }
+    }
+}
 
-// impl<I, O, T> SetupInputCommunicator<T> for NodeIO<I, O>
-// where
-//     I: SetupInputsSync + SetupInputs + SetupInputCommunicator<T>,
-//     O: SetupOutputsSync + SetupOutputs,
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         self.inputs.get_input_communicator(idx)
-//     }
-// }
+impl<I, O, T> SetupInputCommunicator<T> for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs + SetupInputCommunicator<T>,
+    O: SetupOutputsSync + SetupOutputs,
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_input_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        self.inputs.get_input_communicator(idx)
+    }
+}
 
-// impl<I, O, T> SetupOutputCommunicator<T> for NodeIO<I, O>
-// where
-//     I: SetupInputsSync + SetupInputs,
-//     O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator<T>,
-//     T: 'static + Send + Sync + Debug + FromStr + Clone,
-// {
-//     fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
-//         self.outputs.get_output_communicator(idx)
-//     }
-// }
+impl<I, O, T> SetupOutputCommunicator<T> for NodeIO<I, O>
+where
+    I: SetupInputsSync + SetupInputs,
+    O: SetupOutputsSync + SetupOutputs + SetupOutputCommunicator<T>,
+    T: 'static + Send + Sync + Debug + FromStr + Clone,
+{
+    fn get_output_communicator(&mut self, idx: NodeIOIndex) -> Option<&mut ThreadCommunicator<T>> {
+        self.outputs.get_output_communicator(idx)
+    }
+}
 
 //===========================================================ASANY==========================================
 
